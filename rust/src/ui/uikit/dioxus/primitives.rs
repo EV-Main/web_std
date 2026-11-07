@@ -46,7 +46,7 @@ impl From<&KeyboardEvent> for KeyInput {
 			shift: m.shift(),
 			repeat: e.is_auto_repeating(),
 			composing: e.is_composing(),
-			editable: false, // no event path off the web renderer; only a page keymap reads it, and that listens through web_sys
+			editable: None,
 		}
 	}
 }

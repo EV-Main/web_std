@@ -63,7 +63,7 @@ impl From<&str> for KeyInput {
 			shift: false,
 			repeat: false,
 			composing: false,
-			editable: false,
+			editable: Some(false),
 		}
 	}
 }

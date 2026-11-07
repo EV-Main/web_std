@@ -97,7 +97,8 @@ pub struct KeyInput {
 	/// An IME composition is under way: the key belongs to it.
 	pub composing: bool,
 	/// The event's innermost target takes text, so its undo and typing belong to the browser.
-	pub editable: bool,
+	/// `None` where the renderer has no DOM event path to tell (non-web Dioxus).
+	pub editable: Option<bool>,
 }
 
 #[cfg(all(target_arch = "wasm32", any(feature = "wasm", feature = "uikit_leptos")))]
@@ -119,7 +120,7 @@ impl From<&web_sys::KeyboardEvent> for KeyInput {
 			shift: e.shift_key(),
 			repeat: e.repeat(),
 			composing: e.is_composing(),
-			editable,
+			editable: Some(editable),
 		}
 	}
 }
@@ -261,7 +262,7 @@ impl<C: Clone + Display> Trie<C> {
 	/// pressed inside another (a key-repeating leader) restarts at that scope instead.
 	pub fn key(&mut self, k: &KeyInput) -> Step<C> {
 		let open = !self.pending.is_empty();
-		if k.editable || k.composing {
+		if k.editable.expect("a page keymap listens on a browser window, whose keydowns know their target") || k.composing {
 			self.pending.clear();
 			return Step::Pass { cancelled: open };
 		}

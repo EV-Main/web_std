@@ -33,3 +33,4 @@ window.addEventListener("keydown", e => {
 | `Step::Run { command, .. }`    | `{ kind: "run", command, sequence }`        |
 | `Option<Hint>`                 | `Hint \| undefined`                          |
 | a panic on a bad keymap        | a thrown `Error`                            |
+| `editable: Option<bool>`       | `editable: boolean` — only a DOM event reaches it; Rust's `None` is a non-web Dioxus renderer, which can't tell |

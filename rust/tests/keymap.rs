@@ -74,11 +74,11 @@ fn input(v: &Value) -> KeyInput {
 			shift: flag(v, "shift"),
 			repeat: flag(v, "repeat"),
 			composing: flag(v, "composing"),
-			editable: flag(v, "editable"),
+			editable: Some(flag(v, "editable")),
 		};
 	}
 	let tok = v.as_str().expect("a keydown is a token or an object");
-	let (editable, tok) = tok.strip_prefix('!').map_or((false, tok), |t| (true, t));
+	let (editable, tok) = tok.strip_prefix('!').map_or((Some(false), tok), |t| (Some(true), t));
 	let mut parts: Vec<&str> = tok.split('+').collect();
 	let key = parts.pop().expect("split yields at least one part");
 	let has = |m: &str| parts.contains(&m);
