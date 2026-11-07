@@ -14,7 +14,8 @@ ts/
 ├── settings/          port of the `settings` Cargo feature (typed env settings)
 ├── marketing/         landing-page layer over uikit: motion, form harness, click-to-load
 ├── figma-render/      a Playwright suite's pages into Figma frames (the `@figma` suite + its bin)
-└── i18n/              five-locale i18n: registry, URL contract, ICU-subset formatter
+├── i18n/              five-locale i18n: registry, URL contract, ICU-subset formatter
+└── keymap/            port of the `keymap` Cargo feature (scoped keybinds, which key a keydown is)
 ```
 
 Each package mirrors the _semantics_ of its Rust counterpart in
@@ -36,7 +37,8 @@ _As of 2026-11-06._
 (`Side`, `Orientation`, `MenuItemVariant`, …), Labels default, line of fixed
 copy, timing and icon shape; elsewhere the i18n locales and `RejectionReason`,
 `ExperimentSpec` and its hash constants, the settings presets, the mfe
-`MfeKind`/`MfeManifest` contract, and the analytics host and `$lib` marker.
+`MfeKind`/`MfeManifest` contract, the analytics host and `$lib` marker, and the
+keymap's `Hint`/`HelpRow`/`Platform`.
 The rest is hand-written for one of four reasons:
 
 - **A** — logic, not data: `ts_gen` cannot emit a function
@@ -68,6 +70,8 @@ The rest is hand-written for one of four reasons:
                      sink / consent                                         A
                      posthog, react, next                                   B
  error-monitoring 0.6k  Sentry / React / Next wiring                        B
+ keymap        0.2k  trie, normalization, rendering                         D  fixtures/keymap
+                     Chord/Trigger/Binding (optional modifiers, TS-idiomatic) A
  marketing     1.8k  motion, form harness, react                            C
  figma-render  0.5k  @figma suite, settle, bin: a Figma MCP client          C
 ```

@@ -10,27 +10,3 @@ pub struct HeaderNotification {
 	pub time: Option<String>,
 	pub unread: bool,
 }
-
-/// The TS `APPLE` test: Mac, iPhone, iPad and iPod name their platform so.
-#[cfg(any(test, all(target_arch = "wasm32", feature = "wasm")))]
-pub(crate) fn platform_shortcut(platform: &str) -> &'static str {
-	if ["Mac", "iPhone", "iPad", "iPod"].iter().any(|p| platform.contains(p)) {
-		ev_lib_classes::copy::COMMAND_K
-	} else {
-		ev_lib_classes::copy::CTRL_K
-	}
-}
-
-#[cfg(test)]
-mod tests {
-	use super::*;
-
-	#[test]
-	fn apple_platforms_get_the_command_key() {
-		assert_eq!(platform_shortcut("MacIntel"), "⌘K");
-		assert_eq!(platform_shortcut("iPhone"), "⌘K");
-		assert_eq!(platform_shortcut("Win32"), "Ctrl K");
-		assert_eq!(platform_shortcut("Linux x86_64"), "Ctrl K");
-		assert_eq!(platform_shortcut(""), "Ctrl K");
-	}
-}

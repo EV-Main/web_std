@@ -17,6 +17,9 @@
 //! - **`uikit_dioxus`** / **`uikit_leptos`** — the dep-light UI kit (mirrors
 //!   `@evinvest/uikit`), one port per renderer over one framework-free core; both
 //!   render the same HTML. See [`uikit_dioxus`] and [`uikit_leptos`].
+//! - **`keymap`** — scoped keybinds (mirrors `@evinvest/keymap`): a root the
+//!   page claims, scopes a root chord opens (a leader), which-key hint and help
+//!   data, and which key a keydown is across layouts. No deps. See [`keymap`].
 //! - **`analytics`** — PostHog product analytics (mirrors `@evinvest/analytics`):
 //!   native async capture over `reqwest`; pure-Rust fetch on the Dioxus/wasm
 //!   frontend. Does network I/O — opt-in, not the kernel. See [`analytics`].
@@ -88,6 +91,8 @@ pub use product::analytics;
 pub use product::experiments;
 #[cfg(any(feature = "mfe", feature = "ts_gen"))]
 pub use ui::active::mfe;
+#[cfg(feature = "keymap")]
+pub use ui::keymap;
 #[cfg(feature = "uikit_dioxus")]
 pub use ui::uikit::dioxus as uikit_dioxus;
 #[cfg(feature = "uikit_leptos")]

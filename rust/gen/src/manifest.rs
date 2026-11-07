@@ -16,6 +16,7 @@ pub fn uikit() -> Vec<(&'static str, Vec<Ts>)> {
 		("icons", vec![union::<Icon>("ICON_NAMES", "IconName"), icons()]),
 		("footer", vec![Ts::types::<(FooterLinkGroup, FooterLink, FooterOffice)>()]),
 		("popover-form", vec![labels::<PopoverFormLabels>("POPOVER_FORM_LABELS")]),
+		("key-help", vec![labels::<KeyHelpLabels>("KEY_HELP_LABELS")]),
 		("key-value", vec![labels::<KeyValueLabels>("KEY_VALUE_LABELS")]),
 		("date-time-picker", vec![labels::<DateTimePickerLabels>("DATE_TIME_PICKER_LABELS")]),
 		("command-palette", vec![labels::<CommandPaletteLabels>("COMMAND_PALETTE_LABELS")]),
@@ -173,6 +174,7 @@ pub fn shared() -> Vec<(&'static str, &'static str, Vec<Ts>)> {
 		("settings", "contract", settings()),
 		("analytics", "host", analytics()),
 		("mfe", "manifest", mfe()),
+		("keymap", "view", keymap()),
 	]
 }
 
@@ -343,6 +345,11 @@ fn analytics() -> Vec<Ts> {
 			value: ev_lib::analytics::LIB_MARKER,
 		},
 	]
+}
+
+fn keymap() -> Vec<Ts> {
+	use ev_lib::keymap::{HelpRow, Hint, Platform};
+	vec![union::<Platform>("PLATFORMS", "Platform"), Ts::types::<(Hint, HelpRow)>()]
 }
 
 fn mfe() -> Vec<Ts> {

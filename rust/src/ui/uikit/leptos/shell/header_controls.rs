@@ -4,12 +4,18 @@ use leptos::prelude::*;
 pub use crate::ui::uikit::core::HeaderNotification;
 use crate::{
 	cn,
-	ui::uikit::leptos::{
-		HEADER_BALANCE_BASE, HEADER_BALANCE_CHEVRON, HEADER_BALANCE_FIGURE, HEADER_BALANCE_INTERACTIVE, HEADER_BALANCE_LABEL, HEADER_BALANCE_SKELETON, HEADER_SEARCH_BASE,
-		HEADER_SEARCH_PLACEHOLDER, ICON_BUTTON_BASE, IconButtonVariant, Kbd, NOTIFICATION_BELL_CONTENT, NOTIFICATION_BELL_EMPTY, NOTIFICATION_BELL_FOOTER, NOTIFICATION_BELL_ITEM,
-		NOTIFICATION_BELL_ITEM_BODY, NOTIFICATION_BELL_ITEM_DESCRIPTION, NOTIFICATION_BELL_ITEM_DOT, NOTIFICATION_BELL_ITEM_DOT_READ, NOTIFICATION_BELL_ITEM_DOT_UNREAD,
-		NOTIFICATION_BELL_ITEM_TIME, NOTIFICATION_BELL_ITEM_TITLE, NOTIFICATION_BELL_ITEM_TITLE_UNREAD, NOTIFICATION_BELL_LIST, NOTIFICATION_BELL_TRIGGER, NOTIFICATION_DOT, Popover,
-		PopoverContent, PopoverTrigger, Size, Skeleton, Slot, Tone, button_classes, icon_button::Glyph, icon_button_size_class, primitives::icon_shapes,
+	ui::{
+		keymap::Platform,
+		uikit::{
+			core::COMMAND_PALETTE,
+			leptos::{
+				HEADER_BALANCE_BASE, HEADER_BALANCE_CHEVRON, HEADER_BALANCE_FIGURE, HEADER_BALANCE_INTERACTIVE, HEADER_BALANCE_LABEL, HEADER_BALANCE_SKELETON, HEADER_SEARCH_BASE,
+				HEADER_SEARCH_PLACEHOLDER, ICON_BUTTON_BASE, IconButtonVariant, Kbd, NOTIFICATION_BELL_CONTENT, NOTIFICATION_BELL_EMPTY, NOTIFICATION_BELL_FOOTER, NOTIFICATION_BELL_ITEM,
+				NOTIFICATION_BELL_ITEM_BODY, NOTIFICATION_BELL_ITEM_DESCRIPTION, NOTIFICATION_BELL_ITEM_DOT, NOTIFICATION_BELL_ITEM_DOT_READ, NOTIFICATION_BELL_ITEM_DOT_UNREAD,
+				NOTIFICATION_BELL_ITEM_TIME, NOTIFICATION_BELL_ITEM_TITLE, NOTIFICATION_BELL_ITEM_TITLE_UNREAD, NOTIFICATION_BELL_LIST, NOTIFICATION_BELL_TRIGGER, NOTIFICATION_DOT, Popover,
+				PopoverContent, PopoverTrigger, Size, Skeleton, Slot, Tone, button_classes, icon_button::Glyph, icon_button_size_class, primitives::icon_shapes,
+			},
+		},
 	},
 };
 
@@ -196,27 +202,27 @@ pub fn NotificationBell(
 /// A button dressed as the search field; it opens the palette rather than
 /// taking input. Mirrors the TS `HeaderSearch`.
 ///
-/// The hint reads "Ctrl K" on the server and on the first client render, so
+/// The hint reads "Ctrl+K" on the server and on the first client render, so
 /// the two agree; on Apple platforms the `wasm` build then switches it to "⌘K".
 #[component]
 pub fn HeaderSearch(
 	/// The field text; "Search or jump to…".
 	#[prop(optional, into)]
 	placeholder: Option<String>,
-	/// The shortcut hint at the end. Default: "⌘K" on Apple platforms, "Ctrl K"
+	/// The shortcut hint at the end. Default: "⌘K" on Apple platforms, "Ctrl+K"
 	/// elsewhere.
 	#[prop(optional, into)]
 	shortcut: Option<String>,
 	#[prop(optional)] on_click: Option<Callback<leptos::ev::MouseEvent>>,
 	#[prop(optional, into)] class: String,
 ) -> impl IntoView {
-	let platform = RwSignal::new(copy::CTRL_K);
+	let platform = RwSignal::new(Platform::Other);
 	// Read after mount, so the server render and the first client render agree.
 	#[cfg(all(target_arch = "wasm32", feature = "wasm"))]
-	Effect::new(move |_| platform.set(crate::ui::uikit::host::platform_shortcut()));
+	Effect::new(move |_| platform.set(Platform::current()));
 	let cls = cn!(HEADER_SEARCH_BASE, class);
 	let placeholder = placeholder.unwrap_or_else(|| copy::HEADER_SEARCH.to_owned());
-	let hint = move || shortcut.clone().unwrap_or_else(|| String::from(platform.get()));
+	let hint = move || shortcut.clone().unwrap_or_else(|| COMMAND_PALETTE.render(platform.get()));
 	view! {
 		<button
 			type="button"

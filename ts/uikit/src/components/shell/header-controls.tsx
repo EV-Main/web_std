@@ -1,5 +1,6 @@
 "use client";
 
+import { render } from "@evinvest/keymap";
 import * as React from "react";
 import { cn } from "../../lib/cn";
 import {
@@ -30,9 +31,11 @@ import {
 } from "../../generated/header-controls";
 import { toneClasses, type Tone } from "../../generated/tone";
 import { AnimatedNumber } from "../derived/animated-number";
+import { COMMAND_PALETTE } from "../derived/command-palette";
 import { IconButton } from "../derived/icon-button";
 import { Kbd } from "../atomic/kbd";
 import { Popover, PopoverContent, PopoverTrigger } from "../atomic/popover";
+import { usePlatform } from "./keymap";
 import { Settled } from "./settled";
 import { Skeleton } from "../atomic/skeleton";
 import { UiIcon } from "../../icons/ui-icons";
@@ -184,20 +187,8 @@ export function NotificationBell({ notifications, onSelect, labels = {}, footer,
 
 export interface HeaderSearchProps extends React.ComponentProps<"button"> {
   placeholder?: string;
-  /** The shortcut hint at the end. Default: `⌘K` on Apple platforms, `Ctrl K` elsewhere. */
+  /** The shortcut hint at the end. Default: `COMMAND_PALETTE` as the platform's keycaps read. */
   shortcut?: string;
-}
-
-const APPLE = /Mac|iPhone|iPad|iPod/;
-
-/** Whether ⌘ is the modifier: read after mount, so the server render and the first client render agree. */
-export function useAppleKeys(): boolean {
-  const [apple, setApple] = React.useState(false);
-  React.useEffect(() => {
-    const nav = navigator as Navigator & { userAgentData?: { platform?: string } };
-    setApple(APPLE.test(nav.userAgentData?.platform ?? nav.platform ?? ""));
-  }, []);
-  return apple;
 }
 
 /** A button dressed as the search field; it opens the palette rather than taking input. */
@@ -207,7 +198,7 @@ export function HeaderSearch({
   className,
   ...props
 }: HeaderSearchProps) {
-  const platformShortcut = useAppleKeys() ? copy.COMMAND_K : copy.CTRL_K;
+  const platformShortcut = render(COMMAND_PALETTE, usePlatform());
   return (
     <button
       type="button"

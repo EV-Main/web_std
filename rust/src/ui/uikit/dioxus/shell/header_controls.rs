@@ -4,12 +4,18 @@ use ev_lib_classes::{Icon, copy};
 pub use crate::ui::uikit::core::HeaderNotification;
 use crate::{
 	cn,
-	ui::uikit::dioxus::{
-		HEADER_BALANCE_BASE, HEADER_BALANCE_CHEVRON, HEADER_BALANCE_FIGURE, HEADER_BALANCE_INTERACTIVE, HEADER_BALANCE_LABEL, HEADER_BALANCE_SKELETON, HEADER_SEARCH_BASE,
-		HEADER_SEARCH_PLACEHOLDER, ICON_BUTTON_BASE, IconButtonVariant, Kbd, NOTIFICATION_BELL_CONTENT, NOTIFICATION_BELL_EMPTY, NOTIFICATION_BELL_FOOTER, NOTIFICATION_BELL_ITEM,
-		NOTIFICATION_BELL_ITEM_BODY, NOTIFICATION_BELL_ITEM_DESCRIPTION, NOTIFICATION_BELL_ITEM_DOT, NOTIFICATION_BELL_ITEM_DOT_READ, NOTIFICATION_BELL_ITEM_DOT_UNREAD,
-		NOTIFICATION_BELL_ITEM_TIME, NOTIFICATION_BELL_ITEM_TITLE, NOTIFICATION_BELL_ITEM_TITLE_UNREAD, NOTIFICATION_BELL_LIST, NOTIFICATION_BELL_TRIGGER, NOTIFICATION_DOT, Popover,
-		PopoverContent, PopoverTrigger, Size, Skeleton, Slot, Tone, button_classes, icon_button_size_class, primitives::icon_shapes,
+	ui::{
+		keymap::Platform,
+		uikit::{
+			core::COMMAND_PALETTE,
+			dioxus::{
+				HEADER_BALANCE_BASE, HEADER_BALANCE_CHEVRON, HEADER_BALANCE_FIGURE, HEADER_BALANCE_INTERACTIVE, HEADER_BALANCE_LABEL, HEADER_BALANCE_SKELETON, HEADER_SEARCH_BASE,
+				HEADER_SEARCH_PLACEHOLDER, ICON_BUTTON_BASE, IconButtonVariant, Kbd, NOTIFICATION_BELL_CONTENT, NOTIFICATION_BELL_EMPTY, NOTIFICATION_BELL_FOOTER, NOTIFICATION_BELL_ITEM,
+				NOTIFICATION_BELL_ITEM_BODY, NOTIFICATION_BELL_ITEM_DESCRIPTION, NOTIFICATION_BELL_ITEM_DOT, NOTIFICATION_BELL_ITEM_DOT_READ, NOTIFICATION_BELL_ITEM_DOT_UNREAD,
+				NOTIFICATION_BELL_ITEM_TIME, NOTIFICATION_BELL_ITEM_TITLE, NOTIFICATION_BELL_ITEM_TITLE_UNREAD, NOTIFICATION_BELL_LIST, NOTIFICATION_BELL_TRIGGER, NOTIFICATION_DOT, Popover,
+				PopoverContent, PopoverTrigger, Size, Skeleton, Slot, Tone, button_classes, icon_button_size_class, primitives::icon_shapes,
+			},
+		},
 	},
 };
 
@@ -160,22 +166,22 @@ pub fn NotificationBell(
 /// A button dressed as the search field; it opens the palette rather than
 /// taking input. Mirrors the TS `HeaderSearch`.
 ///
-/// The hint reads "Ctrl K" on the server and on the first client render, so
+/// The hint reads "Ctrl+K" on the server and on the first client render, so
 /// the two agree; on Apple platforms the `wasm` build then switches it to "⌘K".
 #[component]
 pub fn HeaderSearch(
 	/// The field text; "Search or jump to…".
 	placeholder: Option<String>,
-	/// The shortcut hint at the end. Default: "⌘K" on Apple platforms, "Ctrl K"
+	/// The shortcut hint at the end. Default: "⌘K" on Apple platforms, "Ctrl+K"
 	/// elsewhere.
 	shortcut: Option<String>,
 	onclick: Option<EventHandler<MouseEvent>>,
 	#[props(default)] class: String,
 ) -> Element {
-	let platform = use_platform_shortcut();
+	let platform = use_platform();
 	let cls = cn!(HEADER_SEARCH_BASE, class);
 	let placeholder = placeholder.unwrap_or_else(|| copy::HEADER_SEARCH.to_owned());
-	let hint = shortcut.unwrap_or_else(|| String::from(platform()));
+	let hint = shortcut.unwrap_or_else(|| COMMAND_PALETTE.render(platform()));
 	rsx! {
 		button {
 			r#type: "button",
@@ -236,19 +242,19 @@ fn NotificationRow(notification: HeaderNotification, on_select: Option<EventHand
 }
 
 /// Read after mount, so the server render and the first client render agree.
-fn use_platform_shortcut() -> Signal<&'static str> {
-	let shortcut = use_signal(|| copy::CTRL_K);
+fn use_platform() -> Signal<Platform> {
+	let platform = use_signal(|| Platform::Other);
 	#[cfg(all(target_arch = "wasm32", feature = "wasm"))]
 	{
-		let mut shortcut = shortcut;
+		let mut platform = platform;
 		use_effect(move || {
-			let next = crate::ui::uikit::host::platform_shortcut();
-			if *shortcut.peek() != next {
-				shortcut.set(next);
+			let next = Platform::current();
+			if *platform.peek() != next {
+				platform.set(next);
 			}
 		});
 	}
-	shortcut
+	platform
 }
 
 /// The TS `UiIcon` frame: a 24-unit lucide glyph drawn in the current ink.
@@ -482,7 +488,7 @@ mod tests {
 		assert!(html.starts_with("<button type=\"button\""), "{html}");
 		assert!(html.contains("Search or jump to…"), "{html}");
 		assert!(html.contains("data-slot=\"kbd\""), "{html}");
-		assert!(html.contains(">Ctrl K</kbd>"), "{html}");
+		assert!(html.contains(">Ctrl+K</kbd>"), "{html}");
 		let clicks = harness.listening("click");
 		assert_eq!(clicks.len(), 1, "{html}");
 		harness.click(clicks[0]);
@@ -499,6 +505,6 @@ mod tests {
 		assert!(text.contains("truncate"), "{text}");
 		assert!(text.contains("min-w-0"), "{text}");
 		assert!(html.contains(">/</kbd>"), "{html}");
-		assert!(!html.contains("Ctrl K"), "{html}");
+		assert!(!html.contains("Ctrl+K"), "{html}");
 	}
 }

@@ -1,3 +1,4 @@
+import { KeymapProvider } from "@evinvest/uikit";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { Gallery } from "./gallery/Gallery";
@@ -10,6 +11,8 @@ if (root === null) throw new Error("index.html has no #root");
 
 createRoot(root).render(
   <StrictMode>
-    <Gallery />
+    <KeymapProvider leader={{ key: "s", alt: true }}>
+      <Gallery />
+    </KeymapProvider>
   </StrictMode>,
 );

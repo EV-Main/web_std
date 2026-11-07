@@ -93,6 +93,8 @@ pub use input_group::{InputGroup, InputGroupAddon, InputGroupButton, InputGroupI
 pub use input_otp::{InputOTP, InputOTPGroup, InputOTPSeparator, InputOTPSlot};
 pub use item::{Item, ItemActions, ItemContent, ItemDescription, ItemFooter, ItemGroup, ItemHeader, ItemMedia, ItemSeparator, ItemTitle};
 pub use kbd::{Kbd, KbdGroup};
+pub use key_help::{KeyHelp, KeyHelpLabels};
+pub use key_hint::KeyHint;
 pub use key_value::{KeyValue, KeyValueLabel, KeyValueLabels};
 pub use label::Label;
 pub use logo::Logo;

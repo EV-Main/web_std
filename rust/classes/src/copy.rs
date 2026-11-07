@@ -37,10 +37,6 @@ pub const WORKSPACE_TAB_CLOSE: &str = "Close tab";
 
 pub const HEADER_BALANCE: &str = "Balance:";
 pub const HEADER_SEARCH: &str = "Search or jump to…";
-/// The `HeaderSearch` hint until the platform is known: the server render and
-/// the first client render.
-pub const CTRL_K: &str = "Ctrl K";
-pub const COMMAND_K: &str = "⌘K";
 pub const NOTIFICATION_BELL_TRIGGER: &str = "Notifications";
 pub const NOTIFICATION_BELL_EMPTY: &str = "No notifications";
 

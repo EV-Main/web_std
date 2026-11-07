@@ -196,5 +196,4 @@ mod tests {
 		let exp = Experiment::new(Vec::<String>::new());
 		assert_eq!(pick_variant_for(&exp, "hero", "loc-1"), "");
 	}
-
 }

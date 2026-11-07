@@ -20,6 +20,7 @@ architecture = ["dep:async-trait", "dep:serde", "dep:uuid", "dep:jiff"]
 # zero-dep. `asset` is what puts `asset!` in scope for `Fonts`; `document` is how
 # it and the sonner toaster inject their CSS.
 uikit_dioxus = [
+    "keymap",
     "dep:dioxus",
     "dep:ev_lib_classes",
     "dep:tailwind_fuse",
@@ -32,6 +33,8 @@ uikit_dioxus = [
 # `reactive_graph/hydration` is what lets an id be read off the hydration
 # context, so server and client mint the same one.
 uikit_leptos = [
+    "keymap",
+    "dep:web-sys",
     "dep:leptos",
     "dep:leptos_meta",
     "dep:reactive_graph",
@@ -41,6 +44,11 @@ uikit_leptos = [
     "tailwind_fuse?/variant",
     "dep:strum",
 ]
+
+# Scoped keybinds (mirrors `@evinvest/keymap`): a root the page claims, scopes a
+# root chord opens, which-key hint and help data. No deps; with `wasm` it reads a
+# `KeyboardEvent` and the platform through `web-sys`.
+keymap = []
 
 # PostHog product analytics (mirrors `@evinvest/analytics`). A small typed event
 # API: native (Axum) async capture over `reqwest`; the Dioxus/wasm frontend POSTs
@@ -217,10 +225,10 @@ js-sys = { version = "0.3", optional = true }
 reqwest = { version = "0.13", optional = true, default-features = false, features = ["json"] }
 wasm-bindgen = { version = "0.2", optional = true }
 wasm-bindgen-futures = { version = "0.4", optional = true }
-web-sys = { version = "0.3", optional = true, features = ["Document", "Window", "HtmlDocument", "Storage", "Navigator", "Element", "TransitionEvent", "Location", "Clipboard", "HtmlTextAreaElement", "Event", "EventTarget", "KeyboardEvent", "Node", "MutationObserver", "MutationObserverInit", "ScrollIntoViewOptions", "ScrollLogicalPosition", "ScrollBehavior", "DomRect"] }
+web-sys = { version = "0.3", optional = true, features = ["Document", "Window", "HtmlDocument", "Storage", "Navigator", "Element", "HtmlElement", "TransitionEvent", "Location", "Clipboard", "HtmlTextAreaElement", "Event", "EventTarget", "KeyboardEvent", "Node", "MutationObserver", "MutationObserverInit", "ScrollIntoViewOptions", "ScrollLogicalPosition", "ScrollBehavior", "DomRect"] }
 
 [dev-dependencies]
-ev_lib = { path = ".", features = ["alerts", "architecture", "uikit_dioxus", "uikit_leptos", "analytics", "error_monitoring", "experiments", "settings", "settings_drift", "types", "i18n", "ts_gen"] }
+ev_lib = { path = ".", features = ["alerts", "architecture", "keymap", "uikit_dioxus", "uikit_leptos", "analytics", "error_monitoring", "experiments", "settings", "settings_drift", "types", "i18n", "ts_gen"] }
 
 async-trait.workspace = true
 axum = { workspace = true, features = ["ws", "multipart"] }

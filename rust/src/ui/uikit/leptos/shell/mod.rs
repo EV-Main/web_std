@@ -7,6 +7,8 @@ pub(super) mod chat_message;
 pub(super) mod chat_typing;
 pub(super) mod footer;
 pub(super) mod header_controls;
+pub(super) mod key_help;
+pub(super) mod key_hint;
 pub(super) mod logo;
 pub(super) mod smart_header;
 pub(super) mod status_screen;

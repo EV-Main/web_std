@@ -29,15 +29,24 @@ use crate::ui::uikit::core::{KeyInput, LayerStack, Placement, Roving};
 type DismissFn = Rc<dyn Fn(DismissReason)>;
 
 impl From<&KeyboardEvent> for KeyInput {
+	#[cfg(all(target_arch = "wasm32", feature = "wasm"))]
+	fn from(e: &KeyboardEvent) -> Self {
+		Self::from(e.data().downcast::<web_sys::KeyboardEvent>().expect("dioxus-web wraps a web_sys::KeyboardEvent"))
+	}
+
+	#[cfg(not(all(target_arch = "wasm32", feature = "wasm")))]
 	fn from(e: &KeyboardEvent) -> Self {
 		let m = e.modifiers();
 		Self {
 			key: e.key().to_string(),
+			code: e.code().to_string(),
 			ctrl: m.ctrl(),
-			shift: m.shift(),
 			alt: m.alt(),
 			meta: m.meta(),
+			shift: m.shift(),
+			repeat: e.is_auto_repeating(),
 			composing: e.is_composing(),
+			editable: false, // no event path off the web renderer; only a page keymap reads it, and that listens through web_sys
 		}
 	}
 }

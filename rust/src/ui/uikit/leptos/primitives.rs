@@ -15,18 +15,12 @@ pub use ev_lib_classes::{RovingOrientation, Side};
 use leptos::{prelude::*, reactive::owner::Owner};
 
 pub use crate::ui::uikit::core::DismissReason;
-use crate::ui::uikit::core::{KeyInput, LayerStack, Roving};
+use crate::ui::uikit::core::{LayerStack, Roving};
 
-impl From<&leptos::ev::KeyboardEvent> for KeyInput {
-	fn from(e: &leptos::ev::KeyboardEvent) -> Self {
-		Self {
-			key: e.key(),
-			ctrl: e.ctrl_key(),
-			shift: e.shift_key(),
-			alt: e.alt_key(),
-			meta: e.meta_key(),
-			composing: e.is_composing(),
-		}
+#[cfg(not(target_arch = "wasm32"))]
+impl From<&leptos::ev::KeyboardEvent> for crate::ui::uikit::core::KeyInput {
+	fn from(_: &leptos::ev::KeyboardEvent) -> Self {
+		unreachable!("a native Leptos build only renders on the server, where no keydown fires")
 	}
 }
 

@@ -137,10 +137,10 @@ pub fn CommandPalette(
 /// the key (Chrome focuses the address bar on Ctrl+K in some layouts). Mirrors
 /// the TS `useCommandPaletteShortcut`.
 ///
-/// It matches the physical key (`code`), so it also works on a Russian or other
-/// non-Latin layout. A held key does not fire again, or it would toggle the
-/// palette open and shut. The listener sits on `document` while `enabled` is
-/// true and goes with the calling component.
+/// Keys match as [`keymap`](crate::keymap) reads them: a non-Latin layout
+/// reaches the K key, a text field keeps the key, and a held key does not fire
+/// again, or it would toggle the palette open and shut. The listener sits on
+/// `document` while `enabled` is true and goes with the calling component.
 ///
 /// Only the `wasm` feature on `wasm32` has a `document` to listen on; any other
 /// build does nothing here, server rendering included.

@@ -50,10 +50,6 @@ export const HEADER_BALANCE = "Balance:";
 
 export const HEADER_SEARCH = "Search or jump to…";
 
-export const CTRL_K = "Ctrl K";
-
-export const COMMAND_K = "⌘K";
-
 export const NOTIFICATION_BELL_TRIGGER = "Notifications";
 
 export const NOTIFICATION_BELL_EMPTY = "No notifications";

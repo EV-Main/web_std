@@ -79,7 +79,7 @@ describe("HeaderSearch", () => {
     const onClick = vi.fn();
     render(<HeaderSearch onClick={onClick} />);
     const btn = screen.getByRole("button", { name: /Search or jump to…/ });
-    expect(btn).toHaveTextContent("Ctrl K");
+    expect(btn).toHaveTextContent("Ctrl+K");
     fireEvent.click(btn);
     expect(onClick).toHaveBeenCalledTimes(1);
   });

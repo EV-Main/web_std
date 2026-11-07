@@ -11,7 +11,6 @@ use atomic::*;
 use derived::*;
 use shell::*;
 
-mod key;
 mod order;
 mod primitives;
 mod selection;
@@ -24,8 +23,7 @@ pub(crate) use carousel::{Carousel, carousel_transform};
 pub use chat::ModelOption;
 pub(crate) use chat::enter_sends;
 pub(crate) use command::{Command, CommandKey, Row};
-#[cfg(all(target_arch = "wasm32", feature = "wasm"))]
-pub(crate) use command_palette::{ShortcutHit, ShortcutKey, shortcut_hit};
+pub(crate) use command_palette::COMMAND_PALETTE;
 pub(crate) use confirm_dialog::ConfirmFlow;
 pub use date_time_picker::LocalDateTime;
 pub(crate) use date_time_picker::Picker;
@@ -33,10 +31,7 @@ pub(crate) use drawer::Presence;
 pub use field_context::FormControlContext;
 pub(crate) use form::FormItemContext;
 pub use header_controls::HeaderNotification;
-#[cfg(all(target_arch = "wasm32", feature = "wasm"))]
-pub(crate) use header_controls::platform_shortcut;
 pub(crate) use input_otp::InputOtp;
-pub(crate) use key::KeyInput;
 pub use menu::navigation_menu_trigger_style;
 #[cfg(test)]
 pub(crate) use order::Unplaced;
@@ -53,3 +48,22 @@ pub(crate) use slider::{Drag, Slider, Track};
 pub(crate) use sonner::{ToastQueue, ToastState, ToastView, toaster_style, y_position};
 pub use status_screen::{StatusLinkData, status_cta_class};
 pub use toggle::toggle_classes;
+
+pub(crate) use crate::ui::keymap::KeyInput;
+
+#[cfg(test)]
+impl From<&str> for KeyInput {
+	fn from(key: &str) -> Self {
+		Self {
+			key: key.to_owned(),
+			code: String::new(),
+			ctrl: false,
+			alt: false,
+			meta: false,
+			shift: false,
+			repeat: false,
+			composing: false,
+			editable: false,
+		}
+	}
+}

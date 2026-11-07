@@ -1,5 +1,5 @@
 //! Host access both ports need and the core may not have: the clock, the
-//! clipboard, the platform and a document key listener. Framework-free, so one
+//! clipboard and a document key listener. Framework-free, so one
 //! copy serves both.
 
 use crate::ui::uikit::core::CalendarDate;
@@ -136,15 +136,6 @@ fn copy_by_selection(text: &str) -> bool {
 	copied
 }
 
-/// The `HeaderSearch` hint for the browser's platform: "⌘K" on Apple ones.
-#[cfg(all(target_arch = "wasm32", feature = "wasm"))]
-pub(crate) fn platform_shortcut() -> &'static str {
-	// A browser that refuses to name its platform gets the Ctrl hint, which is
-	// what the TS port shows for an empty platform too.
-	let platform = web_sys::window().and_then(|w| w.navigator().platform().ok()).unwrap_or_default();
-	crate::ui::uikit::core::platform_shortcut(&platform)
-}
-
 /// The ⌘K / Ctrl+K listener on `document` behind `use_command_palette_shortcut`,
 /// removed when dropped.
 #[cfg(all(target_arch = "wasm32", feature = "wasm"))]
@@ -159,26 +150,23 @@ impl ShortcutListener {
 	pub(crate) fn add(mut on_fire: impl FnMut() + 'static) -> Option<Self> {
 		use web_sys::wasm_bindgen::{JsCast, closure::Closure};
 
-		use crate::ui::uikit::core::{ShortcutHit, ShortcutKey, shortcut_hit};
+		use crate::ui::keymap::{Binding, KeyInput, Keymap, Node, Platform, Step, Trie};
 
 		let document = web_sys::window()?.document()?;
-		let callback = Closure::<dyn FnMut(web_sys::KeyboardEvent)>::new(move |e: web_sys::KeyboardEvent| {
-			let key = ShortcutKey {
-				code: &e.code(),
-				ctrl: e.ctrl_key(),
-				meta: e.meta_key(),
-				alt: e.alt_key(),
-				shift: e.shift_key(),
-				repeat: e.repeat(),
-			};
-			match shortcut_hit(&key) {
-				ShortcutHit::Miss => {}
-				ShortcutHit::Held => e.prevent_default(),
-				ShortcutHit::Fire => {
-					e.prevent_default();
-					on_fire();
-				}
+		let keymap = Keymap {
+			root: vec![Binding {
+				on: crate::ui::uikit::core::COMMAND_PALETTE,
+				node: Node::Run("command palette"),
+			}],
+		};
+		let mut trie = Trie::new(&keymap, Platform::current(), |_| true);
+		let callback = Closure::<dyn FnMut(web_sys::KeyboardEvent)>::new(move |e: web_sys::KeyboardEvent| match trie.key(&KeyInput::from(&e)) {
+			Step::Run { .. } => {
+				e.prevent_default();
+				on_fire();
 			}
+			Step::Held => e.prevent_default(),
+			Step::Pass { .. } | Step::Opened | Step::Closed => {}
 		});
 		document.add_event_listener_with_callback("keydown", callback.as_ref().unchecked_ref()).ok()?;
 		Some(Self { document, callback })

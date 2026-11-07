@@ -345,6 +345,7 @@ data-reset
 data-reset=
 data-role
 data-role=\
+data-scope
 data-selected
 data-selected=\
 data-side
@@ -390,6 +391,7 @@ fill-primary-ink absolute top-1/2 left-1/2 size-2 -translate-x-1/2 -translate-y-
 first:rounded-l-control
 fixed inset-0 z-50 bg-scrim
 fixed inset-0 z-50 bg-scrim data-[state=closed]:pointer-events-none
+fixed right-4 bottom-4 z-50 flex min-w-56 flex-col gap-1 rounded-panel border border-border bg-popover p-3 text-body-s text-ink shadow-md [--enter-delay:var(--ev-dur-slow)]
 fixed top-1/2 left-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-panel border border-border p-0 shadow-lg
 flex
 flex basis-full items-center justify-between gap-2
@@ -417,6 +419,7 @@ flex flex-wrap gap-2
 flex gap-3
 flex gap-4 text-xs font-mono text-primary-ink
 flex h-(--control-h-md) items-center gap-2 border-b border-border px-3 has-[[aria-invalid=true]]:border-accent-error
+flex h-(--control-h-sm) shrink-0 items-center justify-between gap-4 text-body
 flex h-(--control-h-sm) w-55 items-center gap-2 rounded-control border border-border bg-muted pl-2.5 pr-1.5 text-left text-body text-ink-mid outline-none hover:bg-hover focus-visible:ring-2 focus-visible:ring-ring
 flex h-11 items-center gap-3 border-t border-border py-0 pl-2 pr-3
 flex h-11 shrink-0 items-center gap-1.5 border-b border-border bg-card pl-3 pr-2
@@ -436,6 +439,7 @@ flex items-center gap-2.5 p-2
 flex items-center gap-2.5 rounded-panel border bg-card px-2.5 py-2
 flex items-center gap-3
 flex items-center gap-3 border-t border-border-subtle px-2 py-1 text-caption text-ink-soft
+flex items-center gap-3 data-scope:font-medium
 flex items-center gap-3 mb-6
 flex items-center gap-3 rounded-panel border p-2.5 pr-3 transition-colors
 flex items-center gap-[7px] whitespace-nowrap
@@ -448,6 +452,7 @@ flex justify-end gap-1.5
 flex max-h-44 shrink-0 flex-col gap-2 overflow-y-auto border-b border-border-subtle bg-card p-2 md:max-h-none md:w-60 md:border-b-0 md:border-r
 flex max-h-80 flex-col gap-0.5 overflow-y-auto
 flex max-h-[300px] scroll-py-1 flex-col overflow-x-hidden overflow-y-auto [&>*]:shrink-0
+flex max-h-[60vh] flex-col overflow-y-auto
 flex max-h-[85dvh] flex-col bg-card
 flex max-h-[90dvh] max-w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-260 md:h-170 md:flex-row
 flex max-w-sm flex-col items-center gap-2 text-center
@@ -633,6 +638,7 @@ inset-y-0 right-0 w-3/4 flex-row border-l sm:max-w-sm
 invisible
 justify-between
 justify-end
+key-help-title
 last:rounded-r-control
 left-0
 left-1/2
@@ -724,6 +730,7 @@ p-4 gap-4
 p-6
 panel-one
 panel-two
+pb-1 text-caption text-ink-soft
 pb-3
 peer border-input data-[state=checked]:bg-primary data-[state=checked]:text-on-primary data-[state=checked]:border-primary focus-visible:border-ring aria-invalid:ring-accent-error/20 aria-invalid:border-accent-error size-[calc(1em+2px)] shrink-0 rounded-control border shadow-xs transition-shadow outline-none disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity) focus-visible:ring-0 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring
 peer data-[state=checked]:bg-primary data-[state=unchecked]:bg-input focus-visible:border-ring inline-flex h-[calc(1em+4px)] w-[calc(2em+4px)] shrink-0 items-center rounded-full border border-transparent shadow-xs transition-all outline-none disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity) focus-visible:ring-0 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring
@@ -923,6 +930,7 @@ truncate text-body-l text-ink
 truncate text-body-s font-medium text-ink
 truncate text-body-s tabular-nums text-ink-soft
 truncate text-caption text-ink-soft
+truncate text-ink-mid
 w-(--sidebar-width)
 w-10
 w-10 h-10 text-white

@@ -1,5 +1,6 @@
 "use client";
 
+import type { Trigger } from "@evinvest/keymap";
 import * as React from "react";
 import {
   COMMAND_PALETTE_COMMAND,
@@ -25,6 +26,7 @@ import {
 } from "../atomic/command";
 import { Dialog, DialogContent, DialogTitle } from "../atomic/dialog";
 import { Kbd } from "../atomic/kbd";
+import { useBinding } from "../shell/keymap";
 
 export interface CommandPaletteItem {
   id: string;
@@ -139,27 +141,10 @@ export function CommandPalette({
   );
 }
 
-/**
- * Calls `onTrigger` on ⌘K (Mac) or Ctrl+K, and keeps the browser from taking
- * the key (Chrome focuses the address bar on Ctrl+K in some layouts). Matches the
- * physical key (`code`), so it also works on a Russian or other non-Latin layout.
- */
-export function useCommandPaletteShortcut(onTrigger: () => void, enabled = true): void {
-  // Latest callback without re-binding the listener on every render.
-  const ref = React.useRef(onTrigger);
-  React.useEffect(() => {
-    ref.current = onTrigger;
-  });
-  React.useEffect(() => {
-    if (!enabled) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.code === "KeyK") {
-        e.preventDefault();
-        // A held key would toggle the palette open and shut.
-        if (!e.repeat) ref.current();
-      }
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [enabled]);
+/** ⌘K on macOS, Ctrl+K elsewhere. */
+export const COMMAND_PALETTE: Trigger = { other: { key: "k", ctrl: true }, mac: { key: "k", meta: true } };
+
+/** Binds `onTrigger` to `COMMAND_PALETTE` in the page's keymap, globally, while `enabled`. */
+export function useCommandPaletteShortcut(onTrigger: () => void, enabled = true, label: string = COMMAND_PALETTE_LABELS.title): void {
+  useBinding({ on: COMMAND_PALETTE, run: { id: "command-palette", label, run: enabled ? onTrigger : null } }, "root");
 }

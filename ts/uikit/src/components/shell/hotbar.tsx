@@ -8,19 +8,15 @@ import { Button } from "../atomic/button";
 import { Checkbox } from "../atomic/checkbox";
 import { Kbd } from "../atomic/kbd";
 import { Popover, PopoverContent, PopoverTrigger } from "../atomic/popover";
-import { useAppleKeys } from "./header-controls";
+import { useSequences } from "./keymap";
 import { TriangleAlertIcon } from "./shell-icons";
-
-type Letter = "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H" | "I" | "J" | "K" | "L" | "M" | "N" | "O" | "P" | "Q" | "R" | "S" | "T" | "U" | "V" | "W" | "X" | "Y" | "Z";
-type Digit = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9";
-type HotbarKey = Letter | Digit;
 
 export interface HotbarAction {
   id: string;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
-  /** `"N"` alone, or `"mod+K"` — ⌘ on Apple, Ctrl elsewhere. Shown in a `Kbd` and bound while the bar is mounted, pinned or not. */
-  shortcut?: HotbarKey | `mod+${HotbarKey}`;
+  /** The `id` of the keymap leaf that runs it too (`useBinding`); its keys show in a `Kbd` while it is bound. */
+  binding?: string;
   onSelect: () => void;
   /** A toggle that is on — the agent connected, a map layer shown. The app owns the state. */
   pressed?: boolean;
@@ -51,18 +47,6 @@ export interface HotbarProps extends Omit<React.ComponentProps<"section">, "chil
   /** An urgent level: replaces the actions with its message until the app clears it. */
   takeover?: { tone: "warn" | "error"; message: React.ReactNode; action?: React.ReactNode };
   labels?: HotbarLabels;
-}
-
-interface Shortcut {
-  mod: boolean;
-  code: string;
-  key: HotbarKey;
-}
-
-function parseShortcut(shortcut: NonNullable<HotbarAction["shortcut"]>): Shortcut {
-  const mod = shortcut.startsWith("mod+");
-  const key = (mod ? shortcut.slice(4) : shortcut) as HotbarKey;
-  return { mod, key, code: /\d/.test(key) ? `Digit${key}` : `Key${key}` };
 }
 
 const STORAGE_KEY = "ev-hotbar";
@@ -100,48 +84,20 @@ function subscribeOverrides(listener: () => void) {
   };
 }
 
-const EDITABLE = "input, textarea, select, [contenteditable]:not([contenteditable='false'])";
-
 /**
- * The bottom strip of a terminal-style app: pinned actions with bound shortcuts,
+ * The bottom strip of a terminal-style app: pinned actions with their keys,
  * a customize popover, live status at the end. Position-agnostic — the app docks
  * it. Below a 64rem strip it turns into a sideways-scrolling chip row with no
  * status. Which actions are pinned is the user's, kept in this browser.
  */
 export function Hotbar({ actions, status, takeover, labels = {}, className, ...props }: HotbarProps) {
-  const parsed = React.useMemo(() => {
-    const ids = new Set<string>();
-    const codes = new Set<string>();
-    return actions.map(action => {
-      if (ids.has(action.id)) throw new Error(`Hotbar: two actions have the id "${action.id}"`);
-      ids.add(action.id);
-      if (action.shortcut === undefined) return { action, shortcut: undefined };
-      const shortcut = parseShortcut(action.shortcut);
-      const chord = `${shortcut.mod}:${shortcut.code}`;
-      if (codes.has(chord)) throw new Error(`Hotbar: two actions are bound to ${action.shortcut}`);
-      codes.add(chord);
-      return { action, shortcut };
-    });
-  }, [actions]);
-
-  const latest = React.useRef(parsed);
-  React.useEffect(() => {
-    latest.current = parsed;
-  });
-  React.useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.defaultPrevented || e.altKey || e.shiftKey) return;
-      const mod = e.metaKey || e.ctrlKey;
-      const hit = latest.current.find(({ shortcut }) => shortcut?.code === e.code && shortcut.mod === mod);
-      if (hit === undefined) return;
-      if (!mod && e.target instanceof Element && e.target.closest(EDITABLE)) return;
-      e.preventDefault();
-      // A held key would fire the action once per repeat.
-      if (!e.repeat) hit.action.onSelect();
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, []);
+  const ids = new Set<string>();
+  for (const action of actions) {
+    if (ids.has(action.id)) throw new Error(`Hotbar: two actions have the id "${action.id}"`);
+    ids.add(action.id);
+  }
+  const sequences = useSequences();
+  const keys = (action: HotbarAction) => (action.binding === undefined ? undefined : sequences.get(action.binding));
 
   const overrides = React.useSyncExternalStore(subscribeOverrides, readOverrides, () => NO_OVERRIDES);
   const isPinned = (action: HotbarAction) => overrides[action.id] ?? action.pinned ?? true;
@@ -152,8 +108,6 @@ export function Hotbar({ actions, status, takeover, labels = {}, className, ...p
     writeOverrides(next);
   };
 
-  const apple = useAppleKeys();
-  const kbd = (s: Shortcut) => (s.mod ? (apple ? `⌘${s.key}` : `Ctrl ${s.key}`) : s.key);
   const [customizing, setCustomizing] = React.useState(false);
 
   return (
@@ -176,7 +130,7 @@ export function Hotbar({ actions, status, takeover, labels = {}, className, ...p
           </div>
         ) : (
           <>
-            {parsed.filter(({ action }) => isPinned(action)).map(({ action, shortcut }) => (
+            {actions.filter(isPinned).map(action => (
               <button
                 key={action.id}
                 type="button"
@@ -187,7 +141,7 @@ export function Hotbar({ actions, status, takeover, labels = {}, className, ...p
               >
                 <action.icon className="size-4 shrink-0" />
                 {action.label}
-                {shortcut && <Kbd className="hidden @5xl:inline-flex">{kbd(shortcut)}</Kbd>}
+                {keys(action) && <Kbd className="hidden @5xl:inline-flex">{keys(action)}</Kbd>}
               </button>
             ))}
             <span aria-hidden className="hidden h-4 w-px shrink-0 bg-border @5xl:block" />
@@ -206,13 +160,13 @@ export function Hotbar({ actions, status, takeover, labels = {}, className, ...p
                   </p>
                 </div>
                 <ul className="flex flex-col px-1 pb-1">
-                  {parsed.map(({ action, shortcut }) => (
+                  {actions.map(action => (
                     <li key={action.id}>
                       <label className="flex h-(--control-h-sm) cursor-pointer items-center gap-2.5 rounded-control px-2 text-body text-ink-mid hover:bg-hover">
                         <Checkbox checked={isPinned(action)} onCheckedChange={pinned => setPinned(action, pinned)} />
                         <action.icon className="size-4 shrink-0" />
                         <span className="flex-1 truncate">{action.label}</span>
-                        {shortcut && <Kbd>{kbd(shortcut)}</Kbd>}
+                        {keys(action) && <Kbd>{keys(action)}</Kbd>}
                       </label>
                     </li>
                   ))}

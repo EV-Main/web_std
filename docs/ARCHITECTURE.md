@@ -40,7 +40,8 @@ ev_lib = { version = "0.31", default-features = false, features = ["architecture
 ```
                     ┌────────────────────────────────┐
                     │ ui                             │
-                    │  uikit: core · dioxus · leptos │   ts: uikit, marketing, mfe
+                    │  uikit: core · dioxus · leptos │   ts: uikit, marketing, mfe, keymap
+                    │    └─▶ keymap                  │
                     │  active: mfe                   │
                     └───────────────┬────────────────┘
  ┌───────────────────────────┐      │     ┌─────────────────────────────────────┐
@@ -236,7 +237,7 @@ the full list is in [`ts/uikit/README.md`](../ts/uikit/README.md#limitations).
 ### Invariants
 
 - **The core is DOM-free and framework-free.** No `dioxus`, `leptos` or `web_sys`
-  under `rust/src/ui/uikit/core/`. Keys arrive as a core `KeyInput` (each port has
+  under `rust/src/ui/uikit/core/`. Keys arrive as a `keymap::KeyInput` (each port has
   `From<&its event>`); anything needing a clock takes `now_ms`; document order
   is an input (`Placement`, which the port answers from its DOM). The core never
   stores elements or callbacks — it keeps ids, and the port maps id → element /
@@ -266,6 +267,44 @@ the full list is in [`ts/uikit/README.md`](../ts/uikit/README.md#limitations).
   tokens, `ev_lib_classes` and TS `icons/`. Modules stay flat in the public
   API. `parity.rs` (`components_render_only_lower_layers`) and
   `ts/uikit/test/layers.test.ts` fail on an upward or sideways render.
+
+## The `keymap` library
+
+Scoped keybinds — the `keymap` Cargo feature (`ev_lib::keymap`) and `@evinvest/keymap`. One model
+for every surface that claims keys: the uikit (⌘K, the `Hotbar`, the TS `KeymapProvider`), tilers,
+and the apps behind a leader.
+
+```
+Keymap<C> { root: [Binding] }        Binding { on: Trigger{other, mac}, node }
+                                     node: Run(C) | Scope { label, children }
+        │ Trie::new(keymap, platform, available)    a leader is a root Scope;
+        ▼                                           unavailable leaves and emptied scopes drop out
+Trie<C> ── key(KeyInput) ─▶ Step: Pass{cancelled} · Opened · Closed · Held · Run{command, sequence}
+        ├─ hint()  ─▶ Hint { prefix, rows: [{chord, label, scope}] }   the open scope (which-key)
+        └─ help()  ─▶ [HelpRow { sequence, label }]                     every bound leaf
+```
+
+A host owns what a keymap opens beyond its scopes (tilers' help aimed at a pane, the provider's
+help dialog) and calls the trie for the rest. No deps; with `wasm` the crate reads a
+`KeyboardEvent` into a `KeyInput` and the platform from `navigator`. The TS twin is hand-written:
+its view types (`Hint`, `HelpRow`, `Platform`) are generated, and `tests/fixtures/keymap/` pins the
+behaviour both suites run.
+
+### Invariants
+
+- **The page's footprint is the root, plus Esc while a scope is open.** Every other chord waits
+  behind a root scope (a leader). A miss closes the open scope; a lone modifier does not; a root
+  scope's chord pressed inside another restarts at it.
+- **A key aimed at an editable, or arriving during IME composition, never acts** and closes the
+  open scope: typing and text undo stay the browser's — a root chord included.
+- **Which key was pressed:** `key` when it is one printable ASCII char (letter case from Shift
+  alone, so CapsLock is ignored); else `key` when it names a key (`Escape`, `ArrowUp`); else the
+  Latin letter or digit of `code` (`KeyS` → `s`). So a layout binds by the letter it shows
+  (Dvorak), ЙЦУКЕН by the Latin label printed on the same key, and macOS Option chords (`ß` from
+  ⌥S) reach their letter.
+- **A held key runs once.** A key-repeat reaching a leaf is kept from the browser and runs nothing.
+- **A keymap resolves or panics.** A chord bound twice in one scope (a leader colliding with a root
+  chord among them), or a chord naming no key a keydown normalizes to, fails resolution.
 
 ## The I/O libraries — analytics, error_monitoring, experiments
 

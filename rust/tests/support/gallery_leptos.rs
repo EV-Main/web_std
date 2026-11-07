@@ -49,6 +49,7 @@ const PARITY_ONLY: &[(&str, fn() -> AnyView)] = &[
 	("FieldParts", p_field_parts), ("FormMessage", p_form_message), ("InputGroupParts", p_input_group_parts), ("Toaster", p_toaster),
 	("CommandParts", p_command_parts), ("CommandSiblings", p_command_siblings),
 	("SelectSiblings", p_select_siblings), ("DialogSiblings", p_dialog_siblings), ("PopupSiblings", p_popup_siblings), ("MenuSiblings", p_menu_siblings),
+	("KeyHint", p_key_hint), ("KeyHelp", p_key_help),
 ];
 
 // ── Tier A — static ────────────────────────────────────────────────────────
@@ -2384,4 +2385,33 @@ fn p_menu_siblings() -> AnyView {
 		</NavigationMenu>
 	}
 	.into_any()
+}
+
+fn p_key_hint() -> AnyView {
+	use ev_lib::keymap::{Hint, HintRow};
+	let row = |chord: &str, label: &str, scope: bool| HintRow {
+		chord: chord.into(),
+		label: label.into(),
+		scope,
+	};
+	view! {
+		<KeyHint hint=Hint {
+			prefix: "Space".into(),
+			rows: vec![row("G", "Go to", true), row("Shift+U", "Undo all", false)],
+		} />
+	}.into_any()
+}
+
+fn p_key_help() -> AnyView {
+	use ev_lib::keymap::HelpRow;
+	let row = |sequence: &str, label: &str| HelpRow {
+		sequence: sequence.into(),
+		label: label.into(),
+	};
+	view! {
+		<KeyHelp
+			default_open=true
+			rows=vec![row("Ctrl+K", "Command palette"), row("Space G H", "Go home")]
+		/>
+	}.into_any()
 }

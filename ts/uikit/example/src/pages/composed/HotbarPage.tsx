@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Button, Hotbar, StatusItem, Switch, type HotbarAction } from "@evinvest/uikit";
+import { Button, Hotbar, StatusItem, Switch, useBinding, type HotbarAction } from "@evinvest/uikit";
 import { Block, Caption, PageRoot } from "../../gallery/ui";
 import { BotIcon, CheckIcon, FileTextIcon, MapPinIcon, PencilIcon, SearchIcon, TargetIcon } from "../../gallery/icons";
 
@@ -10,14 +10,19 @@ export default function HotbarPage() {
   const [last, setLast] = useState("nothing yet");
   const run = (label: string) => () => setLast(label);
   const actions: HotbarAction[] = [
-    { id: "next-lead", label: "Next lead", icon: TargetIcon, shortcut: "N", onSelect: run("Next lead") },
-    { id: "log-outcome", label: "Log outcome", icon: CheckIcon, shortcut: "O", onSelect: run("Log outcome") },
-    { id: "search", label: "Search", icon: SearchIcon, shortcut: "mod+K", onSelect: run("Search") },
-    { id: "agent", label: "Agent", icon: BotIcon, shortcut: "mod+J", pressed: agent, onSelect: () => setAgent((on) => !on) },
-    { id: "places", label: "Places", icon: MapPinIcon, shortcut: "P", pressed: places, onSelect: () => setPlaces((on) => !on) },
+    { id: "next-lead", label: "Next lead", icon: TargetIcon, binding: "next-lead", onSelect: run("Next lead") },
+    { id: "log-outcome", label: "Log outcome", icon: CheckIcon, binding: "log-outcome", onSelect: run("Log outcome") },
+    { id: "search", label: "Search", icon: SearchIcon, onSelect: run("Search") },
+    { id: "agent", label: "Agent", icon: BotIcon, binding: "agent", pressed: agent, onSelect: () => setAgent((on) => !on) },
+    { id: "places", label: "Places", icon: MapPinIcon, binding: "places", pressed: places, onSelect: () => setPlaces((on) => !on) },
     { id: "add-note", label: "Add note", icon: PencilIcon, pinned: false, onSelect: run("Add note") },
     { id: "export", label: "Export leads (CSV)", icon: FileTextIcon, pinned: false, onSelect: run("Export leads") },
   ];
+  const bind = (key: string, { id, label, onSelect }: HotbarAction) => ({ on: { key }, run: { id, label, run: onSelect } });
+  useBinding(bind("n", actions[0]!));
+  useBinding(bind("o", actions[1]!));
+  useBinding(bind("a", actions[3]!));
+  useBinding(bind("p", actions[4]!));
   const status = (
     <>
       <StatusItem tone={agent ? "positive" : "muted"}>{agent ? "Agent connected" : "Agent off"}</StatusItem>
@@ -41,9 +46,9 @@ export default function HotbarPage() {
   return (
     <PageRoot
       title="Hotbar"
-      lede="The strip a terminal-style app docks at the bottom of the viewport: pinned actions with live shortcuts, a customize popover, live status at the end. Agent and Places are toggles the app owns; the bar only shows them pressed."
+      lede="The strip a terminal-style app docks at the bottom of the viewport: pinned actions with the keys that run them too, a customize popover, live status at the end. Agent and Places are toggles the app owns; the bar only shows them pressed."
     >
-      <Block title="Wide" note={`Press N, O or P outside a field, or ⌘K / ⌘J (Ctrl elsewhere) anywhere. Last action: ${last}.`}>
+      <Block title="Wide" note={`Alt+S then N, O, A or P (⌥S on macOS), outside a field. Last action: ${last}.`}>
         <div className="flex flex-col gap-3">
           <label className="flex items-center gap-2 self-start text-body text-ink-mid">
             <Switch checked={urgent} onCheckedChange={setUrgent} />

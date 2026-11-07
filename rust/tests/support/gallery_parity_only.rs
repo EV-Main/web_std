@@ -15,6 +15,7 @@ const PARITY_ONLY: &[(&str, fn() -> Element)] = &[
 	("RadioGroupSiblings", p_radio_group_siblings), ("ToggleGroupSiblings", p_toggle_group_siblings), ("CarouselSiblings", p_carousel_siblings),
 	("InputOTPSiblings", p_input_otp_siblings), ("SidebarSiblings", p_sidebar_siblings),
 	("SelectSiblings", p_select_siblings), ("DialogSiblings", p_dialog_siblings), ("PopupSiblings", p_popup_siblings), ("MenuSiblings", p_menu_siblings),
+	("KeyHint", p_key_hint), ("KeyHelp", p_key_help),
 ];
 
 fn p_alert_dialog_trigger() -> Element {
@@ -863,5 +864,28 @@ fn p_sidebar_siblings() -> Element {
 		SidebarProvider { default_open: false,
 			Sidebar { collapsible: SidebarCollapsible::Icon, "B" }
 		}
+	}
+}
+
+fn p_key_hint() -> Element {
+	use ev_lib::keymap::{Hint, HintRow};
+	let row = |chord: &str, label: &str, scope: bool| HintRow {
+		chord: chord.into(),
+		label: label.into(),
+		scope,
+	};
+	rsx! {
+		KeyHint { hint: Hint { prefix: "Space".into(), rows: vec![row("G", "Go to", true), row("Shift+U", "Undo all", false)] } }
+	}
+}
+
+fn p_key_help() -> Element {
+	use ev_lib::keymap::HelpRow;
+	let row = |sequence: &str, label: &str| HelpRow {
+		sequence: sequence.into(),
+		label: label.into(),
+	};
+	rsx! {
+		KeyHelp { default_open: true, rows: vec![row("Ctrl+K", "Command palette"), row("Space G H", "Go home")] }
 	}
 }
