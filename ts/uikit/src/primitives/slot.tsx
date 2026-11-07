@@ -52,11 +52,23 @@ export const Slot = React.forwardRef<HTMLElement, SlotProps>(function Slot(
   // components too (`<Button asChild>` has no "use client"), and a function
   // ref in a Server Component's output fails the render ("Refs cannot be used
   // in Server Components") even when it would call nothing.
-  const childRef = (child as { ref?: React.Ref<unknown> }).ref;
+  const childRef = getElementRef(child);
   if (forwardedRef || childRef) merged["ref"] = composeRefs(forwardedRef, childRef);
 
   return React.cloneElement(child, merged);
 });
+
+// React 19 moved `ref` into props and warns on `element.ref`; React 18 warns on `props.ref`. Probe the dev-only warning getters instead of touching either.
+function getElementRef(element: React.ReactElement<Record<string, unknown>>): React.Ref<unknown> | undefined {
+  const warns = (target: object) => {
+    const getter = Object.getOwnPropertyDescriptor(target, "ref")?.get;
+    return !!getter && "isReactWarning" in getter && !!getter.isReactWarning;
+  };
+  type Ref = React.Ref<unknown> | undefined;
+  if (warns(element.props)) return (element as { ref?: Ref }).ref;
+  if (warns(element)) return element.props["ref"] as Ref;
+  return (element.props["ref"] as Ref) ?? (element as { ref?: Ref }).ref;
+}
 
 function composeRefs<T>(...refs: Array<React.Ref<T> | undefined>): React.RefCallback<T> {
   return (node) => {
