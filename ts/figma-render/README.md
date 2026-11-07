@@ -9,8 +9,16 @@ twin.
 import { test } from "@playwright/test";
 import { defineFigmaSuite } from "@evinvest/figma-render";
 
-defineFigmaSuite({ test }, ["/", "/usage/"], { hide: ["nextjs-portal"] });
+defineFigmaSuite({ test }, [
+  { name: "home", url: "/", selector: "main" },
+  { name: "assistant", url: "/?assistant=sidebar", selector: "[aria-label=Assistant]" },
+  { name: "usage", url: "/usage/#chart", selector: "#chart" },
+], { hide: ["nextjs-portal"] });
 ```
+
+A section is a state worth seeing, reached by its own URL: a state that only a click reaches has no frame. A
+frame is a page: the URL without its `#`, so the sections of one page share its frame and a query is a page of its
+own. It is captured once every one of its sections' `selector` is in the DOM.
 
 ```sh
 evinvest-figma-render frames -c tests/e2e --file <fileKey>   # {"file", "frames": ["<project> <page>", …]}

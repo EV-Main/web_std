@@ -60,36 +60,48 @@ function requestedCaptures(raw: string | undefined): Record<string, Capture> {
   return parsed as Record<string, Capture>;
 }
 
+/** A state of the site worth seeing, reached by its own URL. */
+export interface Section {
+  name: string;
+  /** Relative to the config's `baseURL`, or absolute for another host. */
+  url: string;
+  /** What is there once the state is: its frame is captured only after every one of its sections' is. */
+  selector: string;
+}
+
 export interface FigmaSuiteOptions {
   /** Selectors `display: none`d before the capture: dev overlays, QA menus. */
   hide?: readonly string[];
 }
 
 /**
- * One `@figma <page>` test per page at every project, `<page>` being the URL's
- * path (with its origin when it names another host), so URLs differing only
- * by query or `#` share one frame. A capture id is single-use, so each runs
- * only for a `<project> <page>` key `FIGMA_CAPTURES` names.
+ * One `@figma <page>` test per page at every project, `<page>` being the URL
+ * without its `#` (with its origin when it names another host): sections of
+ * one page share its frame, a query is a state of its own. A capture id is
+ * single-use, so each runs only for a `<project> <page>` key `FIGMA_CAPTURES`
+ * names.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the runner's fixture types are the caller's; only `page` is read
-export function defineFigmaSuite({ test }: { test: TestType<any, any> }, urls: readonly string[], { hide = [] }: FigmaSuiteOptions = {}): void {
+export function defineFigmaSuite({ test }: { test: TestType<any, any> }, sections: readonly Section[], { hide = [] }: FigmaSuiteOptions = {}): void {
   const captures = requestedCaptures(process.env["FIGMA_CAPTURES"]);
-  const pages = new Map<string, string>();
-  for (const url of urls) {
-    const u = new URL(url, "relative:/");
-    const page = u.protocol === "relative:" ? u.pathname : u.origin + u.pathname;
-    if (!pages.has(page)) pages.set(page, url);
+  const pages = new Map<string, Section[]>();
+  for (const section of sections) {
+    const u = new URL(section.url, "relative:/");
+    const page = (u.protocol === "relative:" ? "" : u.origin) + u.pathname + u.search;
+    pages.set(page, [...(pages.get(page) ?? []), section]);
   }
 
   test.describe(FIGMA_SUITE, () => {
     test.use({ bypassCSP: true }); // capture.js and its POST to Figma
-    for (const [name, url] of pages) {
+    for (const [name, onPage] of pages) {
       test(name, async ({ page }: { page: Page }, info: { project: { name: string } }) => {
         const capture = captures[frameKey({ project: info.project.name, page: name })];
         if (capture === undefined) return test.skip(true, "frame not requested");
         test.setTimeout(120_000); // a capture uploads up to 50 MB
         await page.emulateMedia({ reducedMotion: "reduce" });
-        await page.goto(url);
+        await page.goto(name);
+        // attached, not visible: a section the breakpoint hides is still the page's
+        for (const s of onPage) await test.step(s.name, () => page.locator(s.selector).waitFor({ state: "attached" }));
         await settle(page, "body");
         if (hide.length > 0) await page.addStyleTag({ content: `${hide.join(", ")} { display: none !important; }` });
         await page.addScriptTag({ url: CAPTURE_JS });
