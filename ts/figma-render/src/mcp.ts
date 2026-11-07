@@ -142,9 +142,9 @@ async function accessToken(): Promise<string> {
     save(state);
   }
   if (state.token !== undefined && state.token.expiresAt > Date.now() + 60_000) return state.token.access;
-  const token =
-    (state.token && (await grant(state.client, { grant_type: "refresh_token", refresh_token: state.token.refresh }, state.token))) ??
-    (await login(state.client));
+  const refreshed = state.token && (await grant(state.client, { grant_type: "refresh_token", refresh_token: state.token.refresh }, state.token));
+  if (!refreshed && process.env["CI"]) throw new Error(`${STATE_PATH} holds no usable Figma login, and CI cannot log in`);
+  const token = refreshed || (await login(state.client));
   save({ ...state, token });
   return token.access;
 }

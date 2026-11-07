@@ -15,7 +15,12 @@ defineFigmaSuite({ test }, ["/", "/usage/"], { hide: ["nextjs-portal"] });
 ```sh
 evinvest-figma-render frames -c tests/e2e --file <fileKey>   # {"file", "frames": ["<project> <page>", …]}
 evinvest-figma-render -c tests/e2e --file <fileKey>          # stdout: the new page's link
+evinvest-figma-render -c tests/e2e --folder <folder URL> --name <file name>   # the same, as all of that file
 ```
+
+`--folder` (over `--file`) renders into the file named `--name` in that Figma folder, created there if missing, and
+leaves it holding only the new page: CI points every repo at one folder (v_flakes `github.figma`). MCP cannot list a
+folder, so this needs `FIGMA_TOKEN`, a personal access token with `folders:read`.
 
 Without `frames` the bin is a client of Figma's MCP server and runs the whole render: a capture id per
 frame (`generate_figma_design`), the suite with them, a poll per id for its frame, then one `use_figma` that
@@ -24,6 +29,7 @@ them out a row per page, a column per project. That `use_figma` is the run's onl
 its rate limit. A frame still pending after the polls is a failed test: it is named, and the exit is 1.
 
 The first run logs in to Figma in the browser (OAuth with PKCE, a callback on `127.0.0.1:47613`); the
-client and its tokens are kept in `$XDG_STATE_HOME/evinvest-figma-render/oauth.json`. `playwright` is taken
+client and its tokens are kept in `$XDG_STATE_HOME/evinvest-figma-render/oauth.json`; under `CI` there is no login,
+so that file has to hold a usable token. `playwright` is taken
 from `PATH`, so the caller's pinned runner and browsers render the frames. `settle(page, selector)` is
 exported for screenshot suites that want the same notion of a finished page.

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { sseMessages } from '../src/mcp';
-import { issued, polled } from '../src/render';
+import { folderOf, issued, polled } from '../src/render';
 
 // Figma's answers, verbatim from real calls.
 const answer = (name: string) => readFileSync(new URL(`./fixtures/figma/${name}.txt`, import.meta.url), 'utf8');
@@ -23,5 +23,11 @@ describe("Figma's answers", () => {
   it('an event stream yields its JSON-RPC messages', () => {
     const body = 'event: message\ndata: {"jsonrpc":"2.0","method":"notifications/progress"}\n\nid: 2\ndata: {"jsonrpc":"2.0",\ndata: "id":1,"result":{}}\n\n';
     expect(sseMessages(body)).toEqual([{ jsonrpc: '2.0', method: 'notifications/progress' }, { jsonrpc: '2.0', id: 1, result: {} }]);
+  });
+
+  it("a folder URL names its plan and folder, a team's or an organization's", () => {
+    expect(folderOf('https://www.figma.com/files/team/1636487589829237734/folder/686346387?fuid=1662401068579746905')).toEqual({ planKey: 'team::1636487589829237734', id: '686346387' });
+    expect(folderOf('https://www.figma.com/files/1234/project/5678')).toEqual({ planKey: 'organization::1234', id: '5678' });
+    expect(() => folderOf('https://www.figma.com/design/X2oCsvht1Hoi4kYc89WpER')).toThrow(/not a Figma folder URL/);
   });
 });

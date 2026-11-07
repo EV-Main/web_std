@@ -51,10 +51,10 @@ declare const figma: {
 };
 
 /**
- * Runs inside Figma (`use_figma`, as its source text): the frames onto one page named `name`, in a grid.
- * Captures land wherever Figma puts them, so the page is the first frame's when it holds nothing else.
+ * Runs inside Figma (`use_figma`, as its source text): the frames onto one page named `name`, in a grid; `alone`, the
+ * file's only page. Captures land wherever Figma puts them, so the page is the first frame's when it holds nothing else.
  */
-async function arrange({ name, frames, gap }: { name: string; frames: Placed[]; gap: number }): Promise<{ pageId: string }> {
+async function arrange({ name, frames, gap, alone }: { name: string; frames: Placed[]; gap: number; alone: boolean }): Promise<{ pageId: string }> {
   const nodes: FigmaNode[] = [];
   for (const f of frames) {
     const n = await figma.getNodeByIdAsync(f.id);
@@ -85,7 +85,7 @@ async function arrange({ name, frames, gap }: { name: string; frames: Placed[]; 
     n.x = offset(widths, f.col);
     n.y = offset(heights, f.row);
   });
-  for (const p of onlyOurs) if (p !== page && p.children.length === 0 && figma.root.children.length > 1) p.remove();
+  for (const p of [...figma.root.children]) if (p !== page && (alone || (onlyOurs.has(p) && p.children.length === 0))) p.remove();
   return { pageId: page.id };
 }
 
@@ -97,14 +97,43 @@ function pageName(): string {
   return `${git("rev-parse", "--short", "HEAD")} ${date}${git("status", "--porcelain") === "" ? "" : " dirty"}`;
 }
 
+/** Where a render goes: a new page of `file`, or all of the file named `name` in the Figma folder at URL `folder`. */
+export type Target = { file: string } | { folder: string; name: string };
+
+/** A Figma folder URL's plan and folder id: `/files/team/<team>/folder/<id>`, `/files/<org>/project/<id>`. */
+export function folderOf(url: string): { planKey: string; id: string } {
+  const m = /figma\.com\/files\/(?:team\/(\d+)|(\d+)(?:\/team\/\d+)?)\/(?:folder|project)\/(\d+)/.exec(url);
+  if (m?.[3] === undefined) throw new Error(`not a Figma folder URL: ${url}`);
+  return { planKey: m[1] !== undefined ? `team::${m[1]}` : `organization::${m[2]}`, id: m[3] };
+}
+
+/** The key of the file named `name` in `folder`, created there when there is none. */
+async function fileIn(call: (tool: string, args: Record<string, unknown>) => Promise<string>, folder: string, name: string): Promise<string> {
+  const { planKey, id } = folderOf(folder);
+  // MCP has no tool that lists a folder; the REST API does, under a personal access token
+  const token = process.env["FIGMA_TOKEN"];
+  if (!token) throw new Error("--folder needs FIGMA_TOKEN: a Figma personal access token with folders:read");
+  const res = await fetch(`https://api.figma.com/v2/folders/${id}/files`, { headers: { "x-figma-token": token } });
+  const body = await res.text();
+  if (!res.ok) throw new Error(`Figma folder ${id}: ${res.status} ${body}`);
+  const named = (JSON.parse(body) as { files: { key: string; name: string }[] }).files.filter(f => f.name === name);
+  if (named.length > 1) throw new Error(`Figma folder ${id}: ${named.length} files named "${name}"`);
+  if (named[0] !== undefined) return named[0].key;
+  const created = await call("create_new_file", { fileName: name, planKey, projectId: id, editorType: "design" });
+  const { file_key } = JSON.parse(created) as { file_key?: unknown };
+  if (typeof file_key !== "string") throw new Error(`create_new_file: no file_key in ${created}`);
+  return file_key;
+}
+
 /**
- * Captures `frames` into Figma file `file` through `run` (the suite, given `FIGMA_CAPTURES`), lays them out on one
+ * Captures `frames` into the `target` Figma file through `run` (the suite, given `FIGMA_CAPTURES`), lays them out on one
  * page and prints its link. Only `use_figma` counts toward Figma's rate limit. Answers the exit code.
  */
-export async function render(file: string, frames: Frame[], run: (captures: string) => number): Promise<number> {
+export async function render(target: Target, frames: Frame[], run: (captures: string) => number): Promise<number> {
   if (frames.length === 0) throw new Error("no @figma frames to render");
   const name = pageName();
   const call = await connect();
+  const file = "file" in target ? target.file : await fileIn(call, target.folder, target.name);
   const promptId = randomUUID();
   const captures = new Map<string, { captureId: string; endpoint: string }>();
   for (const f of frames) captures.set(frameKey(f), issued(await call("generate_figma_design", { fileKey: file, promptId })));
@@ -138,7 +167,7 @@ export async function render(file: string, frames: Frame[], run: (captures: stri
     const text = await call("use_figma", {
       fileKey: file,
       description: `Name the ${placed.length} captured frames and lay them out on page "${name}"`,
-      code: `return await (${arrange.toString()})(${JSON.stringify({ name, frames: placed, gap: GAP })});`,
+      code: `return await (${arrange.toString()})(${JSON.stringify({ name, frames: placed, gap: GAP, alone: !("file" in target) })});`,
     });
     const { pageId } = JSON.parse(text) as { pageId?: unknown };
     if (typeof pageId !== "string" || !/^\d+:\d+$/.test(pageId)) throw new Error(`use_figma: no page id in ${text}`);
