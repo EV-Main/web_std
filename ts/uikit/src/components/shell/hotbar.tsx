@@ -7,22 +7,28 @@ import { iconShapes } from "../../icons/icon-shapes";
 import { Button } from "../atomic/button";
 import { Checkbox } from "../atomic/checkbox";
 import { Kbd } from "../atomic/kbd";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "../atomic/hover-card";
 import { Popover, PopoverContent, PopoverTrigger } from "../atomic/popover";
 import { useSequences } from "./keymap";
 import { TriangleAlertIcon } from "./shell-icons";
 
-export interface HotbarAction {
+interface HotbarActionBase {
   id: string;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   /** The `id` of the keymap leaf that runs it too (`useBinding`); its keys show in a `Kbd` while it is bound. */
   binding?: string;
-  onSelect: () => void;
   /** A toggle that is on — the agent connected, a map layer shown. The app owns the state. */
   pressed?: boolean;
   /** `false` lists it only under Customize until the user pins it. Default pinned. */
   pinned?: boolean;
+  /** A compact state line on hover, while its panel is closed. */
+  preview?: React.ReactNode;
 }
+
+/** Either runs on a press, or opens its `panel` above the bar, whose footer unpins it. */
+export type HotbarAction = HotbarActionBase &
+  ({ onSelect: () => void; panel?: never } | { panel: React.ReactNode; onSelect?: never });
 
 export interface HotbarLabels {
   /** Accessible name of the strip. Default `"Hotbar"`. */
@@ -37,6 +43,8 @@ export interface HotbarLabels {
   reset?: string;
   /** Default `"Done"`. */
   done?: string;
+  /** A panel's footer. Default `"Hide from hotbar"`. */
+  hide?: string;
 }
 
 export interface HotbarProps extends Omit<React.ComponentProps<"section">, "children"> {
@@ -131,18 +139,7 @@ export function Hotbar({ actions, status, takeover, labels = {}, className, ...p
         ) : (
           <>
             {actions.filter(isPinned).map(action => (
-              <button
-                key={action.id}
-                type="button"
-                data-slot="hotbar-action"
-                aria-pressed={action.pressed}
-                onClick={action.onSelect}
-                className={cn(ITEM, action.pressed && PRESSED)}
-              >
-                <action.icon className="size-4 shrink-0" />
-                {action.label}
-                {keys(action) && <Kbd className="hidden @5xl:inline-flex">{keys(action)}</Kbd>}
-              </button>
+              <HotbarItem key={action.id} action={action} keys={keys(action)} hide={labels.hide ?? "Hide from hotbar"} onHide={() => setPinned(action, false)} />
             ))}
             <span aria-hidden className="hidden h-4 w-px shrink-0 bg-border @5xl:block" />
             <Popover open={customizing} onOpenChange={setCustomizing}>
@@ -190,6 +187,60 @@ export function Hotbar({ actions, status, takeover, labels = {}, className, ...p
         )}
       </div>
     </section>
+  );
+}
+
+function HotbarItem({ action, keys, hide, onHide }: { action: HotbarAction; keys: string | undefined; hide: string; onHide: () => void }) {
+  const [open, setOpen] = React.useState(false);
+  const [hovered, setHovered] = React.useState(false);
+  const face = (
+    <>
+      <action.icon className="size-4 shrink-0" />
+      {action.label}
+      {keys && <Kbd className="hidden @5xl:inline-flex">{keys}</Kbd>}
+    </>
+  );
+  const button =
+    action.panel === undefined ? (
+      <button type="button" data-slot="hotbar-action" aria-pressed={action.pressed} onClick={action.onSelect} className={cn(ITEM, action.pressed && PRESSED)}>
+        {face}
+      </button>
+    ) : (
+      <PopoverTrigger type="button" data-slot="hotbar-action" aria-pressed={action.pressed} className={cn(ITEM, action.pressed && PRESSED)}>
+        {face}
+      </PopoverTrigger>
+    );
+  const previewed =
+    action.preview === undefined ? (
+      button
+    ) : (
+      <HoverCard open={hovered && !open} onOpenChange={setHovered}>
+        <HoverCardTrigger asChild>{button}</HoverCardTrigger>
+        <HoverCardContent side="top" align="start" data-slot="hotbar-preview" className="w-auto max-w-80 px-2.5 py-1.5 text-body-s">
+          {action.preview}
+        </HoverCardContent>
+      </HoverCard>
+    );
+  if (action.panel === undefined) return previewed;
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      {previewed}
+      <PopoverContent side="top" align="start" data-slot="hotbar-panel" className="w-80 p-0">
+        {action.panel}
+        <div className="border-t border-border p-1">
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              onHide();
+            }}
+            className="flex h-(--control-h-sm) w-full items-center rounded-control px-2 text-body-s text-ink-soft hover:bg-hover hover:text-ink"
+          >
+            {hide}
+          </button>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 

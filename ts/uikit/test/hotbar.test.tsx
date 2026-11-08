@@ -7,7 +7,7 @@ import { KeymapProvider, useBinding } from "../src/components/shell/keymap";
 const Glyph = ({ className }: { className?: string }) => <svg className={className} />;
 
 function setup(actions: Partial<HotbarAction>[], extra: Partial<HotbarProps> = {}) {
-  const full = actions.map(a => ({ id: a.label!, icon: Glyph, onSelect: vi.fn(), ...a }) as HotbarAction);
+  const full = actions.map(a => ({ id: a.label!, icon: Glyph, ...(a.panel === undefined && { onSelect: vi.fn() }), ...a }) as HotbarAction);
   const view = render(
     <KeymapProvider leader={{ key: "s", alt: true }}>
       <Hotbar actions={full} {...extra} />
@@ -76,5 +76,16 @@ describe("Hotbar", () => {
     expect(shown()).toEqual([]);
     expect(bar().queryByRole("button", { name: "Customize" })).toBeNull();
     expect(bar().getByText("Synced")).toBeInTheDocument();
+  });
+
+  it("opens a panel above its action, whose footer unpins it for Customize to bring back", () => {
+    const { bar, shown, customize } = setup([{ label: "Map", panel: <p>Heat</p>, preview: "Demand · cleaning" }, { label: "Base" }]);
+    fireEvent.click(bar().getByRole("button", { name: "Map" }));
+    expect(screen.getByText("Heat")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Hide from hotbar" }));
+    expect(shown()).toEqual(["Base"]);
+    customize();
+    fireEvent.click(screen.getByRole("checkbox", { name: /Map/ }));
+    expect(shown()).toEqual(["Map", "Base"]);
   });
 });

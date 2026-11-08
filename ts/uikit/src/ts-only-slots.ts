@@ -23,6 +23,8 @@ export const TS_ONLY_SLOTS = [
   "hotbar",
   "hotbar-action",
   "hotbar-customize",
+  "hotbar-panel",
+  "hotbar-preview",
   "hotbar-status",
   "hotbar-takeover",
   "list-row",
