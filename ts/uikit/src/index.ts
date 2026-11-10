@@ -701,7 +701,7 @@ export type { BottomTabBarLabels, BottomTabBarProps } from "./components/shell/b
 
 export { Hotbar } from "./components/shell/hotbar";
 export type { HotbarAction, HotbarLabels, HotbarProps } from "./components/shell/hotbar";
-export { KeymapProvider, useBinding } from "./components/shell/keymap";
+export { KeymapProvider, useBinding, useSequences } from "./components/shell/keymap";
 export type { KeyBinding, KeymapProviderProps, Leaf, Where } from "./components/shell/keymap";
 export { KeyHint } from "./components/shell/key-hint";
 export type { KeyHintProps } from "./components/shell/key-hint";
