@@ -9,6 +9,7 @@ const item = (id: string, href: string, extra: Partial<NavItem> = {}): NavItem =
   id,
   href,
   label: id,
+  icon: () => null,
   ...extra,
 });
 

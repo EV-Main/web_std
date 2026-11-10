@@ -414,8 +414,9 @@ export function Nav() {
   column reserves `--shell-tab-bar-h` plus the bottom safe area for the bar.
   `topBar` sticks over the column, also under that offset, from `breakpoint` up.
   `mainProps` reaches the `<main>`. Layout only — no `"use client"`.
-- **`NavItem`** — `{ id, href, label, icon?, badge?, trailing?, external?,
-  target?, match?, also?, disabled? }`, shared by the rail and the tab bar.
+- **`NavItem`** — `{ id, href, label, icon, badge?, trailing?, external?,
+  target?, match?, also?, disabled? }`, shared by the rail and the tab bar. The
+  icon is required: it is the tab, and the row of a folded rail.
   `match` is `"prefix"` (default, on a segment boundary; `/` is exact),
   `"exact"`, or `(path) => boolean`; `also` lists more paths the item claims
   (the one tab standing in for Profile, Notifications and Settings). When
@@ -425,8 +426,12 @@ export function Nav() {
   `badge: number` draws a `NavBadge`; any other node is drawn as given.
   `trailing` may be a function of `{ active, pending }`. `external` renders a
   plain `<a>` that is never current.
-- **`ShellNav`** — `groups` + `footerGroups` (pinned to the bottom), `header` /
-  `footer` slots, `pathname` + `linkComponent`, `onItemIntent(item)` (hover /
+- **`ShellNav`** — `groups` + `footerGroups` (pinned to the bottom), each a
+  `NavSection`: a `NavGroup` of items, or a `NavPanel` `{ id, label, icon,
+  content, hidden? }` whose body is the app's own (a tree, a filter, another
+  app's element), drawn inline; a rail holding one gives the nav the rest of
+  the height so the body can fill it and scroll itself. `header` /
+  `footer` slots (a never-folding rail only), `pathname` + `linkComponent`, `onItemIntent(item)` (hover /
   focus — prefetch there), `onNavigate(item)`, `renderItem(item, state)` to
   replace a row's content (the link, `aria-current` and the marker stay the
   kit's), `labels` `{ primary, footer, badge(n) }`. A plain left click marks
@@ -443,6 +448,13 @@ export function Nav() {
   180 ms fade and chevron turn (`--ev-dur-fast`, `--ev-ease-in-out`), none under
   reduced motion; closed rows are `inert`. `labels` also takes `expand` /
   `collapse` (the chevron reads "Expand Guides"). `SectionNav` takes the same.
+  *Folding*: `folded` (controlled; the toggle and where the choice is kept are
+  the app's) narrows the rail to `--shell-rail-folded-w` of icons. Rows keep
+  their names (read, not drawn, with a tooltip), the marker and a corner badge;
+  group labels become dividers; a panel's icon opens its body beside the rail
+  (`--shell-rail-w` wide; Escape, a click outside or the icon close it). A
+  panel's body is one mounted node in both states, `hidden` panels included.
+  A rail that folds takes no `header` / `footer` — the type refuses them.
 - **`BottomTabBar`** — `items` (five fit a phone), the same router props,
   callbacks and optimistic mark, `labels` `{ nav, badge(n) }`. One rule slides by
   whole tab widths and fades on a route no tab claims; a numeric `badge` sits

@@ -2,15 +2,21 @@
 
 import * as React from "react";
 import { cn } from "../../lib/cn";
+import { useDismissableLayer } from "../../primitives/dismissable-layer";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../atomic/tooltip";
+import { IconButton } from "../derived/icon-button";
 import { NavBadge } from "./nav-badge";
 import { labelTitle, NavLink, type NavLinkCallbacks } from "./nav-link";
 import { NavCollapse, NavGroupHeader, useNavGroupOpen, type NavCollapseLabels } from "./nav-collapse";
 import {
+  isNavPanel,
   navItemMatch,
   resolveActiveNavItem,
   type NavGroup,
   type NavItem,
   type NavItemState,
+  type NavPanel,
+  type NavSection,
 } from "./nav-model";
 import { usePendingNavigation, useSlideMarker } from "./use-shell-nav";
 
@@ -23,26 +29,43 @@ export interface ShellNavLabels extends NavCollapseLabels {
   badge?: (count: number) => string;
 }
 
-export interface ShellNavProps
+interface ShellNavBaseProps
   extends Omit<React.ComponentProps<"aside">, "children">,
     NavLinkCallbacks {
-  groups: readonly NavGroup[];
+  groups: readonly NavSection[];
   /** Pinned to the bottom of the rail (profile, notifications, settings). */
-  footerGroups?: readonly NavGroup[];
+  footerGroups?: readonly NavSection[];
   /** The router's current path — `usePathname()` in Next. */
   pathname: string;
   /** Your router's link (`next/link`); defaults to a plain `<a>`. */
   linkComponent?: React.ElementType;
-  /** Above the groups — the brand lock-up. */
-  header?: React.ReactNode;
-  /** Below the footer groups — the signed-in account, a sign-out. */
-  footer?: React.ReactNode;
-  /** Replaces a row's content (icon, label, badge); the link, `aria-current` and the marker stay the kit's. */
+  /** Replaces an expanded row's content (icon, label, badge); the link, `aria-current` and the marker stay the kit's. */
   renderItem?: (item: NavItem, state: NavItemState) => React.ReactNode;
   labels?: ShellNavLabels;
   /** Makes every labelled group collapsible; a group's own `collapsible` wins. Default `false`. */
   collapsible?: boolean;
 }
+
+/**
+ * A rail that folds holds nothing without an icon, so its brand and account go to the top bar;
+ * one that never folds may carry them here.
+ */
+export type ShellNavProps = ShellNavBaseProps &
+  (
+    | {
+        folded?: never;
+        /** Above the groups — the brand lock-up. */
+        header?: React.ReactNode;
+        /** Below the footer groups — the signed-in account, a sign-out. */
+        footer?: React.ReactNode;
+      }
+    | {
+        /** Icons only; a panel's body opens beside the rail from its icon. */
+        folded: boolean;
+        header?: never;
+        footer?: never;
+      }
+  );
 
 // The ring is the solid token, never a tint — at 50% it composites under the 3:1
 // non-text floor. The offset keeps it legible around the marked row, whose fill
@@ -50,6 +73,9 @@ export interface ShellNavProps
 const NAV_FOCUS =
   "outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-secondary";
 const ROW = "flex items-center gap-3 rounded-row px-3 py-2 text-sm transition-colors";
+// Folded, a line between drawn sections stands in for their labels; a `hidden` panel draws none.
+const FOLDED_NAV =
+  "flex flex-col gap-2 [&>:not([hidden])~:not([hidden])]:border-t [&>:not([hidden])~:not([hidden])]:border-border [&>:not([hidden])~:not([hidden])]:pt-2";
 
 /**
  * The app's left rail: data-driven groups, a footer block pinned to the bottom,
@@ -67,6 +93,7 @@ export function ShellNav({
   linkComponent,
   header,
   footer,
+  folded = false,
   renderItem,
   onItemIntent,
   onNavigate,
@@ -76,43 +103,116 @@ export function ShellNav({
   ...props
 }: ShellNavProps) {
   const [pendingId, markPending] = usePendingNavigation(pathname);
-  const all = [...groups, ...footerGroups].flatMap((g) => g.items);
+  const [peek, setPeek] = React.useState<string | null>(null);
+  if (!folded && peek !== null) setPeek(null);
+  const all = [...groups, ...footerGroups].flatMap((s) => (isNavPanel(s) ? [] : s.items));
   const currentId =
     (pendingId !== null && all.some((i) => i.id === pendingId) ? pendingId : undefined) ??
     resolveActiveNavItem(all, pathname)?.id;
-  const section = (group: NavGroup) => (
-    <ShellNavSection
-      key={group.id}
-      group={group}
-      currentId={currentId}
-      pendingId={pendingId}
-      pathname={pathname}
-      labels={labels}
-      collapsible={collapsible}
-      row={{ linkComponent, markPending, onItemIntent, onNavigate, renderItem, badgeLabel: labels.badge }}
-    />
-  );
+  const section = (s: NavSection) =>
+    isNavPanel(s) ? (
+      <ShellNavPanel
+        key={s.id}
+        panel={s}
+        folded={folded}
+        open={peek === s.id}
+        onOpenChange={(open) => setPeek(open ? s.id : null)}
+      />
+    ) : (
+      <ShellNavSection
+        key={s.id}
+        group={s}
+        currentId={currentId}
+        pendingId={pendingId}
+        pathname={pathname}
+        labels={labels}
+        collapsible={collapsible}
+        folded={folded}
+        row={{ linkComponent, markPending, onItemIntent, onNavigate, renderItem, badgeLabel: labels.badge }}
+      />
+    );
+  // A panel may fill the rest of the rail and scroll itself, so the nav holding one takes that room.
+  const fills = groups.some(isNavPanel);
+  const navClass = folded ? FOLDED_NAV : "flex flex-col gap-4.5";
   return (
     <aside
       data-slot="shell-nav"
+      data-state={folded ? "folded" : "expanded"}
       className={cn(
-        "flex h-full w-(--shell-rail-w) flex-col gap-7 overflow-y-auto border-r border-border bg-card px-4.5 pb-5 pt-6",
+        "relative flex h-full w-(--shell-rail-w) flex-col gap-7 overflow-y-auto border-r border-border bg-card px-4.5 pb-5 pt-6",
         className,
+        // After `className`: a caller's width or padding is the expanded rail's.
+        folded && "w-(--shell-rail-folded-w) gap-2 overflow-visible px-2 pt-3",
       )}
       {...props}
     >
       {header}
-      <nav aria-label={labels.primary ?? "Main"} className="flex flex-col gap-4.5">
+      <nav
+        aria-label={labels.primary ?? "Main"}
+        className={cn(navClass, fills && "min-h-0 flex-1")}
+      >
         {groups.map(section)}
       </nav>
-      <div className="flex-1" />
+      {!fills && <div className="flex-1" />}
       {footerGroups.length > 0 && (
-        <nav aria-label={labels.footer ?? "Account"} className="flex flex-col gap-4.5">
+        <nav aria-label={labels.footer ?? "Account"} className={navClass}>
           {footerGroups.map(section)}
         </nav>
       )}
       {footer}
     </aside>
+  );
+}
+
+// Expanded the body is `contents`, so its own classes size it in the rail (a tree that fills and
+// scrolls itself); folded the same node is the flyout. One node in both: a fold never remounts it.
+function ShellNavPanel({
+  panel,
+  folded,
+  open,
+  onOpenChange,
+}: {
+  panel: NavPanel;
+  folded: boolean;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const trigger = React.useRef<HTMLButtonElement>(null);
+  const layer = useDismissableLayer({
+    enabled: folded && open,
+    onDismiss: () => onOpenChange(false),
+    exclude: [trigger],
+  });
+  const Icon = panel.icon;
+  return (
+    <div
+      data-slot="shell-nav-panel"
+      hidden={panel.hidden}
+      className={folded ? "flex flex-col items-center" : "contents"}
+    >
+      {folded && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <IconButton ref={trigger} aria-label={panel.label} pressed={open} onClick={() => onOpenChange(!open)}>
+              <Icon className="size-4.5" />
+            </IconButton>
+          </TooltipTrigger>
+          {!open && <TooltipContent side="right">{panel.label}</TooltipContent>}
+        </Tooltip>
+      )}
+      <section
+        ref={layer}
+        aria-label={panel.label}
+        hidden={folded && !open}
+        className={
+          folded
+            ? "absolute inset-y-0 left-full z-30 flex w-(--shell-rail-w) flex-col border-r border-border bg-card p-2 shadow-lg"
+            : "contents"
+        }
+      >
+        {panel.content}
+      </section>
+    </div>
   );
 }
 
@@ -138,6 +238,7 @@ function ShellNavSection({
   row,
   labels,
   collapsible,
+  folded,
 }: {
   group: NavGroup;
   currentId: string | undefined;
@@ -146,6 +247,7 @@ function ShellNavSection({
   row: RowContext;
   labels: ShellNavLabels;
   collapsible: boolean;
+  folded: boolean;
 }) {
   const body = React.useRef<HTMLDivElement>(null);
   const labelId = React.useId();
@@ -153,10 +255,9 @@ function ShellNavSection({
   const at = group.items.some((i) => i.id === currentId) ? (currentId ?? null) : null;
   const [open, setOpen] = useNavGroupOpen(group, at !== null);
   useSlideMarker(body, at);
-  const folds = (group.collapsible ?? collapsible) && group.label !== undefined;
+  const folds = !folded && (group.collapsible ?? collapsible) && group.label !== undefined;
   const landing =
-    group.href !== undefined &&
-    navItemMatch({ id: group.id, href: group.href, label: "", match: "exact" }, pathname) !== null;
+    group.href !== undefined && navItemMatch({ href: group.href, match: "exact" }, pathname) !== null;
   const content = (
     <div ref={body} className={cn("relative isolate", folds && "pt-1")}>
       {/* First in DOM order: the pre-hydration fill in motion.css reaches the marked
@@ -170,18 +271,27 @@ function ShellNavSection({
       )}
       <ul
         aria-labelledby={group.label !== undefined ? labelId : undefined}
-        className={cn("flex flex-col gap-1", folds && "pl-3")}
+        className={cn("flex flex-col gap-1", folds && "pl-3", folded && "items-center")}
       >
-        {group.items.map((item) => (
-          <li key={item.id} className="flex flex-col">
-            <ShellNavRow
-              item={item}
-              nested={folds}
-              state={{ active: item.id === currentId, pending: item.id === pendingId }}
-              row={row}
-            />
-          </li>
-        ))}
+        {group.items.map((item) => {
+          const state = { active: item.id === currentId, pending: item.id === pendingId };
+          if (!folded)
+            return (
+              <li key={item.id} className="flex flex-col">
+                <ShellNavRow item={item} nested={folds} state={state} row={row} />
+              </li>
+            );
+          return (
+            <Tooltip key={item.id}>
+              <TooltipTrigger asChild>
+                <li className="flex flex-col">
+                  <ShellNavIcon item={item} state={state} row={row} />
+                </li>
+              </TooltipTrigger>
+              <TooltipContent side="right">{item.label}</TooltipContent>
+            </Tooltip>
+          );
+        })}
       </ul>
     </div>
   );
@@ -189,10 +299,16 @@ function ShellNavSection({
     return (
       <div
         data-slot="shell-nav-section"
-        className={cn("flex flex-col gap-1", group.label !== undefined && "pl-1")}
+        className={cn(
+          "flex flex-col gap-1",
+          group.label !== undefined && !folded && "pl-1",
+        )}
       >
         {group.label !== undefined && (
-          <p id={labelId} className="mb-0.5 text-xs font-semibold uppercase tracking-widest text-ink-soft">
+          <p
+            id={labelId}
+            className={folded ? "sr-only" : "mb-0.5 text-xs font-semibold uppercase tracking-widest text-ink-soft"}
+          >
             {group.label}
           </p>
         )}
@@ -217,6 +333,37 @@ function ShellNavSection({
         {content}
       </NavCollapse>
     </div>
+  );
+}
+
+// The label stays in the link, read but not drawn, so the row keeps its name; a count sits on the
+// icon's corner, as on a tab.
+function ShellNavIcon({ item, state, row }: { item: NavItem; state: NavItemState; row: RowContext }) {
+  const Icon = item.icon;
+  return (
+    <NavLink
+      item={item}
+      current={state.active}
+      pending={state.pending}
+      linkComponent={row.linkComponent}
+      markPending={row.markPending}
+      onItemIntent={row.onItemIntent}
+      onNavigate={row.onNavigate}
+      className={cn(
+        "grid size-(--control-h-md) place-items-center rounded-row transition-colors",
+        NAV_FOCUS,
+        state.active ? "text-on-primary" : "text-ink hover:bg-hover",
+        item.disabled && "cursor-not-allowed opacity-(--disabled-opacity) hover:bg-transparent",
+      )}
+    >
+      <span className="relative">
+        <Icon className="size-4.5" />
+        {typeof item.badge === "number" && (
+          <NavBadge count={item.badge} variant="corner" {...(row.badgeLabel ? { label: row.badgeLabel } : {})} />
+        )}
+      </span>
+      <span className="sr-only">{item.label}</span>
+    </NavLink>
   );
 }
 
@@ -256,7 +403,7 @@ function ShellNavRow({
         row.renderItem(item, state)
       ) : (
         <>
-          {Icon && <Icon className="size-4.5 shrink-0" />}
+          <Icon className="size-4.5 shrink-0" />
           {/* `min-w-0`: without it the label refuses to shrink below its own text and
               the rail widens to the longest translation instead of truncating. */}
           <span className="min-w-0 flex-1 truncate">{item.label}</span>

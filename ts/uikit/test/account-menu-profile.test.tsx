@@ -3,13 +3,15 @@ import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { AccountMenu, type AccountMenuProfile } from "../src/components/shell/account-menu";
 
+const Glyph = () => null;
+
 function open(profile: AccountMenuProfile, onSignOut = () => {}) {
   render(
     <AccountMenu
       account={{ name: "Jane Doe", email: "jane@example.com" }}
       switchHref="/switch"
       onSignOut={onSignOut}
-      groups={[{ id: "g", items: [{ id: "billing", href: "/billing", label: "Billing" }] }]}
+      groups={[{ id: "g", items: [{ id: "billing", href: "/billing", label: "Billing", icon: Glyph }] }]}
       profile={profile}
     />,
   );

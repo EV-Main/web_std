@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, within } from "@testing-library/react";
 import { AccountMenu } from "../src/components/shell/account-menu";
 
+const Glyph = () => null;
+
 const open = (ui: React.ReactElement) => {
   const view = render(ui);
   fireEvent.click(view.getByRole("button", { name: "Account" }));
@@ -16,7 +18,7 @@ describe("AccountMenu", () => {
         account={{ name: "Valera Admin", email: "va@example.com" }}
         manageHref="https://id.example.com/settings"
         switchHref="/auth/login?prompt=select_account"
-        groups={[{ id: "sa", items: [{ id: "account", href: "/account", label: "Account" }] }]}
+        groups={[{ id: "sa", items: [{ id: "account", href: "/account", label: "Account", icon: Glyph }] }]}
         onSignOut={() => {}}
       />,
     );

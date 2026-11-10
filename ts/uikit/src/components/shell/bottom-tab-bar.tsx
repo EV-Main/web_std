@@ -98,7 +98,7 @@ export function BottomTabBar({
             )}
           >
             <span className="relative shrink-0">
-              {Icon ? <Icon className="size-5" /> : <span className="block size-5" />}
+              <Icon className="size-5" />
               {typeof item.badge === "number" ? (
                 <NavBadge
                   count={item.badge}

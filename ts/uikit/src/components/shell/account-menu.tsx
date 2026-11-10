@@ -131,7 +131,7 @@ export function AccountMenu({
                 return (
                   <DropdownMenuItem key={item.id} asChild>
                     <Item href={item.href}>
-                      {Icon && <Icon className="size-4" />}
+                      <Icon className="size-4" />
                       {item.label}
                     </Item>
                   </DropdownMenuItem>

@@ -71,3 +71,7 @@ export const LogOutIcon = glyph("M9 4H4v16h5M16 8l4 4-4 4M20 12H9");
 export const MoonIcon = glyph("M20 14A8 8 0 1 1 10 4a6 6 0 0 0 10 10z");
 export const TrendingUpIcon = glyph("M3 17l6-6 4 4 8-8M15 7h6v6");
 export const CreditCardIcon = glyph("M3 6h18v12H3zM3 10h18");
+export const SwatchIcon = glyph("M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z");
+export const BrickIcon = glyph("M4 7h16v10H4zM12 7v10M4 12h8");
+export const StackIcon = glyph("M12 3l9 5-9 5-9-5zM3 13l9 5 9-5");
+export const ScreenIcon = glyph("M3 4h18v12H3zM8 20h8M12 16v4");

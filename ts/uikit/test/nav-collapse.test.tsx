@@ -5,23 +5,25 @@ import { ShellNav } from "../src/components/shell/shell-nav";
 import { SectionNav } from "../src/components/shell/section-nav";
 import type { NavGroup } from "../src/components/shell/nav-model";
 
+const Glyph = () => null;
+
 const GROUPS: NavGroup[] = [
   {
     id: "start",
     label: "Getting Started",
     collapsible: true,
     items: [
-      { id: "install", href: "/docs/install", label: "Installation" },
-      { id: "layouts", href: "/docs/layouts", label: "Layouts" },
+      { id: "install", href: "/docs/install", label: "Installation", icon: Glyph },
+      { id: "layouts", href: "/docs/layouts", label: "Layouts", icon: Glyph },
     ],
   },
   {
     id: "guides",
     label: "Guides",
     collapsible: true,
-    items: [{ id: "auth", href: "/guides/auth", label: "Authentication" }],
+    items: [{ id: "auth", href: "/guides/auth", label: "Authentication", icon: Glyph }],
   },
-  { id: "plain", label: "Plain", items: [{ id: "home", href: "/", label: "Home" }] },
+  { id: "plain", label: "Plain", items: [{ id: "home", href: "/", label: "Home", icon: Glyph }] },
 ];
 
 const guides = (): NavGroup => {

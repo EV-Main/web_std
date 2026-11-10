@@ -4,6 +4,8 @@ import { fireEvent, render } from "@testing-library/react";
 import { BottomTabBar } from "../src/components/shell/bottom-tab-bar";
 import type { NavItem } from "../src/components/shell/nav-model";
 
+const Glyph = () => null;
+
 const FakeLink = ({ onClick, ...props }: React.ComponentProps<"a">) => (
   <a
     data-fake-link=""
@@ -16,10 +18,10 @@ const FakeLink = ({ onClick, ...props }: React.ComponentProps<"a">) => (
 );
 
 const TABS: NavItem[] = [
-  { id: "home", href: "/", label: "Home" },
-  { id: "invest", href: "/invest", label: "Invest" },
-  { id: "wallet", href: "/wallet", label: "Wallet" },
-  { id: "account", href: "/settings", label: "Account", also: ["/profile", "/notifications"], badge: 7 },
+  { id: "home", href: "/", label: "Home", icon: Glyph },
+  { id: "invest", href: "/invest", label: "Invest", icon: Glyph },
+  { id: "wallet", href: "/wallet", label: "Wallet", icon: Glyph },
+  { id: "account", href: "/settings", label: "Account", also: ["/profile", "/notifications"], badge: 7, icon: Glyph },
 ];
 
 const bar = (pathname: string, extra: Partial<React.ComponentProps<typeof BottomTabBar>> = {}) => (

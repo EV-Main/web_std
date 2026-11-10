@@ -6,6 +6,8 @@ import {
   Button,
   Card,
   CardContent,
+  IconButton,
+  Input,
   CardHeader,
   CardTitle,
   MobileAppBar,
@@ -18,8 +20,8 @@ import {
   Skeleton,
   SystemBanner,
   TopBar,
-  type NavGroup,
   type NavItem,
+  type NavSection,
 } from "@evinvest/uikit";
 
 // A stand-in for a router: the demo keeps its "URL" in state, and the link
@@ -63,9 +65,11 @@ const WalletIcon = glyph("M3 7h18v12H3zM16 13h2");
 const UsersIcon = glyph("M16 21v-2a4 4 0 0 0-8 0v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z");
 const BellIcon = glyph("M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10 21h4");
 const CogIcon = glyph("M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z");
+const FilterIcon = glyph("M3 5h18l-7 8v6l-4 2v-8z");
+const RailIcon = glyph("M3 4h18v16H3zM9 4v16");
 const UserIcon = glyph("M20 21a8 8 0 0 0-16 0M12 13a5 5 0 1 0 0-10 5 5 0 0 0 0 10z");
 
-const GROUPS: NavGroup[] = [
+const GROUPS: NavSection[] = [
   {
     id: "fund",
     label: "Your account",
@@ -83,9 +87,20 @@ const GROUPS: NavGroup[] = [
       { id: "soon", href: "/admin/soon", label: "Coming soon", icon: CogIcon, disabled: true },
     ],
   },
+  {
+    id: "filters",
+    label: "Filters",
+    icon: FilterIcon,
+    content: (
+      <div className="flex flex-col gap-2 pl-1">
+        <p className="text-xs font-semibold uppercase tracking-widest text-ink-soft">Filters</p>
+        <Input size="sm" placeholder="Search accounts" aria-label="Search accounts" />
+      </div>
+    ),
+  },
 ];
 
-const FOOTER: NavGroup[] = [
+const FOOTER: NavSection[] = [
   {
     id: "me",
     items: [
@@ -151,6 +166,7 @@ function DemoPage({ pathname }: { pathname: string }) {
 export function ShellFrame() {
   const { pathname, Link } = useFakeRouter();
   const [announce, setAnnounce] = useState(true);
+  const [folded, setFolded] = useState(false);
   return (
     // `transform` makes this box the containing block of the shell's `fixed` tab
     // bar, so the demo stays inside its frame instead of covering the page; one
@@ -158,11 +174,18 @@ export function ShellFrame() {
     <div className="border-border h-dvh overflow-auto rounded-lg border [transform:translateZ(0)]">
       <AppShell
         className="min-h-full"
-        rail={<ShellNav groups={GROUPS} footerGroups={FOOTER} pathname={pathname} linkComponent={Link} header={<span className="text-ink px-3 font-semibold">ACME</span>} />}
+        rail={<ShellNav groups={GROUPS} footerGroups={FOOTER} pathname={pathname} linkComponent={Link} folded={folded} />}
         tabBar={<BottomTabBar items={TABS} pathname={pathname} linkComponent={Link} />}
         topBar={
           <TopBar
-            start={<span className="text-ink font-semibold">ACME</span>}
+            start={
+              <>
+                <IconButton aria-label="Fold the rail" tooltip="Fold the rail" pressed={folded} onClick={() => setFolded(!folded)}>
+                  <RailIcon className="size-4" />
+                </IconButton>
+                <span className="text-ink font-semibold">ACME</span>
+              </>
+            }
             end={
               <>
                 <span className="text-ink-soft text-body">123 tokens</span>
@@ -170,7 +193,7 @@ export function ShellFrame() {
                   account={{ name: "Ada Lovelace", email: "ada@example.com" }}
                   manageHref="#account-center"
                   switchHref="#switch-account"
-                  groups={[{ id: "service", items: [{ id: "account", href: "/profile", label: "Account" }] }]}
+                  groups={[{ id: "service", items: [{ id: "account", href: "/profile", label: "Account", icon: UserIcon }] }]}
                   onSignOut={() => {}}
                   linkComponent={Link}
                 />

@@ -12,6 +12,8 @@ import type { NavGroupCollapse } from "./nav-collapse";
  */
 export type NavMatch = "exact" | "prefix" | ((pathname: string) => boolean);
 
+export type NavIcon = React.ComponentType<{ className?: string }>;
+
 /** State a row is rendered in; what `trailing` and `renderItem` are told. */
 export interface NavItemState {
   active: boolean;
@@ -19,13 +21,13 @@ export interface NavItemState {
   pending: boolean;
 }
 
-/** One destination, shared by the rail ({@link ShellNav}) and the tab bar. */
+/** One destination, shared by the rail ({@link ShellNav}) and the tab bar; its icon is what a folded rail shows. */
 export interface NavItem {
   /** Stable key; also what `onNavigate` / `onItemIntent` hand back. */
   id: string;
   href: string;
   label: React.ReactNode;
-  icon?: React.ComponentType<{ className?: string }>;
+  icon: NavIcon;
   /** A count (`NavBadge`, capped at 99+, `0` draws nothing) or your own node. */
   badge?: number | React.ReactNode;
   /** Anything after the label — a status chip; a function is told the row's state. */
@@ -55,6 +57,27 @@ export interface NavGroup extends NavGroupCollapse {
   items: readonly NavItem[];
 }
 
+/**
+ * A section whose body is the app's own — a tree, a filter, another app's element. Expanded, the
+ * body sits in the rail as is; folded, its icon opens it beside the rail. The body stays mounted
+ * either way.
+ */
+export interface NavPanel {
+  id: string;
+  /** The section's accessible name and its tooltip when folded. */
+  label: string;
+  icon: NavIcon;
+  content: React.ReactNode;
+  /** Kept mounted, not drawn, no icon on the rail. */
+  hidden?: boolean;
+}
+
+export type NavSection = NavGroup | NavPanel;
+
+export function isNavPanel(section: NavSection): section is NavPanel {
+  return "content" in section;
+}
+
 function pathOf(href: string): string {
   const cut = href.search(/[?#]/);
   const path = cut === -1 ? href : href.slice(0, cut);
@@ -75,7 +98,10 @@ const EXACT = Number.MAX_SAFE_INTEGER;
  * pick ONE current item when several match — the rail and the tab bar each
  * draw a single marker, so two current rows is not a state they can show.
  */
-export function navItemMatch(item: NavItem, pathname: string): number | null {
+export function navItemMatch(
+  item: Pick<NavItem, "href" | "external" | "disabled" | "match" | "also">,
+  pathname: string,
+): number | null {
   if (item.external || item.disabled) return null;
   const path = pathOf(pathname);
   const own = pathOf(item.href);

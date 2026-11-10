@@ -686,7 +686,7 @@ export {
   navItemMatch,
   resolveActiveNavItem,
 } from "./components/shell/nav-model";
-export type { NavGroup, NavItem, NavItemState, NavMatch } from "./components/shell/nav-model";
+export type { NavGroup, NavIcon, NavItem, NavItemState, NavMatch, NavPanel, NavSection } from "./components/shell/nav-model";
 export type { NavCollapseLabels, NavGroupCollapse } from "./components/shell/nav-collapse";
 export { usePendingNavigation } from "./components/shell/use-shell-nav";
 

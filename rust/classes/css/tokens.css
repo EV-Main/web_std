@@ -1002,6 +1002,7 @@
 
   /* app shell (uikit <AppShell> / <ShellNav> / <BottomTabBar>) */
   --shell-rail-w: 15.5rem; /* 248px */
+  --shell-rail-folded-w: 3.5rem; /* 56px */
   --shell-tab-bar-h: 4rem; /* 64px, before the bottom safe area */
 
   /* ── motion ──────────────────────────────────────────────────── *

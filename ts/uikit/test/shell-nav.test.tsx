@@ -3,7 +3,7 @@ import { renderToString } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, within } from "@testing-library/react";
 import { ShellNav } from "../src/components/shell/shell-nav";
-import type { NavGroup } from "../src/components/shell/nav-model";
+import type { NavSection } from "../src/components/shell/nav-model";
 
 // Mimics next/link: the caller's onClick runs first, then the link takes the
 // click over (which jsdom could not navigate anyway).
@@ -25,30 +25,30 @@ const FakeLink = React.forwardRef<HTMLAnchorElement, React.ComponentProps<"a">>(
 
 const Icon = ({ className }: { className?: string }) => <svg data-testid="icon" className={className} />;
 
-const GROUPS: NavGroup[] = [
+const GROUPS: NavSection[] = [
   {
     id: "main",
     label: "Your account",
     items: [
       { id: "home", href: "/", label: "Home", icon: Icon },
-      { id: "invest", href: "/invest", label: "Invest", match: "exact" },
-      { id: "wallet", href: "/wallet", label: "Wallet" },
+      { id: "invest", href: "/invest", label: "Invest", match: "exact", icon: Icon },
+      { id: "wallet", href: "/wallet", label: "Wallet", icon: Icon },
     ],
   },
   {
     id: "products",
     label: "Products",
-    items: [{ id: "arb", href: "/invest/arb", label: "Arb" }],
+    items: [{ id: "arb", href: "/invest/arb", label: "Arb", icon: Icon }],
   },
 ];
 
-const FOOTER: NavGroup[] = [
+const FOOTER: NavSection[] = [
   {
     id: "me",
     items: [
-      { id: "profile", href: "/profile", label: "Profile" },
-      { id: "inbox", href: "/notifications", label: "Notifications", badge: 150 },
-      { id: "help", href: "mailto:help@example.com", label: "Support", external: true },
+      { id: "profile", href: "/profile", label: "Profile", icon: Icon },
+      { id: "inbox", href: "/notifications", label: "Notifications", badge: 150, icon: Icon },
+      { id: "help", href: "mailto:help@example.com", label: "Support", external: true, icon: Icon },
     ],
   },
 ];
@@ -184,7 +184,7 @@ describe("ShellNav", () => {
   });
 
   it("hands `trailing` the row's state", () => {
-    const groups: NavGroup[] = [
+    const groups: NavSection[] = [
       {
         id: "g",
         items: [
@@ -192,6 +192,7 @@ describe("ShellNav", () => {
             id: "kyc",
             href: "/kyc",
             label: "Profile",
+            icon: Icon,
             trailing: ({ active }) => <span>{active ? "on" : "off"}</span>,
           },
         ],
@@ -199,5 +200,51 @@ describe("ShellNav", () => {
     ];
     const { getByText } = render(<ShellNav groups={groups} pathname="/kyc" />);
     expect(getByText("on")).toBeInTheDocument();
+  });
+});
+
+describe("ShellNav folded", () => {
+  const tree = { id: "tree", label: "Places", icon: Icon, content: <input aria-label="Filter" /> };
+  const SECTIONS: NavSection[] = [...GROUPS, tree];
+  const rail = (folded: boolean, sections: NavSection[] = SECTIONS) => (
+    <ShellNav groups={sections} pathname="/wallet" linkComponent={FakeLink} folded={folded} />
+  );
+
+  it("keeps every row's name and the current row when it folds", () => {
+    const { container, getByRole } = render(rail(true));
+    expect(getByRole("link", { name: "Wallet" })).toHaveAttribute("aria-current", "page");
+    expect(getByRole("link", { name: "Arb" })).toBeInTheDocument();
+    expect(current(container)).toEqual(["Wallet"]);
+    expect(getByRole("list", { name: "Your account" })).toBeInTheDocument();
+  });
+
+  it("draws a panel inline when expanded, behind its icon when folded", () => {
+    const { getByRole, queryByRole, rerender } = render(rail(false));
+    expect(queryByRole("button", { name: "Places" })).toBeNull();
+    expect(getByRole("textbox", { name: "Filter" })).toBeVisible();
+    rerender(rail(true));
+    const open = getByRole("button", { name: "Places" });
+    expect(open).toHaveAttribute("aria-pressed", "false");
+    expect(getByRole("textbox", { name: "Filter", hidden: true })).not.toBeVisible();
+    fireEvent.click(open);
+    expect(open).toHaveAttribute("aria-pressed", "true");
+    expect(getByRole("textbox", { name: "Filter" })).toBeVisible();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(getByRole("textbox", { name: "Filter", hidden: true })).not.toBeVisible();
+    fireEvent.click(open);
+    fireEvent.click(open);
+    expect(getByRole("textbox", { name: "Filter", hidden: true })).not.toBeVisible();
+  });
+
+  it("keeps a panel's body mounted across a fold, and a hidden panel mounted without an icon", () => {
+    const { getByRole, queryByRole, rerender } = render(rail(false));
+    const body = getByRole("textbox", { name: "Filter" });
+    rerender(rail(true));
+    expect(getByRole("textbox", { name: "Filter", hidden: true })).toBe(body);
+    rerender(rail(false));
+    expect(getByRole("textbox", { name: "Filter" })).toBe(body);
+    rerender(rail(true, [...GROUPS, { ...tree, hidden: true }]));
+    expect(queryByRole("button", { name: "Places" })).toBeNull();
+    expect(getByRole("textbox", { name: "Filter", hidden: true })).toBe(body);
   });
 });

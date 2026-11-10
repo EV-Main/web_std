@@ -1,4 +1,5 @@
 import type { ComponentType } from "react";
+import { BrickIcon, ScreenIcon, StackIcon, SwatchIcon } from "./icons";
 import BadgesPage from "../pages/elements/BadgesPage";
 import BannersPage from "../pages/elements/BannersPage";
 import ButtonPage from "../pages/elements/ButtonPage";
@@ -43,14 +44,15 @@ export type TierId = "foundations" | "elements" | "composed" | "screens";
 export interface Tier {
   id: TierId;
   label: string;
+  icon: ComponentType<{ className?: string }>;
 }
 
 /** In nav order. */
 export const TIERS: readonly Tier[] = [
-  { id: "foundations", label: "Foundations" },
-  { id: "elements", label: "Elements" },
-  { id: "composed", label: "Composed" },
-  { id: "screens", label: "Screens" },
+  { id: "foundations", label: "Foundations", icon: SwatchIcon },
+  { id: "elements", label: "Elements", icon: BrickIcon },
+  { id: "composed", label: "Composed", icon: StackIcon },
+  { id: "screens", label: "Screens", icon: ScreenIcon },
 ];
 
 export interface Entry {
