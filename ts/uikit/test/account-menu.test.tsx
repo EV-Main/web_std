@@ -18,7 +18,7 @@ describe("AccountMenu", () => {
         account={{ name: "Valera Admin", email: "va@example.com" }}
         manageHref="https://id.example.com/settings"
         switchHref="/auth/login?prompt=select_account"
-        groups={[{ id: "sa", items: [{ id: "account", href: "/account", label: "Account", icon: Glyph }] }]}
+        groups={[{ id: "sa", items: [{ id: "account", href: "/account", label: "Account", description: "Account", icon: Glyph }] }]}
         onSignOut={() => {}}
       />,
     );

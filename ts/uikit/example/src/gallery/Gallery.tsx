@@ -32,13 +32,13 @@ function HashLink({ href, ...props }: ComponentProps<"a">) {
 }
 
 const NAV_GROUPS: NavGroup[] = TIERS.flatMap((tier) => {
-  const items: NavItem[] = entriesOf(tier.id).map((e) => ({ id: entryPath(e), href: entryPath(e), label: e.title, icon: tier.icon }));
+  const items: NavItem[] = entriesOf(tier.id).map((e) => ({ id: entryPath(e), href: entryPath(e), label: e.title, description: tier.description, icon: tier.icon }));
   return items.length > 0 ? [{ id: tier.id, label: tier.label, collapsible: true, items }] : [];
 });
 
 const TAB_ITEMS: NavItem[] = TIERS.flatMap((tier) => {
   const first = entriesOf(tier.id)[0];
-  return first ? [{ id: tier.id, href: entryPath(first), label: tier.label, icon: tier.icon, also: [`/${tier.id}`] }] : [];
+  return first ? [{ id: tier.id, href: entryPath(first), label: tier.label, description: tier.description, icon: tier.icon, also: [`/${tier.id}`] }] : [];
 });
 
 function PageSelect({ route }: { route: string }) {

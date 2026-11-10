@@ -43,6 +43,7 @@ export const TS_ONLY_SLOTS = [
   "nav-dot",
   "nav-group-header",
   "nav-link",
+  "nav-menu-list",
   "page-frame",
   "page-heading",
   "resource-error",

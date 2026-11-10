@@ -690,6 +690,8 @@ export type { NavGroup, NavIcon, NavItem, NavItemState, NavMatch, NavPanel, NavS
 export type { NavCollapseLabels, NavGroupCollapse } from "./components/shell/nav-collapse";
 export { usePendingNavigation } from "./components/shell/use-shell-nav";
 
+export { NavMenu, NavMenuList } from "./components/shell/nav-menu";
+export type { NavMenuListProps, NavMenuProps } from "./components/shell/nav-menu";
 export { ShellNav } from "./components/shell/shell-nav";
 export type { ShellNavLabels, ShellNavProps } from "./components/shell/shell-nav";
 

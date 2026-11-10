@@ -11,7 +11,7 @@ function open(profile: AccountMenuProfile, onSignOut = () => {}) {
       account={{ name: "Jane Doe", email: "jane@example.com" }}
       switchHref="/switch"
       onSignOut={onSignOut}
-      groups={[{ id: "g", items: [{ id: "billing", href: "/billing", label: "Billing", icon: Glyph }] }]}
+      groups={[{ id: "g", items: [{ id: "billing", href: "/billing", label: "Billing", description: "Billing", icon: Glyph }] }]}
       profile={profile}
     />,
   );

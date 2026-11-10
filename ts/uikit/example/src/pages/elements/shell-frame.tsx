@@ -11,6 +11,10 @@ import {
   CardHeader,
   CardTitle,
   MobileAppBar,
+  NavigationMenu,
+  NavigationMenuList,
+  NavMenu,
+  NavMenuList,
   NavDot,
   PageFrame,
   ResourceError,
@@ -20,6 +24,7 @@ import {
   Skeleton,
   SystemBanner,
   TopBar,
+  type NavGroup,
   type NavItem,
   type NavSection,
 } from "@evinvest/uikit";
@@ -74,17 +79,17 @@ const GROUPS: NavSection[] = [
     id: "fund",
     label: "Your account",
     items: [
-      { id: "home", href: "/", label: "Home", icon: HomeIcon },
-      { id: "invest", href: "/invest", label: "Invest", icon: ChartIcon },
-      { id: "wallet", href: "/wallet", label: "Wallet", icon: WalletIcon },
+      { id: "home", href: "/", label: "Home", description: "Balances at a glance", icon: HomeIcon },
+      { id: "invest", href: "/invest", label: "Invest", description: "Products open to you", icon: ChartIcon },
+      { id: "wallet", href: "/wallet", label: "Wallet", description: "Deposits and withdrawals", icon: WalletIcon },
     ],
   },
   {
     id: "admin",
     label: "Administer",
     items: [
-      { id: "users", href: "/admin/users", label: "Users", icon: UsersIcon },
-      { id: "soon", href: "/admin/soon", label: "Coming soon", icon: CogIcon, disabled: true },
+      { id: "users", href: "/admin/users", label: "Users", description: "Everyone with an account", icon: UsersIcon },
+      { id: "soon", href: "/admin/soon", label: "Coming soon", description: "Not open yet", icon: CogIcon, disabled: true },
     ],
   },
   {
@@ -104,18 +109,18 @@ const FOOTER: NavSection[] = [
   {
     id: "me",
     items: [
-      { id: "profile", href: "/profile", label: "Profile", icon: UserIcon, trailing: <NavDot tone="warn" label="Verification pending" /> },
-      { id: "inbox", href: "/notifications", label: "Notifications", icon: BellIcon, badge: 128 },
-      { id: "settings", href: "/settings", label: "Settings", icon: CogIcon },
+      { id: "profile", href: "/profile", label: "Profile", description: "Who you are to us", icon: UserIcon, trailing: <NavDot tone="warn" label="Verification pending" /> },
+      { id: "inbox", href: "/notifications", label: "Notifications", description: "What happened while you were away", icon: BellIcon, badge: 128 },
+      { id: "settings", href: "/settings", label: "Settings", description: "Preferences and security", icon: CogIcon },
     ],
   },
 ];
 
 const TABS: NavItem[] = [
-  { id: "home", href: "/", label: "Home", icon: HomeIcon },
-  { id: "invest", href: "/invest", label: "Invest", icon: ChartIcon },
-  { id: "wallet", href: "/wallet", label: "Wallet", icon: WalletIcon },
-  { id: "account", href: "/settings", label: "Account", icon: UserIcon, also: ["/profile", "/notifications"], badge: 128 },
+  { id: "home", href: "/", label: "Home", description: "Balances at a glance", icon: HomeIcon },
+  { id: "invest", href: "/invest", label: "Invest", description: "Products open to you", icon: ChartIcon },
+  { id: "wallet", href: "/wallet", label: "Wallet", description: "Deposits and withdrawals", icon: WalletIcon },
+  { id: "account", href: "/settings", label: "Account", description: "Who you are and how you sign in", icon: UserIcon, also: ["/profile", "/notifications"], badge: 128 },
 ];
 
 function DemoPage({ pathname }: { pathname: string }) {
@@ -193,7 +198,7 @@ export function ShellFrame() {
                   account={{ name: "Ada Lovelace", email: "ada@example.com" }}
                   manageHref="#account-center"
                   switchHref="#switch-account"
-                  groups={[{ id: "service", items: [{ id: "account", href: "/profile", label: "Account", icon: UserIcon }] }]}
+                  groups={[{ id: "service", items: [{ id: "account", href: "/profile", label: "Account", description: "Who you are and how you sign in", icon: UserIcon }] }]}
                   onSignOut={() => {}}
                   linkComponent={Link}
                 />
@@ -215,5 +220,20 @@ export function ShellFrame() {
         <DemoPage pathname={pathname} />
       </AppShell>
     </div>
+  );
+}
+
+/** The rail's groups in a top bar's menus: hover or focus opens one, the rows carry their descriptions. */
+export function NavMenuSpecimen() {
+  const groups = GROUPS.filter((s): s is NavGroup => "items" in s);
+  return (
+    <NavigationMenu viewport={false}>
+      <NavigationMenuList>
+        <NavMenu label="Account" href="#/elements/navigation" current>
+          <NavMenuList groups={groups} pathname="/invest" />
+        </NavMenu>
+        <NavMenu label="Docs" href="#/elements/navigation" current={false} />
+      </NavigationMenuList>
+    </NavigationMenu>
   );
 }

@@ -30,15 +30,15 @@ const GROUPS: NavSection[] = [
     id: "main",
     label: "Your account",
     items: [
-      { id: "home", href: "/", label: "Home", icon: Icon },
-      { id: "invest", href: "/invest", label: "Invest", match: "exact", icon: Icon },
-      { id: "wallet", href: "/wallet", label: "Wallet", icon: Icon },
+      { id: "home", href: "/", label: "Home", description: "Home", icon: Icon },
+      { id: "invest", href: "/invest", label: "Invest", description: "Invest", match: "exact", icon: Icon },
+      { id: "wallet", href: "/wallet", label: "Wallet", description: "Wallet", icon: Icon },
     ],
   },
   {
     id: "products",
     label: "Products",
-    items: [{ id: "arb", href: "/invest/arb", label: "Arb", icon: Icon }],
+    items: [{ id: "arb", href: "/invest/arb", label: "Arb", description: "Arb", icon: Icon }],
   },
 ];
 
@@ -46,9 +46,9 @@ const FOOTER: NavSection[] = [
   {
     id: "me",
     items: [
-      { id: "profile", href: "/profile", label: "Profile", icon: Icon },
-      { id: "inbox", href: "/notifications", label: "Notifications", badge: 150, icon: Icon },
-      { id: "help", href: "mailto:help@example.com", label: "Support", external: true, icon: Icon },
+      { id: "profile", href: "/profile", label: "Profile", description: "Profile", icon: Icon },
+      { id: "inbox", href: "/notifications", label: "Notifications", description: "Notifications", badge: 150, icon: Icon },
+      { id: "help", href: "mailto:help@example.com", label: "Support", description: "Support", external: true, icon: Icon },
     ],
   },
 ];
@@ -164,6 +164,7 @@ describe("ShellNav", () => {
             id: "kyc",
             href: "/kyc",
             label: "Profile",
+            description: "Profile",
             icon: Icon,
             trailing: ({ active }) => <span>{active ? "on" : "off"}</span>,
           },

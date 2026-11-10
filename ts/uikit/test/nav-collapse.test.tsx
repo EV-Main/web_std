@@ -13,17 +13,17 @@ const GROUPS: NavGroup[] = [
     label: "Getting Started",
     collapsible: true,
     items: [
-      { id: "install", href: "/docs/install", label: "Installation", icon: Glyph },
-      { id: "layouts", href: "/docs/layouts", label: "Layouts", icon: Glyph },
+      { id: "install", href: "/docs/install", label: "Installation", description: "Installation", icon: Glyph },
+      { id: "layouts", href: "/docs/layouts", label: "Layouts", description: "Layouts", icon: Glyph },
     ],
   },
   {
     id: "guides",
     label: "Guides",
     collapsible: true,
-    items: [{ id: "auth", href: "/guides/auth", label: "Authentication", icon: Glyph }],
+    items: [{ id: "auth", href: "/guides/auth", label: "Authentication", description: "Authentication", icon: Glyph }],
   },
-  { id: "plain", label: "Plain", items: [{ id: "home", href: "/", label: "Home", icon: Glyph }] },
+  { id: "plain", label: "Plain", items: [{ id: "home", href: "/", label: "Home", description: "Home", icon: Glyph }] },
 ];
 
 const guides = (): NavGroup => {

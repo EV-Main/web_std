@@ -44,15 +44,16 @@ export type TierId = "foundations" | "elements" | "composed" | "screens";
 export interface Tier {
   id: TierId;
   label: string;
+  description: string;
   icon: ComponentType<{ className?: string }>;
 }
 
 /** In nav order. */
 export const TIERS: readonly Tier[] = [
-  { id: "foundations", label: "Foundations", icon: SwatchIcon },
-  { id: "elements", label: "Elements", icon: BrickIcon },
-  { id: "composed", label: "Composed", icon: StackIcon },
-  { id: "screens", label: "Screens", icon: ScreenIcon },
+  { id: "foundations", label: "Foundations", description: "Tokens: colour, type, space, motion", icon: SwatchIcon },
+  { id: "elements", label: "Elements", description: "One component at a time", icon: BrickIcon },
+  { id: "composed", label: "Composed", description: "Components put together", icon: StackIcon },
+  { id: "screens", label: "Screens", description: "Whole screens", icon: ScreenIcon },
 ];
 
 export interface Entry {

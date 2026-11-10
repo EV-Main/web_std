@@ -414,9 +414,10 @@ export function Nav() {
   column reserves `--shell-tab-bar-h` plus the bottom safe area for the bar.
   `topBar` sticks over the column, also under that offset, from `breakpoint` up.
   `mainProps` reaches the `<main>`. Layout only — no `"use client"`.
-- **`NavItem`** — `{ id, href, label, icon, badge?, trailing?, external?,
-  target?, match?, also?, disabled? }`, shared by the rail and the tab bar. The
-  icon is required: it is the tab, and the row of a folded rail.
+- **`NavItem`** — `{ id, href, label, icon, description, badge?, trailing?, external?,
+  target?, match?, also?, disabled? }`, shared by the rail, a top bar's menu and
+  the tab bar. The icon is required: it is the tab, and the row of a folded
+  rail; so is the description, the line under the label in a menu.
   `match` is `"prefix"` (default, on a segment boundary; `/` is exact),
   `"exact"`, or `(path) => boolean`; `also` lists more paths the item claims
   (the one tab standing in for Profile, Notifications and Settings). When
@@ -426,6 +427,16 @@ export function Nav() {
   `badge: number` draws a `NavBadge`; any other node is drawn as given.
   `trailing` may be a function of `{ active, pending }`. `external` renders a
   plain `<a>` that is never current.
+- **`NavMenu`** — a top bar's item inside a `NavigationMenuList`: `label`,
+  `href` (where a click goes), `current`, `linkComponent`, and the menu as
+  `children` (none: a plain link). Hover or focus opens it, leaving closes it
+  150 ms later, the chevron turns; a click inside closes it. **`NavMenuList`**
+  — `groups`, `pathname`, `linkComponent`, `onItemIntent` / `onNavigate`,
+  `badgeLabel`: the rail's sections as menu rows (icon, label, badge, the
+  description under them; hover tints the row and inks label and icon in
+  `primary-ink`). An app's element drawing one is at home in both places:
+  inside a `ShellNav` the list drops the descriptions and takes the rail's row
+  size.
 - **`ShellNav`** — `groups` + `footerGroups` (pinned to the bottom), each a
   `NavSection`: a `NavGroup` of items, or a `NavPanel` `{ id, label, icon,
   content, hidden? }` whose body is the app's own (a tree, a filter, another

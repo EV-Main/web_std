@@ -18,10 +18,10 @@ const FakeLink = ({ onClick, ...props }: React.ComponentProps<"a">) => (
 );
 
 const TABS: NavItem[] = [
-  { id: "home", href: "/", label: "Home", icon: Glyph },
-  { id: "invest", href: "/invest", label: "Invest", icon: Glyph },
-  { id: "wallet", href: "/wallet", label: "Wallet", icon: Glyph },
-  { id: "account", href: "/settings", label: "Account", also: ["/profile", "/notifications"], badge: 7, icon: Glyph },
+  { id: "home", href: "/", label: "Home", description: "Home", icon: Glyph },
+  { id: "invest", href: "/invest", label: "Invest", description: "Invest", icon: Glyph },
+  { id: "wallet", href: "/wallet", label: "Wallet", description: "Wallet", icon: Glyph },
+  { id: "account", href: "/settings", label: "Account", description: "Account", also: ["/profile", "/notifications"], badge: 7, icon: Glyph },
 ];
 
 const bar = (pathname: string, extra: Partial<React.ComponentProps<typeof BottomTabBar>> = {}) => (

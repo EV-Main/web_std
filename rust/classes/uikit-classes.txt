@@ -391,7 +391,7 @@ fill-primary-ink absolute top-1/2 left-1/2 size-2 -translate-x-1/2 -translate-y-
 first:rounded-l-control
 fixed inset-0 z-50 bg-scrim
 fixed inset-0 z-50 bg-scrim data-[state=closed]:pointer-events-none
-fixed right-4 bottom-4 z-50 flex min-w-56 flex-col gap-1 rounded-panel border border-border bg-popover p-3 text-body-s text-ink shadow-md [--enter-delay:var(--ev-dur-slow)]
+fixed right-4 bottom-4 z-50 flex min-w-56 flex-col gap-1 rounded-panel border border-border bg-popover p-3 text-body-s text-ink shadow-md
 fixed top-1/2 left-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-panel border border-border p-0 shadow-lg
 flex
 flex basis-full items-center justify-between gap-2

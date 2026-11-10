@@ -21,13 +21,15 @@ export interface NavItemState {
   pending: boolean;
 }
 
-/** One destination, shared by the rail ({@link ShellNav}) and the tab bar; its icon is what a folded rail shows. */
+/** One destination, shared by the rail ({@link ShellNav}), a top bar's menu ({@link NavMenu}) and the tab bar; its icon is what a folded rail shows. */
 export interface NavItem {
   /** Stable key; also what `onNavigate` / `onItemIntent` hand back. */
   id: string;
   href: string;
   label: React.ReactNode;
   icon: NavIcon;
+  /** What is there, in a line; a menu's row shows it under the label. */
+  description: React.ReactNode;
   /** A count (`NavBadge`, capped at 99+, `0` draws nothing) or your own node. */
   badge?: number | React.ReactNode;
   /** Anything after the label — a status chip; a function is told the row's state. */

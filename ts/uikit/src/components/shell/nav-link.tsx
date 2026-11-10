@@ -3,6 +3,15 @@
 import * as React from "react";
 import { anchorTargetProps, isPlainLeftClick, type NavItem } from "./nav-model";
 
+// The ring is the solid token, never a tint — at 50% it composites under the 3:1
+// non-text floor. The offset keeps it legible around the marked row, whose fill
+// is that same hue.
+export const NAV_FOCUS =
+  "outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-secondary";
+export const ROW = "flex items-center gap-3 rounded-row px-3 py-2 text-sm";
+// a tint and an edge, not a fill: the current row is told apart, not shouted
+export const CURRENT = "relative bg-selected text-ink before:absolute before:inset-y-1.5 before:left-0 before:w-0.5 before:rounded-full before:bg-primary";
+
 export interface NavLinkCallbacks {
   /** Hover or focus on an item — the moment to prefetch its route. */
   onItemIntent?: ((item: NavItem) => void) | undefined;
@@ -15,7 +24,8 @@ interface NavLinkProps extends NavLinkCallbacks {
   current: boolean;
   pending: boolean;
   linkComponent: React.ElementType | undefined;
-  markPending: (id: string) => void;
+  /** Unset where nothing waits for the route: a menu closes on the click. */
+  markPending?: ((id: string) => void) | undefined;
   className: string;
   title?: string | undefined;
   children: React.ReactNode;
@@ -59,7 +69,7 @@ export function NavLink({
       onFocus={intent}
       onClick={(e: React.MouseEvent<HTMLAnchorElement>) => {
         if (item.external || !isPlainLeftClick(e)) return;
-        markPending(item.id);
+        markPending?.(item.id);
         onNavigate?.(item);
       }}
       {...anchorTargetProps(item)}

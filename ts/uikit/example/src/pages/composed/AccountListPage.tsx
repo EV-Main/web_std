@@ -45,7 +45,7 @@ function Accounts() {
 }
 
 const SERVICE: NavGroup[] = [
-  { id: "service", items: [{ id: "settings", href: "#/screens/settings", label: "Account settings", icon: SlidersIcon }] },
+  { id: "service", items: [{ id: "settings", href: "#/screens/settings", label: "Account settings", description: "Profile, security, notifications", icon: SlidersIcon }] },
 ];
 
 function Menu() {

@@ -15,11 +15,11 @@ const GROUPS: NavGroup[] = [
     label: "Getting Started",
     collapsible: true,
     items: [
-      { id: "installation", href: "/docs/installation", label: "Installation", icon: PageIcon },
-      { id: "structure", href: "/docs/project-structure", label: "Project Structure", icon: PageIcon },
-      { id: "layouts", href: "/docs/layouts-and-pages", label: "Layouts and Pages", icon: PageIcon },
-      { id: "linking", href: "/docs/linking-and-navigating", label: "Linking and Navigating", icon: PageIcon },
-      { id: "server-client", href: "/docs/server-and-client", label: "Server and Client Components", icon: PageIcon },
+      { id: "installation", href: "/docs/installation", label: "Installation", description: "Set up a new project", icon: PageIcon },
+      { id: "structure", href: "/docs/project-structure", label: "Project Structure", description: "Where files go", icon: PageIcon },
+      { id: "layouts", href: "/docs/layouts-and-pages", label: "Layouts and Pages", description: "Routes and the UI they share", icon: PageIcon },
+      { id: "linking", href: "/docs/linking-and-navigating", label: "Linking and Navigating", description: "Moving between routes", icon: PageIcon },
+      { id: "server-client", href: "/docs/server-and-client", label: "Server and Client Components", description: "Where code runs", icon: PageIcon },
     ],
   },
   {
@@ -27,9 +27,9 @@ const GROUPS: NavGroup[] = [
     label: "Guides",
     collapsible: true,
     items: [
-      { id: "auth", href: "/guides/authentication", label: "Authentication", icon: PageIcon },
-      { id: "caching", href: "/guides/caching", label: "Caching", icon: PageIcon },
-      { id: "forms", href: "/guides/forms", label: "Forms", icon: PageIcon },
+      { id: "auth", href: "/guides/authentication", label: "Authentication", description: "Signing users in", icon: PageIcon },
+      { id: "caching", href: "/guides/caching", label: "Caching", description: "What is kept and for how long", icon: PageIcon },
+      { id: "forms", href: "/guides/forms", label: "Forms", description: "Taking input", icon: PageIcon },
     ],
   },
   {
@@ -38,8 +38,8 @@ const GROUPS: NavGroup[] = [
     collapsible: true,
     href: "/architecture",
     items: [
-      { id: "accessibility", href: "/architecture/accessibility", label: "Accessibility", icon: PageIcon },
-      { id: "fast-refresh", href: "/architecture/fast-refresh", label: "Fast Refresh", icon: PageIcon },
+      { id: "accessibility", href: "/architecture/accessibility", label: "Accessibility", description: "Usable by everyone", icon: PageIcon },
+      { id: "fast-refresh", href: "/architecture/fast-refresh", label: "Fast Refresh", description: "Edits without reloads", icon: PageIcon },
     ],
   },
 ];

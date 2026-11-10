@@ -6,7 +6,7 @@ import { useDismissableLayer } from "../../primitives/dismissable-layer";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../atomic/tooltip";
 import { IconButton } from "../derived/icon-button";
 import { NavBadge } from "./nav-badge";
-import { labelTitle, NavLink, type NavLinkCallbacks } from "./nav-link";
+import { CURRENT, labelTitle, NAV_FOCUS, NavLink, ROW, type NavLinkCallbacks } from "./nav-link";
 import { NavCollapse, NavGroupHeader, useNavGroupOpen, type NavCollapseLabels } from "./nav-collapse";
 import {
   isNavPanel,
@@ -67,14 +67,6 @@ export type ShellNavProps = ShellNavBaseProps &
       }
   );
 
-// The ring is the solid token, never a tint — at 50% it composites under the 3:1
-// non-text floor. The offset keeps it legible around the marked row, whose fill
-// is that same hue.
-const NAV_FOCUS =
-  "outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-secondary";
-const ROW = "flex items-center gap-3 rounded-row px-3 py-2 text-sm";
-// a tint and an edge, not a fill: the current row is told apart, not shouted
-const CURRENT = "relative bg-selected text-ink before:absolute before:inset-y-1.5 before:left-0 before:w-0.5 before:rounded-full before:bg-primary";
 // Folded, a line between drawn sections stands in for their labels; a `hidden` panel draws none.
 const FOLDED_NAV =
   "flex flex-col gap-2 [&>:not([hidden])~:not([hidden])]:border-t [&>:not([hidden])~:not([hidden])]:border-border [&>:not([hidden])~:not([hidden])]:pt-2";
@@ -335,7 +327,7 @@ function ShellNavIcon({ item, state, row }: { item: NavItem; state: NavItemState
       className={cn(
         "grid size-(--control-h-md) place-items-center rounded-row",
         NAV_FOCUS,
-        state.active ? CURRENT : "text-ink hover:bg-hover",
+        state.active ? CURRENT : "text-ink hover:bg-hover hover:text-primary-ink",
         item.disabled && "cursor-not-allowed opacity-(--disabled-opacity) hover:bg-transparent",
       )}
     >
@@ -376,7 +368,7 @@ function ShellNavRow({
       className={cn(
         ROW,
         NAV_FOCUS,
-        state.active ? cn("font-medium", CURRENT) : cn("font-medium hover:bg-hover", nested ? "text-ink-mid" : "text-ink"),
+        state.active ? cn("font-medium", CURRENT) : cn("font-medium hover:bg-hover hover:text-primary-ink", nested ? "text-ink-mid" : "text-ink"),
         item.disabled && "cursor-not-allowed opacity-(--disabled-opacity) hover:bg-transparent",
       )}
     >

@@ -11,7 +11,7 @@ export interface KeyHintProps extends React.ComponentProps<"div"> {
 /** The which-key popup for the scope a chord has opened: what each next key does. */
 export function KeyHint({ hint, className, ...props }: KeyHintProps) {
   return (
-    <div data-slot="key-hint" data-enter="rise" className={cn(KEY_HINT, className)} {...props}>
+    <div data-slot="key-hint" className={cn(KEY_HINT, className)} {...props}>
       <div className={KEY_HINT_PREFIX}>{hint.prefix}</div>
       {hint.rows.map(row => (
         <div key={row.chord} data-slot="key-hint-row" data-scope={row.scope ? "" : undefined} className={KEY_HINT_ROW}>
