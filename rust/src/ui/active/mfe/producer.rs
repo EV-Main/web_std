@@ -1,9 +1,17 @@
-//! The wasm half: custom-element registration, origin, mount, and the [`mfe!`](crate::mfe!) macro.
+//! The wasm half: custom-element registration, origin, mount, the [`mfe!`](crate::mfe!) macro, and
+//! what an element tells its host ([`Hosted`]).
 
-use dioxus::prelude::Element;
+use std::{fmt::Display, future::Future, rc::Rc};
+
+use dioxus::prelude::{Element, VirtualDom};
+use js_sys::{Array, Object, Reflect};
 use wasm_bindgen::prelude::*;
+use web_sys::{AbortController, CustomEvent, CustomEventInit};
 
-use crate::kernel::i18n::{DEFAULT_LOCALE, LOCALES, Locale, negotiate};
+use crate::{
+	kernel::i18n::{DEFAULT_LOCALE, LOCALES, Locale, Translator, negotiate},
+	ui::keymap::{Binding, Chord, Node},
+};
 
 // The only JavaScript in the whole stack — the two things Rust can't express:
 // subclassing `HTMLElement` (custom elements must extend it), and reading
@@ -55,10 +63,119 @@ pub fn register(tag: &str, mount: &Closure<dyn Fn(web_sys::Element)>) {
 	js_register(tag, mount.as_ref().unchecked_ref());
 }
 
-/// Launch a Dioxus app rooted at `el` (the custom element instance). Light DOM —
-/// the host's fonts/tokens/preflight cascade in, so the bundle must not re-ship them.
-pub fn launch_into(el: web_sys::Element, root: fn() -> Element) {
-	dioxus::LaunchBuilder::new().with_cfg(dioxus::web::Config::new().rootelement(el)).launch(root);
+/// Launch a Dioxus app rooted at `el` (the custom element instance), with `translator` and
+/// [`Hosted`] as root contexts. Light DOM — the host's fonts/tokens/preflight cascade in, so the
+/// bundle must not re-ship them.
+///
+/// Root contexts, not a cell the root reads: dioxus-web renders the root in a later task, so a
+/// second element mounted in the same tick would see the first one's values. `LaunchBuilder` only
+/// takes `Send` contexts, which an element is not.
+pub fn launch_into(el: web_sys::Element, root: fn() -> Element, translator: Translator) {
+	let vdom = VirtualDom::new(root).with_root_context(translator).with_root_context(Hosted(el.clone()));
+	dioxus::web::launch::launch_virtual_dom(vdom, dioxus::web::Config::new().rootelement(el));
+}
+
+/// The element an `mfe!` app is mounted into, as root context: present exactly when the app is
+/// hosted. What the app contributes to the page's one keymap and one undo history goes through it,
+/// as the host-contract events of `@evinvest/mfe`; a hosted app adds no keydown listener of its own.
+#[derive(Clone)]
+pub struct Hosted(web_sys::Element);
+
+/// A binding in the host's keymap; it leaves when this drops.
+#[must_use = "the binding leaves the host's keymap when this drops"]
+pub struct Bound {
+	controller: AbortController,
+	closures: Vec<Closure<dyn Fn()>>,
+}
+
+impl Drop for Bound {
+	fn drop(&mut self) {
+		self.controller.abort();
+		self.closures.clear(); // after the abort: the host may call a leaf until it hears it
+	}
+}
+
+impl Hosted {
+	/// `ev:keymap`: `binding` joins the host's keymap, under the scope the host gives this element,
+	/// until the returned [`Bound`] drops. A leaf is labelled by its command's `Display` and runs
+	/// `run` with it.
+	pub fn dispatch_keymap<C: Display + Clone + 'static>(&self, binding: &Binding<C>, run: impl Fn(&C) + 'static) -> Bound {
+		fn chord(c: &Chord) -> Object {
+			let o = Object::new();
+			set(&o, "key", &c.key.into());
+			set(&o, "ctrl", &c.ctrl.into());
+			set(&o, "alt", &c.alt.into());
+			set(&o, "meta", &c.meta.into());
+			o
+		}
+		fn js<C: Display + Clone + 'static>(b: &Binding<C>, run: &Rc<dyn Fn(&C)>, closures: &mut Vec<Closure<dyn Fn()>>) -> Object {
+			let on = Object::new();
+			set(&on, "other", &chord(&b.on.other));
+			set(&on, "mac", &chord(&b.on.mac));
+			let o = Object::new();
+			set(&o, "on", &on);
+			match &b.node {
+				Node::Run(command) => {
+					let leaf = Object::new();
+					set(&leaf, "label", &command.to_string().into());
+					let (run, command) = (Rc::clone(run), command.clone());
+					let closure = Closure::<dyn Fn()>::new(move || run(&command));
+					set(&leaf, "run", closure.as_ref());
+					closures.push(closure);
+					set(&o, "run", &leaf);
+				}
+				Node::Scope { label, children } => {
+					set(&o, "label", &label.into());
+					set(&o, "children", &children.iter().map(|c| js(c, run, closures)).collect::<Array>());
+				}
+			}
+			o
+		}
+		let run: Rc<dyn Fn(&C)> = Rc::new(run);
+		let mut closures = Vec::new();
+		let controller = AbortController::new().expect("AbortController is constructible in a window");
+		let detail = Object::new();
+		set(&detail, "binding", &js(binding, &run, &mut closures));
+		set(&detail, "signal", &controller.signal());
+		self.dispatch("ev:keymap", &detail);
+		Bound { controller, closures }
+	}
+
+	/// `ev:undo`: a change this element just made, for the page's one undo history. `undo` and
+	/// `redo` write its before and after value back; an `Err` rejects, which the host reads as the
+	/// state having moved on.
+	pub fn dispatch_undo<U, R, E>(&self, label: &str, undo: impl Fn() -> U + 'static, redo: impl Fn() -> R + 'static)
+	where
+		U: Future<Output = Result<(), E>> + 'static,
+		R: Future<Output = Result<(), E>> + 'static,
+		E: Display, {
+		fn promised<F: Future<Output = Result<(), E>> + 'static, E: Display>(f: impl Fn() -> F + 'static) -> JsValue {
+			// Owned by the JS function from here: the host's history keeps it as long as it wants it.
+			Closure::<dyn Fn() -> js_sys::Promise>::new(move || {
+				let pending = f();
+				wasm_bindgen_futures::future_to_promise(async move { pending.await.map(|()| JsValue::UNDEFINED).map_err(|e| js_sys::Error::new(&e.to_string()).into()) })
+			})
+			.into_js_value()
+		}
+		let detail = Object::new();
+		set(&detail, "label", &label.into());
+		set(&detail, "undo", &promised(undo));
+		set(&detail, "redo", &promised(redo));
+		self.dispatch("ev:undo", &detail);
+	}
+
+	fn dispatch(&self, name: &str, detail: &JsValue) {
+		let init = CustomEventInit::new();
+		init.set_bubbles(true);
+		init.set_composed(true);
+		init.set_detail(detail);
+		let event = CustomEvent::new_with_event_init_dict(name, &init).expect("a CustomEvent of any name is constructible");
+		self.0.dispatch_event(&event).expect("dispatching an untrusted event never throws");
+	}
+}
+
+fn set(o: &Object, key: &str, value: &JsValue) {
+	Reflect::set(o, &key.into(), value).expect("a plain object takes any property");
 }
 
 /// The language the host page is written in, read off the DOM `el` is mounted
@@ -103,8 +220,9 @@ pub fn host_locale(el: &web_sys::Element) -> Locale {
 /// line; a producer *with* copy cannot forget to resolve its locale, which is
 /// the bug the requirement exists to prevent. The macro resolves
 /// [`host_locale`](crate::mfe::host_locale) at mount and provides a
-/// [`Translator`](crate::i18n::Translator) as Dioxus context above the root, so
-/// every component below reaches it with `use_context`.
+/// [`Translator`](crate::i18n::Translator) and the element's
+/// [`Hosted`](crate::mfe::Hosted) as Dioxus root contexts, so every component
+/// below reaches them with `use_context`.
 #[macro_export]
 macro_rules! mfe {
 	(service: $service:literal,name: $name:literal,kind: $kind:ident,root: $root:path,stylesheet: $stylesheet:literal,messages: $messages:path $(,)?) => {
@@ -117,23 +235,12 @@ macro_rules! mfe {
 			kind: $crate::mfe::MfeKind::parse(stringify!($kind)),
 		};
 
-		// `launch_into` takes a bare `fn() -> Element`, which has nowhere to carry
-		// the resolved locale, so it crosses from the mount into the root here.
-		// Macro-internal; a producer never sees it.
-		thread_local! {
-			static __EV_LOCALE: ::std::cell::Cell<$crate::i18n::Locale> = const {
-				::std::cell::Cell::new($crate::i18n::DEFAULT_LOCALE)
-			};
-		}
-
 		fn __ev_root() -> ::dioxus::prelude::Element {
 			use ::dioxus::prelude::*;
 			// Alias the root via native `use` so the `$root:path` fragment never
 			// enters the rsx proc-macro (captured fragments are opaque to it).
 			// PascalCase so rsx reads it as a component, not an HTML element.
 			use $root as EvMfeRoot;
-			let locale = __EV_LOCALE.with(::std::cell::Cell::get);
-			use_context_provider(|| $crate::i18n::Translator::new($messages(locale), locale));
 			rsx! {
 				document::Stylesheet { href: format!("{}/mfe/{}", $crate::mfe::bundle_origin(), $stylesheet) }
 				EvMfeRoot {}
@@ -141,8 +248,8 @@ macro_rules! mfe {
 		}
 
 		fn __ev_mount(el: ::web_sys::Element) {
-			__EV_LOCALE.set($crate::mfe::host_locale(&el));
-			$crate::mfe::launch_into(el, __ev_root);
+			let locale = $crate::mfe::host_locale(&el);
+			$crate::mfe::launch_into(el, __ev_root, $crate::i18n::Translator::new($messages(locale), locale));
 		}
 
 		#[::wasm_bindgen::prelude::wasm_bindgen(start)]

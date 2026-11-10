@@ -8,9 +8,10 @@
 //! This module is the entire Rust side of that contract. A producer crate writes
 //! ~5 lines via `mfe!` and gets: the custom-element registration, the origin
 //! self-derivation (so the bundle works cross-origin with no baked env), the
-//! server-fn base override, the `{name,tag,kind}` manifest, and the host's
-//! locale resolved into a [`Translator`](crate::i18n::Translator) above its root
-//! — none of which it can get wrong, because the macro owns the naming
+//! server-fn base override, the `{name,tag,kind}` manifest, the host's
+//! locale resolved into a [`Translator`](crate::i18n::Translator) above its root,
+//! and `Hosted`, through which the app adds to the page's one keymap and undo
+//! history — none of which it can get wrong, because the macro owns the naming
 //! convention, the JSON shape, and where a locale comes from.
 //!
 //! The producer is wasm-only: the one cross-origin bundle is always a

@@ -1,6 +1,5 @@
 //! Host access both ports need and the core may not have: the clock, the
-//! clipboard and a document key listener. Framework-free, so one
-//! copy serves both.
+//! clipboard and the page's keymap. Framework-free, so one copy serves both.
 
 use crate::ui::uikit::core::CalendarDate;
 
@@ -136,49 +135,103 @@ fn copy_by_selection(text: &str) -> bool {
 	copied
 }
 
-/// The ⌘K / Ctrl+K listener on `document` behind `use_command_palette_shortcut`,
-/// removed when dropped.
+/// What a key the kit binds runs. Labelled for a host's hint and help.
 #[cfg(all(target_arch = "wasm32", feature = "wasm"))]
-pub(crate) struct ShortcutListener {
-	document: web_sys::Document,
-	callback: web_sys::wasm_bindgen::closure::Closure<dyn FnMut(web_sys::KeyboardEvent)>,
+#[derive(Clone)]
+pub(crate) struct Leaf {
+	pub(crate) label: &'static str,
+	pub(crate) run: std::rc::Rc<dyn Fn()>,
 }
 #[cfg(all(target_arch = "wasm32", feature = "wasm"))]
-impl ShortcutListener {
-	/// `None` when there is no `document` or it refuses the listener; the
-	/// shortcut then just does not exist, which is all a caller could do.
-	pub(crate) fn add(mut on_fire: impl FnMut() + 'static) -> Option<Self> {
-		use web_sys::wasm_bindgen::{JsCast, closure::Closure};
+impl std::fmt::Display for Leaf {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		f.write_str(self.label)
+	}
+}
 
-		use crate::ui::keymap::{Binding, KeyInput, Keymap, Node, Platform, Step, Trie};
+/// The page's own keymap, for a Rust app that is the page: every binding bound here, as one
+/// [`Trie`](crate::ui::keymap::Trie) heard by one `window` keydown listener in the capture phase,
+/// ahead of the page's own handlers. The mirror of the TS `KeymapProvider`'s root.
+#[cfg(all(target_arch = "wasm32", feature = "wasm"))]
+mod page {
+	use std::cell::RefCell;
 
-		let document = web_sys::window()?.document()?;
-		let keymap = Keymap {
-			root: vec![Binding {
-				on: crate::ui::uikit::core::COMMAND_PALETTE,
-				node: Node::Run("command palette"),
-			}],
-		};
-		let mut trie = Trie::new(&keymap, Platform::current(), |_| true);
-		let callback = Closure::<dyn FnMut(web_sys::KeyboardEvent)>::new(move |e: web_sys::KeyboardEvent| match trie.key(&KeyInput::from(&e)) {
-			Step::Run { .. } => {
-				e.prevent_default();
-				on_fire();
+	use web_sys::wasm_bindgen::{JsCast, closure::Closure};
+
+	use super::Leaf;
+	use crate::ui::keymap::{Binding, KeyInput, Keymap, Platform, Step, Trie};
+
+	struct Page {
+		next: u64,
+		bound: Vec<(u64, Binding<Leaf>)>,
+		trie: Trie<Leaf>,
+	}
+
+	impl Page {
+		fn rebuild(&mut self) {
+			let keymap = Keymap {
+				root: self.bound.iter().map(|(_, b)| b.clone()).collect(),
+			};
+			self.trie = Trie::new(&keymap, Platform::current(), |_| true);
+		}
+	}
+
+	thread_local! {
+		static PAGE: RefCell<Option<Page>> = const { RefCell::new(None) };
+	}
+
+	/// In the page's keymap until dropped.
+	pub(crate) struct PageBinding(u64);
+
+	pub(crate) fn bind(binding: Binding<Leaf>) -> PageBinding {
+		PAGE.with_borrow_mut(|slot| {
+			let page = slot.get_or_insert_with(|| {
+				listen();
+				Page {
+					next: 0,
+					bound: Vec::new(),
+					trie: Trie::new(&Keymap { root: Vec::new() }, Platform::current(), |_| true),
+				}
+			});
+			let id = page.next;
+			page.next += 1;
+			page.bound.push((id, binding));
+			page.rebuild();
+			PageBinding(id)
+		})
+	}
+
+	impl Drop for PageBinding {
+		fn drop(&mut self) {
+			PAGE.with_borrow_mut(|slot| {
+				let page = slot.as_mut().expect("a PageBinding is only made by `bind`, which creates the page");
+				page.bound.retain(|(id, _)| *id != self.0);
+				page.rebuild();
+			});
+		}
+	}
+
+	// Attached for the page's lifetime: a leaf whose run drops the last binding must not free the
+	// closure it runs inside.
+	fn listen() {
+		let listener = Closure::<dyn FnMut(web_sys::KeyboardEvent)>::new(|e: web_sys::KeyboardEvent| {
+			let step = PAGE.with_borrow_mut(|slot| slot.as_mut().expect("the listener is attached with the page").trie.key(&KeyInput::from(&e)));
+			if let Step::Pass { .. } = step {
+				return;
 			}
-			Step::Held => e.prevent_default(),
-			Step::Pass { .. } | Step::Opened | Step::Closed => {}
+			e.prevent_default();
+			e.stop_propagation();
+			// After the borrow: a leaf may bind or drop a binding.
+			if let Step::Run { command, .. } = step {
+				(command.run)();
+			}
 		});
-		document.add_event_listener_with_callback("keydown", callback.as_ref().unchecked_ref()).ok()?;
-		Some(Self { document, callback })
+		web_sys::window()
+			.expect("keybinds run in a browser window")
+			.add_event_listener_with_callback_and_bool("keydown", listener.as_ref().unchecked_ref(), true)
+			.expect("a window takes a keydown listener");
+		listener.forget();
 	}
 }
 #[cfg(all(target_arch = "wasm32", feature = "wasm"))]
-impl Drop for ShortcutListener {
-	fn drop(&mut self) {
-		use web_sys::wasm_bindgen::JsCast;
-
-		// A listener the document no longer holds is already gone, so a failed
-		// removal leaves nothing to clean up.
-		let _ = self.document.remove_event_listener_with_callback("keydown", self.callback.as_ref().unchecked_ref());
-	}
-}
+pub(crate) use page::bind;

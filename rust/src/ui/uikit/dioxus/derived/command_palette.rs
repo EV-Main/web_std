@@ -118,32 +118,39 @@ pub fn CommandPalette(
 ///
 /// Keys match as [`keymap`](crate::keymap) reads them: a non-Latin layout
 /// reaches the K key, a text field keeps the key, and a held key does not fire
-/// again, or it would toggle the palette open and shut. The listener sits on
-/// `document` while `enabled` is true and goes with the calling component.
+/// again, or it would toggle the palette open and shut. The binding is in the
+/// page's keymap while `enabled` is true and goes with the calling component;
+/// in an element `mfe!` mounts, it is in the host's.
 ///
-/// Only the `wasm` feature on `wasm32` has a `document` to listen on; any other
+/// Only the `wasm` feature on `wasm32` has a page to bind in; any other
 /// build does nothing here, server rendering included.
 #[cfg(all(target_arch = "wasm32", feature = "wasm"))]
 pub fn use_command_palette_shortcut(on_trigger: impl FnMut() + 'static, enabled: bool) {
-	use std::{cell::RefCell, rc::Rc};
+	use std::{any::Any, cell::RefCell, rc::Rc};
+
+	use crate::ui::{
+		keymap::{Binding, Node},
+		uikit::{core::COMMAND_PALETTE, dioxus::primitives::use_keys, host::Leaf},
+	};
 
 	type Trigger = Rc<RefCell<Option<Box<dyn FnMut()>>>>;
-	// Refreshed on every render, so the listener always calls the latest
+	// Refreshed on every render, so the binding always calls the latest
 	// callback without being bound again.
 	let latest: Trigger = use_hook(|| Rc::new(RefCell::new(None)));
 	*latest.borrow_mut() = Some(Box::new(on_trigger));
-	let listener = use_hook(|| Rc::new(RefCell::new(None::<crate::ui::uikit::host::ShortcutListener>)));
+	let keys = use_keys();
+	let bound = use_hook(|| Rc::new(RefCell::new(None::<Box<dyn Any>>)));
 	{
-		let listener = listener.clone();
+		let bound = bound.clone();
 		use_effect(use_reactive!(|enabled| {
-			let mut slot = listener.borrow_mut();
+			let mut slot = bound.borrow_mut();
 			if !enabled {
 				*slot = None;
 				return;
 			}
 			if slot.is_none() {
 				let latest = latest.clone();
-				*slot = crate::ui::uikit::host::ShortcutListener::add(move || {
+				let run = Rc::new(move || {
 					// Taken out for the call: a trigger that re-renders the caller
 					// would otherwise meet its own slot still borrowed.
 					let taken = latest.borrow_mut().take();
@@ -155,16 +162,19 @@ pub fn use_command_palette_shortcut(on_trigger: impl FnMut() + 'static, enabled:
 						}
 					}
 				});
+				*slot = Some(keys.bind(Binding {
+					on: COMMAND_PALETTE,
+					node: Node::Run(Leaf { label: "Command palette", run }),
+				}));
 			}
 		}));
 	}
 	use_drop(move || {
-		listener.borrow_mut().take();
+		bound.borrow_mut().take();
 	});
 }
 
-/// See the `wasm` build of this hook: without a `document` there is nothing to
-/// listen on.
+/// See the `wasm` build of this hook: without a page there is nothing to bind in.
 #[cfg(not(all(target_arch = "wasm32", feature = "wasm")))]
 pub fn use_command_palette_shortcut(on_trigger: impl FnMut() + 'static, enabled: bool) {
 	let _ = (on_trigger, enabled);

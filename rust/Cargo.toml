@@ -146,8 +146,8 @@ types = []
 # is not, and `serde` is how a producer writes it out as `mfe.json`. A producer
 # crate enables it; landing never compiles ev_lib at all.
 # `wasm` pulls `dioxus?/web` + `web-sys`; `document` is for the bundle's `<link>`;
-# `launch` is the `LaunchBuilder` behind `launch_into`, which a producer crate
-# would otherwise have to enable itself for this feature to compile.
+# `keymap` and `wasm-bindgen-futures` are for what an element hands its host
+# (`ev:keymap`, `ev:undo`).
 # `i18n` is not optional here: a producer declares its catalogue in the `mfe!`
 # invocation, so an element remote cannot ship without having resolved its
 # locale — which is the failure this pairing exists to make impossible.
@@ -156,9 +156,10 @@ mfe = [
     "dep:dioxus",
     "dep:wasm-bindgen",
     "dep:js-sys",
+    "dep:wasm-bindgen-futures",
     "dioxus?/document",
-    "dioxus?/launch",
     "i18n",
+    "keymap",
     "wasm",
 ]
 
@@ -225,7 +226,7 @@ js-sys = { version = "0.3", optional = true }
 reqwest = { version = "0.13", optional = true, default-features = false, features = ["json"] }
 wasm-bindgen = { version = "0.2", optional = true }
 wasm-bindgen-futures = { version = "0.4", optional = true }
-web-sys = { version = "0.3", optional = true, features = ["Document", "Window", "HtmlDocument", "Storage", "Navigator", "Element", "HtmlElement", "TransitionEvent", "Location", "Clipboard", "HtmlTextAreaElement", "Event", "EventTarget", "KeyboardEvent", "Node", "MutationObserver", "MutationObserverInit", "ScrollIntoViewOptions", "ScrollLogicalPosition", "ScrollBehavior", "DomRect"] }
+web-sys = { version = "0.3", optional = true, features = ["Document", "Window", "HtmlDocument", "Storage", "Navigator", "Element", "HtmlElement", "TransitionEvent", "Location", "Clipboard", "HtmlTextAreaElement", "Event", "EventTarget", "KeyboardEvent", "Node", "MutationObserver", "MutationObserverInit", "ScrollIntoViewOptions", "ScrollLogicalPosition", "ScrollBehavior", "DomRect", "AbortController", "AbortSignal", "CustomEvent", "CustomEventInit"] }
 
 [dev-dependencies]
 ev_lib = { path = ".", features = ["alerts", "architecture", "keymap", "uikit_dioxus", "uikit_leptos", "analytics", "error_monitoring", "experiments", "settings", "settings_drift", "types", "i18n", "ts_gen"] }

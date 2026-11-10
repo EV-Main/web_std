@@ -139,33 +139,44 @@ pub fn CommandPalette(
 ///
 /// Keys match as [`keymap`](crate::keymap) reads them: a non-Latin layout
 /// reaches the K key, a text field keeps the key, and a held key does not fire
-/// again, or it would toggle the palette open and shut. The listener sits on
-/// `document` while `enabled` is true and goes with the calling component.
+/// again, or it would toggle the palette open and shut. The binding is in the
+/// page's keymap while `enabled` is true and goes with the calling component.
 ///
-/// Only the `wasm` feature on `wasm32` has a `document` to listen on; any other
+/// Only the `wasm` feature on `wasm32` has a page to bind in; any other
 /// build does nothing here, server rendering included.
 #[cfg(all(target_arch = "wasm32", feature = "wasm"))]
 pub fn use_command_palette_shortcut(on_trigger: impl FnMut() + 'static, enabled: impl Into<Signal<bool>>) {
 	use std::{cell::RefCell, rc::Rc};
 
-	use crate::ui::uikit::host::ShortcutListener;
+	use crate::ui::{
+		keymap::{Binding, Node},
+		uikit::{
+			core::COMMAND_PALETTE,
+			host::{Leaf, bind},
+		},
+	};
 
 	let enabled = enabled.into();
 	let trigger = Rc::new(RefCell::new(on_trigger));
-	// Dropping the listener removes it, so it goes with this owner.
-	let listener = StoredValue::new_local(None::<ShortcutListener>);
+	// Dropping the binding unbinds it, so it goes with this owner.
+	let bound = StoredValue::new_local(None);
 	Effect::new(move |_| {
 		if !enabled.get() {
-			listener.set_value(None);
-		} else if listener.with_value(Option::is_none) {
+			bound.set_value(None);
+		} else if bound.with_value(Option::is_none) {
 			let trigger = Rc::clone(&trigger);
-			listener.set_value(ShortcutListener::add(move || (trigger.borrow_mut())()));
+			bound.set_value(Some(bind(Binding {
+				on: COMMAND_PALETTE,
+				node: Node::Run(Leaf {
+					label: "Command palette",
+					run: Rc::new(move || (trigger.borrow_mut())()),
+				}),
+			})));
 		}
 	});
 }
 
-/// See the `wasm` build of this hook: without a `document` there is nothing to
-/// listen on.
+/// See the `wasm` build of this hook: without a page there is nothing to bind in.
 #[cfg(not(all(target_arch = "wasm32", feature = "wasm")))]
 pub fn use_command_palette_shortcut(on_trigger: impl FnMut() + 'static, enabled: impl Into<Signal<bool>>) {
 	let _ = (on_trigger, enabled);

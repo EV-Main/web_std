@@ -512,3 +512,34 @@ mod tests {
 		assert!(render(app).contains("on"));
 	}
 }
+
+/// Where a component's keys go: its host's keymap in an element `mfe!` mounts (which then adds no
+/// keydown listener of its own), else the page's.
+#[cfg(all(target_arch = "wasm32", feature = "wasm"))]
+#[derive(Clone)]
+pub(crate) enum Keys {
+	Page,
+	#[cfg(feature = "mfe")]
+	Hosted(crate::ui::active::mfe::Hosted),
+}
+
+#[cfg(all(target_arch = "wasm32", feature = "wasm"))]
+impl Keys {
+	/// Bound until the returned guard drops.
+	pub(crate) fn bind(&self, binding: crate::ui::keymap::Binding<crate::ui::uikit::host::Leaf>) -> Box<dyn std::any::Any> {
+		match self {
+			Self::Page => Box::new(crate::ui::uikit::host::bind(binding)),
+			#[cfg(feature = "mfe")]
+			Self::Hosted(hosted) => Box::new(hosted.dispatch_keymap(&binding, |leaf| (leaf.run)())),
+		}
+	}
+}
+
+#[cfg(all(target_arch = "wasm32", feature = "wasm"))]
+pub(crate) fn use_keys() -> Keys {
+	#[cfg(feature = "mfe")]
+	if let Some(hosted) = try_use_context::<crate::ui::active::mfe::Hosted>() {
+		return Keys::Hosted(hosted);
+	}
+	Keys::Page
+}

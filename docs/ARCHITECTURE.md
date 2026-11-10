@@ -377,6 +377,22 @@ apps stay sops-unaware and the library never links a decryption stack. The
 workflow is documented in
 [`rust/src/ops/settings/GUIDE.md`](../rust/src/ops/settings/GUIDE.md#secrets-the-sops-boundary).
 
+## The `mfe` library
+
+Microfrontend producers — the `mfe` Cargo feature (`ev_lib::mfe`, wasm-only, Dioxus) and
+`@evinvest/mfe`. `mfe!` defines a custom element whose app runs with two root contexts per element
+instance: the host's locale as a `Translator`, and `Hosted`, the element it is mounted into. What
+the app hands the host goes through `Hosted` as the host-contract events:
+
+- `dispatch_keymap(binding, run)` — `ev:keymap`: the binding joins the page's one keymap, under the
+  scope the host gives the element, until the returned `Bound` drops (its `AbortSignal` aborts).
+- `dispatch_undo(label, undo, redo)` — `ev:undo`: an entry for the page's one undo history; an
+  `Err` from either future rejects it.
+
+A hosted element never adds a keydown listener of its own: the uikit binds its keys (⌘K) through
+`Hosted` when it is there, and into the page's own keymap (one `window` capture listener) when the
+Rust app is the page.
+
 ## Generated TypeScript — `ts_gen`
 
 `ev_lib::ts_gen` is the machinery `ev_lib_gen` writes this repo's TS with, opened
