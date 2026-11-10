@@ -202,7 +202,7 @@ export function ShellFrame() {
     <div className="border-border h-dvh overflow-auto rounded-lg border [transform:translateZ(0)]">
       <AppShell
         className="min-h-full"
-        rail={<ShellNav groups={[...GROUPS, reports(pathname, Link)]} footerGroups={FOOTER} pathname={pathname} linkComponent={Link} folded={folded} />}
+        rail={<ShellNav groups={[...GROUPS, reports(pathname, Link)]} footerGroups={FOOTER} pathname={pathname} linkComponent={Link} unfold={folded ? () => setFolded(false) : undefined} />}
         tabBar={<BottomTabBar items={TABS} pathname={pathname} linkComponent={Link} />}
         topBar={
           <TopBar

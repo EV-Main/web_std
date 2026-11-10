@@ -2,8 +2,6 @@
 
 import * as React from "react";
 import { cn } from "../../lib/cn";
-import { useDismissableLayer } from "../../primitives/dismissable-layer";
-import { mergeRefs } from "../../primitives/merge-refs";
 import { useFloating } from "../../primitives/use-floating";
 import { IconButton } from "../derived/icon-button";
 import { NavBadge } from "./nav-badge";
@@ -54,7 +52,7 @@ interface ShellNavBaseProps
 export type ShellNavProps = ShellNavBaseProps &
   (
     | {
-        folded?: never;
+        unfold?: never;
         /** Above the groups — the brand lock-up. */
         header?: React.ReactNode;
         /** Below the footer groups — the signed-in account, a sign-out. */
@@ -62,11 +60,11 @@ export type ShellNavProps = ShellNavBaseProps &
       }
     | {
         /**
-         * Icons only. Hovering or focusing an icon opens its flyout: the name, an item's description, a
-         * `menu` panel's body. A click on any other panel's icon opens its body over the rail, drawn as
-         * the expanded rail would.
+         * Set while the rail is folded to icons: how it unfolds, which a click on a panel's icon asks
+         * for. Hovering or focusing an icon opens its flyout — the name, an item's description, a
+         * `menu` panel's body — until the pointer and focus leave.
          */
-        folded: boolean;
+        unfold: (() => void) | undefined;
         header?: never;
         footer?: never;
       }
@@ -92,7 +90,7 @@ export function ShellNav({
   linkComponent,
   header,
   footer,
-  folded = false,
+  unfold,
   renderItem,
   onItemIntent,
   onNavigate,
@@ -102,7 +100,8 @@ export function ShellNav({
   ...props
 }: ShellNavProps) {
   const [pendingId, markPending] = usePendingNavigation(pathname);
-  const [peek, setPeek] = React.useState<Peek | null>(null);
+  const folded = unfold !== undefined;
+  const [peek, setPeek] = React.useState<string | null>(null);
   if (!folded && peek !== null) setPeek(null);
   const flyouts: Flyouts = { peek, setPeek };
   const all = [...groups, ...footerGroups].flatMap((s) => (isNavPanel(s) ? [] : s.items));
@@ -111,7 +110,7 @@ export function ShellNav({
     resolveActiveNavItem(all, pathname)?.id;
   const section = (s: NavSection) =>
     isNavPanel(s) ? (
-      <ShellNavPanel key={s.id} panel={s} folded={folded} flyouts={flyouts} />
+      <ShellNavPanel key={s.id} panel={s} unfold={unfold} flyouts={flyouts} />
     ) : (
       <ShellNavSection
         key={s.id}
@@ -159,15 +158,10 @@ export function ShellNav({
   );
 }
 
-/** The one icon whose overlay is up; `pinned` by a click, so the pointer leaving keeps it. */
-interface Peek {
-  id: string;
-  pinned: boolean;
-}
-
+/** The one icon whose flyout is up. */
 interface Flyouts {
-  peek: Peek | null;
-  setPeek: React.Dispatch<React.SetStateAction<Peek | null>>;
+  peek: string | null;
+  setPeek: React.Dispatch<React.SetStateAction<string | null>>;
 }
 
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select, textarea, [tabindex]:not([tabindex="-1"])';
@@ -175,23 +169,22 @@ const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), selec
 // Up while the pointer or focus is on the icon or its flyout (a DOM child of the wrapper, so crossing
 // onto it is no leave); a tap is the icon's own. The icon is the wrapper's first element.
 function useFlyout(id: string, { peek, setPeek }: Flyouts) {
-  const open = peek?.id === id;
-  const pinned = open && peek.pinned;
-  const unlessPinned = (p: Peek | null) => (p?.id === id && !p.pinned ? null : p);
+  const open = peek === id;
+  const close = (p: string | null) => (p === id ? null : p);
   const wrapper = {
     onPointerEnter: (e: React.PointerEvent) => {
-      if (e.pointerType !== "touch") setPeek((p) => (p?.id === id ? p : { id, pinned: false }));
+      if (e.pointerType !== "touch") setPeek(id);
     },
     onPointerLeave: (e: React.PointerEvent) => {
-      if (e.pointerType !== "touch") setPeek(unlessPinned);
+      if (e.pointerType !== "touch") setPeek(close);
     },
     onFocus: (e: React.FocusEvent<HTMLElement>) => {
       if (e.currentTarget.contains(e.relatedTarget)) return; // back from its flyout, as on Escape
       if (e.target === e.currentTarget.firstElementChild && e.target.matches(":focus-visible"))
-        setPeek((p) => (p?.id === id ? p : { id, pinned: false }));
+        setPeek(id);
     },
     onBlur: (e: React.FocusEvent<HTMLElement>) => {
-      if (!e.currentTarget.contains(e.relatedTarget)) setPeek(unlessPinned);
+      if (!e.currentTarget.contains(e.relatedTarget)) setPeek(close);
     },
     onKeyDown: (e: React.KeyboardEvent<HTMLElement>) => {
       const icon = e.currentTarget.firstElementChild as HTMLElement | null;
@@ -207,7 +200,7 @@ function useFlyout(id: string, { peek, setPeek }: Flyouts) {
       }
     },
   };
-  return { open, pinned, wrapper };
+  return { open, wrapper };
 }
 
 // A card beside its icon, on the rail's surface: the caret points at the icon's centre, and a strip
@@ -218,18 +211,13 @@ const FLYOUT =
 const FLYOUT_TITLE = "flex h-(--control-h-md) shrink-0 items-center px-3 text-sm font-semibold text-ink";
 
 // Expanded the body is `contents`, so its own classes size it in the rail (a tree that fills and
-// scrolls itself); folded the same node is the overlay. One node in every state: a fold never
-// remounts it.
-function ShellNavPanel({ panel, folded, flyouts }: { panel: NavPanel; folded: boolean; flyouts: Flyouts }) {
+// scrolls itself); folded it is hidden, or a `menu` panel's flyout. One node in every state: a fold
+// never remounts it. Its icon's click unfolds the rail, where the body is whole.
+function ShellNavPanel({ panel, unfold, flyouts }: { panel: NavPanel; unfold: (() => void) | undefined; flyouts: Flyouts }) {
   const trigger = React.useRef<HTMLButtonElement>(null);
-  const { open, pinned, wrapper } = useFlyout(panel.id, flyouts);
+  const folded = unfold !== undefined;
+  const { open, wrapper } = useFlyout(panel.id, flyouts);
   const menu = panel.menu === true;
-  const layer = useDismissableLayer({
-    enabled: folded && pinned,
-    onDismiss: () => flyouts.setPeek(null),
-    exclude: [trigger],
-  });
-  const shown = folded && (menu ? open : pinned);
   const placed = useFloating({ anchorRef: trigger, open: folded && menu && open, side: "right", align: "start", offset: 8 });
   const sectionId = React.useId();
   const Icon = panel.icon;
@@ -244,30 +232,22 @@ function ShellNavPanel({ panel, folded, flyouts }: { panel: NavPanel; folded: bo
         <IconButton
           ref={trigger}
           aria-label={panel.label}
-          aria-expanded={shown}
-          aria-controls={sectionId}
-          pressed={pinned}
+          {...(menu && { "aria-expanded": open, "aria-controls": sectionId })}
           className="[--control-box:var(--control-h-md)]" // an item's icon box, so the flyout's title sits level with either
-          onClick={() => flyouts.setPeek(pinned ? null : { id: panel.id, pinned: true })}
+          onClick={unfold}
         >
           <Icon className="size-4.5" />
         </IconButton>
       )}
-      {folded && !menu && <RailFlyout anchor={trigger} open={open && !pinned} title={panel.label} />}
+      {folded && !menu && <RailFlyout anchor={trigger} open={open} title={panel.label} />}
       <section
-        ref={mergeRefs<HTMLElement>(layer as React.Ref<HTMLElement>, placed.floatingRef)}
+        ref={placed.floatingRef}
         id={sectionId}
         aria-label={panel.label}
-        hidden={folded && !shown}
+        hidden={folded && !(menu && open)}
         style={folded && menu ? placed.style : undefined}
         onClick={folded && menu ? () => flyouts.setPeek(null) : undefined}
-        className={
-          !folded
-            ? "contents"
-            : menu
-              ? cn(FLYOUT, "w-(--shell-rail-w)")
-              : "absolute inset-y-0 left-0 z-30 flex w-(--shell-rail-w) flex-col border-r border-border bg-card p-2 shadow-lg"
-        }
+        className={folded && menu ? cn(FLYOUT, "w-(--shell-rail-w)") : "contents"}
       >
         {folded && menu && (
           <p aria-hidden="true" className={cn(FLYOUT_TITLE, "border-b border-border")}>

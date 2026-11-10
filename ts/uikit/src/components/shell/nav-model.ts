@@ -61,8 +61,7 @@ export interface NavGroup extends NavGroupCollapse {
 
 /**
  * A section whose body is the app's own — a tree, a filter, another app's element. Expanded, the
- * body sits in the rail as is; folded, its icon opens it over the rail. The body stays mounted
- * either way.
+ * body sits in the rail as is; folded, its icon unfolds the rail. The body stays mounted either way.
  */
 export interface NavPanel {
   id: string;
@@ -70,10 +69,7 @@ export interface NavPanel {
   label: string;
   icon: NavIcon;
   content: React.ReactNode;
-  /**
-   * The body is a list of destinations (another app's nav): folded, it is the icon's flyout under
-   * the title, on hover as on a click, rather than a panel over the rail.
-   */
+  /** The body is a list of destinations (another app's nav): folded, it is the icon's flyout, under the title. */
   menu?: boolean;
   /** Kept mounted, not drawn, no icon on the rail. */
   hidden?: boolean;

@@ -179,8 +179,8 @@ describe("ShellNav", () => {
 describe("ShellNav folded", () => {
   const tree = { id: "tree", label: "Places", icon: Icon, content: <input aria-label="Filter" /> };
   const SECTIONS: NavSection[] = [...GROUPS, tree];
-  const rail = (folded: boolean, sections: NavSection[] = SECTIONS) => (
-    <ShellNav groups={sections} pathname="/wallet" linkComponent={FakeLink} folded={folded} />
+  const rail = (folded: boolean, sections: NavSection[] = SECTIONS, unfold = () => {}) => (
+    <ShellNav groups={sections} pathname="/wallet" linkComponent={FakeLink} unfold={folded ? unfold : undefined} />
   );
 
   it("keeps every row's name and the current row when it folds", () => {
@@ -191,21 +191,14 @@ describe("ShellNav folded", () => {
     expect(getByRole("list", { name: "Your account" })).toBeInTheDocument();
   });
 
-  it("draws a panel inline when expanded, behind its icon when folded", () => {
-    const { getByRole, queryByRole, rerender } = render(rail(false));
+  it("draws a panel inline when expanded; folded, its icon asks to unfold and its body stays out of sight", () => {
+    const unfold = vi.fn();
+    const { getByRole, queryByRole, rerender } = render(rail(false, SECTIONS, unfold));
     expect(queryByRole("button", { name: "Places" })).toBeNull();
     expect(getByRole("textbox", { name: "Filter" })).toBeVisible();
-    rerender(rail(true));
-    const open = getByRole("button", { name: "Places" });
-    expect(open).toHaveAttribute("aria-pressed", "false");
-    expect(getByRole("textbox", { name: "Filter", hidden: true })).not.toBeVisible();
-    fireEvent.click(open);
-    expect(open).toHaveAttribute("aria-pressed", "true");
-    expect(getByRole("textbox", { name: "Filter" })).toBeVisible();
-    fireEvent.keyDown(document, { key: "Escape" });
-    expect(getByRole("textbox", { name: "Filter", hidden: true })).not.toBeVisible();
-    fireEvent.click(open);
-    fireEvent.click(open);
+    rerender(rail(true, SECTIONS, unfold));
+    fireEvent.click(getByRole("button", { name: "Places" }));
+    expect(unfold).toHaveBeenCalledTimes(1);
     expect(getByRole("textbox", { name: "Filter", hidden: true })).not.toBeVisible();
   });
 
@@ -243,8 +236,8 @@ describe("ShellNav folded flyouts", () => {
     ),
   };
   const tree: NavSection = { id: "tree", label: "GBPs", icon: Icon, content: <input aria-label="Filter" /> };
-  const rail = (folded = true) => (
-    <ShellNav groups={[archive, sites, tree]} pathname="/reviews" linkComponent={FakeLink} folded={folded} />
+  const rail = (folded = true, unfold = () => {}) => (
+    <ShellNav groups={[archive, sites, tree]} pathname="/reviews" linkComponent={FakeLink} unfold={folded ? unfold : undefined} />
   );
   // What a sighted user reads beside the rail: every flyout that is up, by its text.
   const shown = (root: HTMLElement) =>
@@ -301,23 +294,24 @@ describe("ShellNav folded flyouts", () => {
     expect(getByRole("link", { name: "Leads" })).toBe(leads);
   });
 
-  it("pins a menu panel's flyout on a click, past the pointer leaving, until a click outside", () => {
-    const { container, getByRole } = render(rail());
-    const icon = getByRole("button", { name: "Sites" });
-    fireEvent.click(icon);
-    fireEvent.pointerLeave(wrapper(icon));
-    expect(shown(container)).toEqual(["SitesLeadsPricing"]);
-    fireEvent.pointerDown(document.body);
-    expect(shown(container)).toEqual([]);
+  it("asks to unfold on a click on either panel's icon, and leaves no flyout up once the pointer goes", () => {
+    const unfold = vi.fn();
+    const { container, getByRole } = render(rail(true, unfold));
+    for (const name of ["Sites", "GBPs"]) {
+      const icon = getByRole("button", { name });
+      fireEvent.pointerEnter(wrapper(icon));
+      fireEvent.click(icon);
+      fireEvent.pointerLeave(wrapper(icon));
+      expect(shown(container)).toEqual([]);
+    }
+    expect(unfold).toHaveBeenCalledTimes(2);
+    expect(getByRole("textbox", { name: "Filter", hidden: true })).not.toBeVisible();
   });
 
-  it("names a tool panel on hover, its body opening over the rail on a click only", () => {
+  it("names a tool panel on hover, its body never drawn while folded", () => {
     const { container, getByRole } = render(rail());
-    const icon = getByRole("button", { name: "GBPs" });
-    fireEvent.pointerEnter(wrapper(icon));
+    fireEvent.pointerEnter(wrapper(getByRole("button", { name: "GBPs" })));
     expect(shown(container)).toEqual(["GBPs"]);
-    fireEvent.click(icon);
-    expect(shown(container)).toEqual([""]);
-    expect(getByRole("textbox", { name: "Filter" })).toBeVisible();
+    expect(getByRole("textbox", { name: "Filter", hidden: true })).not.toBeVisible();
   });
 });

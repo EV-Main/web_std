@@ -460,17 +460,17 @@ export function Nav() {
   180 ms fade and chevron turn (`--ev-dur-fast`, `--ev-ease-in-out`), none under
   reduced motion; closed rows are `inert`. `labels` also takes `expand` /
   `collapse` (the chevron reads "Expand Guides"). `SectionNav` takes the same.
-  *Folding*: `folded` (controlled; the toggle and where the choice is kept are
-  the app's) narrows the rail to `--shell-rail-folded-w` of icons. Rows keep
-  their names (read, not drawn), the marker and a corner badge; group labels
-  become dividers. Hovering or focusing an icon opens its flyout beside it, in
-  place of a tooltip: a card on the rail's surface, its caret at the icon, no
-  motion. An item's flyout is its label and `description` (which also describes
-  the link); a `menu` panel's is its title over the panel's own body (another
-  app's nav), and a click pins it; any other panel's is its name, and a click
-  opens its body over the rail (`--shell-rail-w` wide). Escape, leaving the icon
-  and the flyout, or a click outside close them. Flyouts render in place, not in
-  a portal, so an ancestor of the rail must not clip (`overflow: hidden`). A
+  *Folding*: `unfold` — set while folded, to how the rail unfolds (the toggle
+  and where the choice is kept are the app's) — narrows the rail to
+  `--shell-rail-folded-w` of icons. Rows keep their names (read, not drawn),
+  the marker and a corner badge; group labels become dividers. Hovering or
+  focusing an icon opens its flyout beside it, until the pointer and focus
+  leave or Escape: a card on the rail's surface, its caret at the icon, no
+  motion. An item's flyout is its label and `description` (which also
+  describes the link); a `menu` panel's is its title over the panel's own body
+  (another app's nav); any other panel's is its name. A click on an item's icon
+  navigates; on a panel's, it calls `unfold`. Flyouts render in place, not in a
+  portal, so an ancestor of the rail must not clip (`overflow: hidden`). A
   panel's body is one mounted node in every state, `hidden` panels included.
   A rail that folds takes no `header` / `footer` — the type refuses them.
 - **`BottomTabBar`** — `items` (five fit a phone), the same router props,
