@@ -60,7 +60,7 @@ export type ShellNavProps = ShellNavBaseProps &
         footer?: React.ReactNode;
       }
     | {
-        /** Icons only; a panel's body opens beside the rail from its icon. */
+        /** Icons only; a panel's body opens over the rail from its icon, drawn as the expanded rail would. */
         folded: boolean;
         header?: never;
         footer?: never;
@@ -200,7 +200,7 @@ function ShellNavPanel({
         hidden={folded && !open}
         className={
           folded
-            ? "absolute inset-y-0 left-full z-30 flex w-(--shell-rail-w) flex-col border-r border-border bg-card p-2 shadow-lg"
+            ? "absolute inset-y-0 left-0 z-30 flex w-(--shell-rail-w) flex-col border-r border-border bg-card p-2 shadow-lg"
             : "contents"
         }
       >

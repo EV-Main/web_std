@@ -61,7 +61,7 @@ export interface NavGroup extends NavGroupCollapse {
 
 /**
  * A section whose body is the app's own — a tree, a filter, another app's element. Expanded, the
- * body sits in the rail as is; folded, its icon opens it beside the rail. The body stays mounted
+ * body sits in the rail as is; folded, its icon opens it over the rail. The body stays mounted
  * either way.
  */
 export interface NavPanel {

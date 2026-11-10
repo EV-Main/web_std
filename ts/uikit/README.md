@@ -463,7 +463,7 @@ export function Nav() {
   *Folding*: `folded` (controlled; the toggle and where the choice is kept are
   the app's) narrows the rail to `--shell-rail-folded-w` of icons. Rows keep
   their names (read, not drawn, with a tooltip), the marker and a corner badge;
-  group labels become dividers; a panel's icon opens its body beside the rail
+  group labels become dividers; a panel's icon opens its body over the rail
   (`--shell-rail-w` wide; Escape, a click outside or the icon close it). A
   panel's body is one mounted node in both states, `hidden` panels included.
   A rail that folds takes no `header` / `footer` — the type refuses them.
