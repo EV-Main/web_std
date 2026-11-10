@@ -50,6 +50,7 @@ export const TS_ONLY_SLOTS = [
   "section-nav",
   "settled",
   "shell-nav",
+  "shell-nav-flyout",
   "shell-nav-panel",
   "shell-nav-section",
   "tab-bar",

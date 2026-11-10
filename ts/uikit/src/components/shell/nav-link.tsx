@@ -28,6 +28,8 @@ interface NavLinkProps extends NavLinkCallbacks {
   markPending?: ((id: string) => void) | undefined;
   className: string;
   title?: string | undefined;
+  /** Id of what describes the item beyond its name: a folded rail's flyout. */
+  describedBy?: string | undefined;
   children: React.ReactNode;
 }
 
@@ -46,11 +48,12 @@ export function NavLink({
   onNavigate,
   className,
   title,
+  describedBy,
   children,
 }: NavLinkProps) {
   if (item.disabled) {
     return (
-      <span data-slot="nav-link" aria-disabled="true" title={title} className={className}>
+      <span data-slot="nav-link" aria-disabled="true" aria-describedby={describedBy} title={title} className={className}>
         {children}
       </span>
     );
@@ -63,6 +66,7 @@ export function NavLink({
       data-pending={pending ? "true" : undefined}
       href={item.href}
       title={title}
+      aria-describedby={describedBy}
       aria-current={current ? "page" : undefined}
       className={className}
       onPointerEnter={intent}

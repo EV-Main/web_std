@@ -31,13 +31,13 @@ function offset(el: HTMLElement): { x: number; y: number } {
   return { x: x ?? NaN, y: y ?? NaN };
 }
 
-function Harness({ side = "bottom" }: { side?: Side }) {
+function Harness({ side = "bottom", align }: { side?: Side; align?: "start" | "center" | "end" }) {
   const anchorRef = React.useRef<HTMLButtonElement>(null);
   const {
     floatingRef,
     style,
     side: placed,
-  } = useFloating({ anchorRef, open: true, side, offset: OFFSET });
+  } = useFloating({ anchorRef, open: true, side, offset: OFFSET, ...(align && { align }) });
   return (
     <>
       <button ref={anchorRef} data-testid="anchor" />
@@ -195,5 +195,19 @@ describe("useFloating", () => {
     expect(seen.length).toBeGreaterThanOrEqual(2);
     expect(new Set(seen).size).toBe(1);
     expect(seen[0]).toEqual({ position: "absolute", top: 0, left: 0 });
+  });
+
+  it("tells an arrow where the anchor's centre falls on its edge, past a viewport clamp too", () => {
+    const arrow = (el: HTMLElement) => el.style.getPropertyValue("--floating-anchor-offset");
+    const { getByTestId, unmount } = render(<Harness side="right" align="start" />);
+    expect(arrow(getByTestId("floating"))).toBe(`${anchor.height / 2}px`);
+    unmount();
+    // At the viewport's bottom the box is pushed up; the arrow still meets the anchor.
+    Object.assign(anchor, { top: VIEWPORT.height - 50 });
+    const { getByTestId: again } = render(<Harness side="right" align="start" />);
+    const floating = again("floating");
+    const top = VIEWPORT.height - OFFSET - FLOATING.height;
+    expect(offset(floating).y).toBe(top);
+    expect(arrow(floating)).toBe(`${anchor.top + anchor.height / 2 - top}px`);
   });
 });

@@ -1,7 +1,7 @@
 import * as React from "react";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render, within } from "@testing-library/react";
+import { act, fireEvent, render, within } from "@testing-library/react";
 import { ShellNav } from "../src/components/shell/shell-nav";
 import type { NavSection } from "../src/components/shell/nav-model";
 
@@ -219,5 +219,105 @@ describe("ShellNav folded", () => {
     rerender(rail(true, [...GROUPS, { ...tree, hidden: true }]));
     expect(queryByRole("button", { name: "Places" })).toBeNull();
     expect(getByRole("textbox", { name: "Filter", hidden: true })).toBe(body);
+  });
+});
+
+describe("ShellNav folded flyouts", () => {
+  const archive: NavSection = {
+    id: "archive",
+    items: [
+      { id: "reviews", href: "/reviews", label: "Reviews", description: "Each place's reviews", icon: Icon },
+      { id: "settings", href: "/settings", label: "Settings", description: "How the archive keeps them", icon: Icon },
+    ],
+  };
+  const sites: NavSection = {
+    id: "sites",
+    label: "Sites",
+    icon: Icon,
+    menu: true,
+    content: (
+      <nav>
+        <a href="#leads">Leads</a>
+        <a href="#pricing">Pricing</a>
+      </nav>
+    ),
+  };
+  const tree: NavSection = { id: "tree", label: "GBPs", icon: Icon, content: <input aria-label="Filter" /> };
+  const rail = (folded = true) => (
+    <ShellNav groups={[archive, sites, tree]} pathname="/reviews" linkComponent={FakeLink} folded={folded} />
+  );
+  // What a sighted user reads beside the rail: every flyout that is up, by its text.
+  const shown = (root: HTMLElement) =>
+    Array.from(root.querySelectorAll<HTMLElement>('[data-slot="shell-nav-flyout"], section'))
+      .filter((el) => !el.closest("[hidden]"))
+      .map((el) => el.textContent);
+  const wrapper = (el: HTMLElement) => el.closest("li, [data-slot='shell-nav-panel']") as HTMLElement;
+
+  it("names a hovered item beside its icon, with what is there, and no tooltip or motion", () => {
+    const { container, getByRole } = render(rail());
+    const settings = getByRole("link", { name: "Settings" });
+    expect(shown(container)).toEqual([]);
+    fireEvent.pointerEnter(wrapper(settings));
+    expect(shown(container)).toEqual(["SettingsHow the archive keeps them"]);
+    expect(settings).toHaveAccessibleDescription("How the archive keeps them");
+    expect(container.querySelector('[data-slot="tooltip-content"]')).toBeNull();
+    const flyout = container.querySelector('[data-slot="shell-nav-flyout"]:not([hidden])')!;
+    expect(flyout.className).not.toMatch(/animate-|transition|fade-|zoom-|slide-|duration-/);
+    fireEvent.pointerEnter(wrapper(getByRole("link", { name: "Reviews" })));
+    expect(shown(container)).toEqual(["ReviewsEach place's reviews"]);
+    fireEvent.pointerLeave(wrapper(getByRole("link", { name: "Reviews" })));
+    expect(shown(container)).toEqual([]);
+  });
+
+  it("opens on keyboard focus, and Escape closes it with focus kept on the icon", () => {
+    const { container, getByRole } = render(rail());
+    const settings = getByRole("link", { name: "Settings" });
+    act(() => settings.focus());
+    expect(shown(container)).toEqual(["SettingsHow the archive keeps them"]);
+    fireEvent.keyDown(settings, { key: "Escape" });
+    expect(shown(container)).toEqual([]);
+    expect(settings).toHaveFocus();
+  });
+
+  it("shows a menu panel's own body as its flyout, one node throughout, closing on a click inside", () => {
+    const { container, getByRole, rerender } = render(rail(false));
+    const leads = getByRole("link", { name: "Leads" });
+    rerender(rail());
+    const icon = getByRole("button", { name: "Sites" });
+    expect(shown(container)).toEqual([]);
+    fireEvent.pointerEnter(wrapper(icon));
+    expect(shown(container)).toEqual(["SitesLeadsPricing"]);
+    expect(getByRole("link", { name: "Leads" })).toBe(leads);
+    expect(icon).toHaveAttribute("aria-expanded", "true");
+    fireEvent.keyDown(icon, { key: "ArrowRight" });
+    expect(leads).toHaveFocus();
+    fireEvent.keyDown(leads, { key: "Escape" });
+    expect(shown(container)).toEqual([]);
+    expect(icon).toHaveFocus();
+    fireEvent.pointerEnter(wrapper(icon));
+    fireEvent.click(leads);
+    expect(shown(container)).toEqual([]);
+    rerender(rail(false));
+    expect(getByRole("link", { name: "Leads" })).toBe(leads);
+  });
+
+  it("pins a menu panel's flyout on a click, past the pointer leaving, until a click outside", () => {
+    const { container, getByRole } = render(rail());
+    const icon = getByRole("button", { name: "Sites" });
+    fireEvent.click(icon);
+    fireEvent.pointerLeave(wrapper(icon));
+    expect(shown(container)).toEqual(["SitesLeadsPricing"]);
+    fireEvent.pointerDown(document.body);
+    expect(shown(container)).toEqual([]);
+  });
+
+  it("names a tool panel on hover, its body opening over the rail on a click only", () => {
+    const { container, getByRole } = render(rail());
+    const icon = getByRole("button", { name: "GBPs" });
+    fireEvent.pointerEnter(wrapper(icon));
+    expect(shown(container)).toEqual(["GBPs"]);
+    fireEvent.click(icon);
+    expect(shown(container)).toEqual([""]);
+    expect(getByRole("textbox", { name: "Filter" })).toBeVisible();
   });
 });

@@ -1,4 +1,4 @@
-import { useEffect, useState, type ComponentProps, type MouseEvent } from "react";
+import { useEffect, useState, type ComponentProps, type ElementType, type MouseEvent } from "react";
 import {
   AccountMenu,
   AppShell,
@@ -105,6 +105,29 @@ const GROUPS: NavSection[] = [
   },
 ];
 
+// Another app's nav, as a `menu` panel: folded, its icon's flyout is this list.
+const reports = (pathname: string, Link: ElementType): NavSection => ({
+  id: "reports",
+  label: "Reports",
+  icon: ChartIcon,
+  menu: true,
+  content: (
+    <NavMenuList
+      groups={[
+        {
+          id: "reports",
+          items: [
+            { id: "monthly", href: "/reports/monthly", label: "Monthly", description: "Each month's statement", icon: ChartIcon },
+            { id: "tax", href: "/reports/tax", label: "Tax", description: "What to declare", icon: WalletIcon },
+          ],
+        },
+      ]}
+      pathname={pathname}
+      linkComponent={Link}
+    />
+  ),
+});
+
 const FOOTER: NavSection[] = [
   {
     id: "me",
@@ -179,7 +202,7 @@ export function ShellFrame() {
     <div className="border-border h-dvh overflow-auto rounded-lg border [transform:translateZ(0)]">
       <AppShell
         className="min-h-full"
-        rail={<ShellNav groups={GROUPS} footerGroups={FOOTER} pathname={pathname} linkComponent={Link} folded={folded} />}
+        rail={<ShellNav groups={[...GROUPS, reports(pathname, Link)]} footerGroups={FOOTER} pathname={pathname} linkComponent={Link} folded={folded} />}
         tabBar={<BottomTabBar items={TABS} pathname={pathname} linkComponent={Link} />}
         topBar={
           <TopBar

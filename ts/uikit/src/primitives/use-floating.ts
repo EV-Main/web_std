@@ -160,7 +160,10 @@ export function useFloating(opts: {
     // the document's edge grows the page (a scrollbar shows for as long as the
     // overlay is open). `place()` already clamps against the viewport;
     // `sync()` follows a nested scroller's anchor and only needs this bound.
-    function write(floating: HTMLElement, f: Size2D, top: number, left: number, contain: boolean) {
+    function write(floating: HTMLElement, f: Size2D, a: DOMRect, placed: Side, top: number, left: number, contain: boolean) {
+      // Where the anchor's centre falls along the floating element's edge, for an arrow to point at it.
+      const centre = placed === "left" || placed === "right" ? a.top + a.height / 2 - top : a.left + a.width / 2 - left;
+      floating.style.setProperty("--floating-anchor-offset", `${Math.round(centre)}px`);
       const p = toContainingBlock(floating, left, top);
       let { x, y } = p;
       if (contain && p.root) {
@@ -199,7 +202,7 @@ export function useFloating(opts: {
         shiftX: clampedLeft - left,
         shiftY: clampedTop - top,
       };
-      write(floating, f, clampedTop, clampedLeft, false);
+      write(floating, f, a, placed, clampedTop, clampedLeft, false);
       // Only a real change may re-render: this runs on every resize tick.
       setPlacedSide(prev => (prev === placed ? prev : placed));
     }
@@ -213,7 +216,7 @@ export function useFloating(opts: {
       const f = layoutSize(floating);
       const { side: placed, shiftX, shiftY } = placement.current;
       const { top, left } = ideal(a, f, placed);
-      write(floating, f, top + shiftY, left + shiftX, true);
+      write(floating, f, a, placed, top + shiftY, left + shiftX, true);
     }
 
     // An anchor inside an entering dialog is measured scaled and shifted by the

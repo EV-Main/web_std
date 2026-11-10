@@ -21,7 +21,7 @@ export interface NavItemState {
   pending: boolean;
 }
 
-/** One destination, shared by the rail ({@link ShellNav}), a top bar's menu ({@link NavMenu}) and the tab bar; its icon is what a folded rail shows. */
+/** One destination, shared by the rail ({@link ShellNav}), a top bar's menu ({@link NavMenu}) and the tab bar; its icon is what a folded rail shows, its label and description the icon's flyout. */
 export interface NavItem {
   /** Stable key; also what `onNavigate` / `onItemIntent` hand back. */
   id: string;
@@ -66,10 +66,15 @@ export interface NavGroup extends NavGroupCollapse {
  */
 export interface NavPanel {
   id: string;
-  /** The section's accessible name and its tooltip when folded. */
+  /** The section's accessible name, and its flyout's title when folded. */
   label: string;
   icon: NavIcon;
   content: React.ReactNode;
+  /**
+   * The body is a list of destinations (another app's nav): folded, it is the icon's flyout under
+   * the title, on hover as on a click, rather than a panel over the rail.
+   */
+  menu?: boolean;
   /** Kept mounted, not drawn, no icon on the rail. */
   hidden?: boolean;
 }
