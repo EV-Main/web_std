@@ -68,8 +68,9 @@ export interface KeymapProviderProps {
 }
 
 /**
- * The page's keymap: one `window` listener, the leader's scope with a `?` help in it, and the
- * which-key hint for whatever scope is open. Features contribute with `useBinding` while mounted.
+ * The page's keymap, heard ahead of the page's own handlers and a focused same-origin frame's: the
+ * leader's scope with a `?` help in it, and the which-key hint for whatever scope is open. Features
+ * contribute with `useBinding` while mounted.
  */
 export function KeymapProvider({ leader, labels = {}, children }: KeymapProviderProps) {
   const [registrations, setRegistrations] = React.useState<readonly Registration[]>([]);
@@ -96,24 +97,40 @@ export function KeymapProvider({ leader, labels = {}, children }: KeymapProvider
   React.useEffect(() => {
     setHint(undefined);
     const onKey = (e: KeyboardEvent) => {
-      if (e.defaultPrevented) return;
       const step = trie.key(keyInput(e));
       if (step.kind === "pass") {
         if (step.cancelled) setHint(undefined);
         return;
       }
       e.preventDefault();
+      e.stopPropagation();
       setHint(trie.hint());
       if (step.kind === "run") step.command.run!();
     };
+    // A frame's keys never reach this window; a same-origin one is heard while it holds focus, a cross-origin one can't be.
+    let framed: Window | null = null;
+    const leaveFrame = () => {
+      framed?.removeEventListener("keydown", onKey, true);
+      framed = null;
+    };
     const onBlur = () => {
       if (trie.cancel()) setHint(undefined);
+      leaveFrame();
+      let at = document.activeElement;
+      while (at?.shadowRoot?.activeElement) at = at.shadowRoot.activeElement;
+      if (at instanceof HTMLIFrameElement && at.contentDocument !== null) {
+        framed = at.contentWindow!;
+        framed.addEventListener("keydown", onKey, true);
+      }
     };
-    window.addEventListener("keydown", onKey);
+    window.addEventListener("keydown", onKey, true);
     window.addEventListener("blur", onBlur);
+    window.addEventListener("focus", leaveFrame);
     return () => {
-      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("keydown", onKey, true);
       window.removeEventListener("blur", onBlur);
+      window.removeEventListener("focus", leaveFrame);
+      leaveFrame();
     };
   }, [trie]);
 

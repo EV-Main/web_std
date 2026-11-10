@@ -478,12 +478,11 @@ export function Nav() {
   linkComponent?, hideFrom = "lg", labels: { back } }` — sticky under
   `--ev-shell-offset`; with `back` the title centres.
 - **`TopBar`** `{ start?, end? }` — layout only, server-safe.
-- **`Hotbar`** `{ actions: { id, label, icon, shortcut?: "N" | "mod+K", onSelect,
+- **`Hotbar`** `{ actions: { id, label, icon, binding?, onSelect | panel,
   pressed?, pinned? }[], status?, takeover?: { tone: "warn" | "error", message,
   action? }, labels }` — the bottom strip of a terminal-style app; the app docks
-  it. Shortcuts are bound while it is mounted, pinned or not: a plain key skips
-  a focused field, `mod+` (⌘ on Apple, Ctrl elsewhere) fires anywhere, a key
-  another handler took is left alone. Which actions are pinned is the user's,
+  it. `binding` is the `id` of a `useBinding` leaf that runs it too; its keys
+  show while it is bound. Which actions are pinned is the user's,
   set in its Customize popover and kept in this browser's `localStorage`
   (`ev-hotbar`). `pressed` is a toggle the app owns. Under a 64rem strip (a
   container query, not the viewport) it is a sideways-scrolling chip row with

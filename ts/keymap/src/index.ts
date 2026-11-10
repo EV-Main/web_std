@@ -44,9 +44,10 @@ export interface KeyInput {
 
 export function keyInput(e: KeyboardEvent): KeyInput {
   // `composedPath()[0]`, not `target`: on `window`, an `<input>` inside a shadow root reports as its host element.
-  const target = e.composedPath()[0];
+  // `nodeType`, not `instanceof`: a same-origin frame's elements are of another realm.
+  const target = e.composedPath()[0] as Partial<HTMLElement> | undefined;
   const editable =
-    target instanceof Element && (["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) || (target instanceof HTMLElement && target.isContentEditable));
+    target?.nodeType === 1 && (["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName!) || target.isContentEditable === true);
   return {
     key: e.key,
     code: e.code,

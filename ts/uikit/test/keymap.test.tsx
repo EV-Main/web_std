@@ -104,18 +104,58 @@ describe("KeymapProvider", () => {
     expect(press({ key: "a", code: "KeyA" }).defaultPrevented).toBe(false);
   });
 
-  it("leaves a key another handler took", () => {
+  it("goes ahead of the page's own handlers, which get only what it leaves", () => {
+    render(
+      <KeymapProvider leader={{ key: "s", alt: true }}>
+        <Bind on="a" label="Assistant" run={() => {}} />
+      </KeymapProvider>,
+    );
+    const seen: string[] = [];
+    const own = (e: KeyboardEvent) => seen.push(e.key);
+    document.addEventListener("keydown", own, { capture: true });
+    leader();
+    press({ key: "a", code: "KeyA" });
+    press({ key: "x", code: "KeyX" });
+    document.removeEventListener("keydown", own, { capture: true });
+    expect(seen).toEqual(["x"]);
+  });
+
+  it("hears a same-origin frame while it holds focus: its own keys first, the rest to the frame", () => {
     const run = vi.fn();
     render(
       <KeymapProvider leader={{ key: "s", alt: true }}>
-        <Bind on="k" label="Palette" run={run} where="root" />
+        <Bind on="a" label="Assistant" run={run} />
+        <iframe title="framed" />
       </KeymapProvider>,
     );
-    const takeFirst = (e: KeyboardEvent) => e.preventDefault();
-    document.addEventListener("keydown", takeFirst, { capture: true });
-    press({ key: "k", code: "KeyK" });
-    document.removeEventListener("keydown", takeFirst, { capture: true });
-    expect(run).not.toHaveBeenCalled();
+    const frame = screen.getByTitle<HTMLIFrameElement>("framed");
+    const inner = frame.contentWindow! as Window & typeof globalThis;
+    const field = inner.document.body.appendChild(inner.document.createElement("textarea"));
+    const seen: string[] = [];
+    inner.document.addEventListener("keydown", e => seen.push(e.key));
+    act(() => {
+      frame.focus();
+      window.dispatchEvent(new FocusEvent("blur"));
+    });
+    const pressIn = (init: KeyboardEventInit, target: EventTarget = inner.document.body) => {
+      const e = new inner.KeyboardEvent("keydown", { bubbles: true, cancelable: true, ...init });
+      act(() => {
+        target.dispatchEvent(e);
+      });
+      return e;
+    };
+    expect(pressIn({ key: "s", code: "KeyS", altKey: true }).defaultPrevented).toBe(true);
+    expect(hint()).toHaveTextContent("Assistant");
+    pressIn({ key: "a", code: "KeyA" });
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(pressIn({ key: "x", code: "KeyX" }).defaultPrevented).toBe(false);
+    expect(pressIn({ key: "ß", code: "KeyS", altKey: true }, field).defaultPrevented).toBe(false);
+    expect(seen).toEqual(["x", "ß"]);
+    act(() => {
+      window.dispatchEvent(new FocusEvent("focus"));
+    });
+    pressIn({ key: "s", code: "KeyS", altKey: true });
+    expect(seen).toEqual(["x", "ß", "s"]);
   });
 
   it("refuses two bindings on one chord", () => {

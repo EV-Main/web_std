@@ -295,6 +295,9 @@ behaviour both suites run.
 - **The page's footprint is the root, plus Esc while a scope is open.** Every other chord waits
   behind a root scope (a leader). A miss closes the open scope; a lone modifier does not; a root
   scope's chord pressed inside another restarts at it.
+- **The page's keymap hears a key first**, ahead of the handlers of what it hosts (an element, a
+  same-origin frame while it holds focus); what it leaves reaches them untouched. A cross-origin
+  frame's keys are its own.
 - **A key aimed at an editable, or arriving during IME composition, never acts** and closes the
   open scope: typing and text undo stay the browser's — a root chord included.
 - **Which key was pressed:** `key` when it is one printable ASCII char (letter case from Shift
