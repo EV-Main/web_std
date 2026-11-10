@@ -4,7 +4,6 @@ import * as React from "react";
 import { cn } from "../../lib/cn";
 import { useControllableState } from "../../primitives/use-controllable-state";
 import { DismissableLayerScope, useDismissableLayer } from "../../primitives/dismissable-layer";
-import { usePresence } from "../../primitives/presence";
 import { useRovingFocus } from "../../primitives/use-roving-focus";
 import { useHoverIntent } from "../../primitives/use-hover-intent";
 import { mergeRefs } from "../../primitives/merge-refs";
@@ -84,7 +83,6 @@ const ContextMenuCloseContext = React.createContext<() => void>(() => {});
 
 export function ContextMenuContent({ className, children, ...props }: React.ComponentProps<"div">) {
   const { open, setOpen, point } = useContextMenu();
-  const { isPresent, ref: presRef } = usePresence(open);
   const dismissRef = useDismissableLayer({
     enabled: open,
     onDismiss: () => setOpen(false),
@@ -108,7 +106,7 @@ export function ContextMenuContent({ className, children, ...props }: React.Comp
     items()[activeIndex]?.focus();
   }, [open, activeIndex]);
   const close = React.useCallback(() => setOpen(false), [setOpen]);
-  if (!isPresent) return null;
+  if (!open) return null;
   return (
     <Portal>
       <ContextMenuCloseContext.Provider value={close}>
@@ -121,7 +119,7 @@ export function ContextMenuContent({ className, children, ...props }: React.Comp
           // Escape is the stack's (useDismissableLayer): it closes this menu
           // only while it is the top layer.
           onKeyDown={rovingKeyDown}
-          ref={mergeRefs(dismissRef, presRef, contentRef)}
+          ref={mergeRefs(dismissRef, contentRef)}
           style={{ position: "fixed", top: point.y, left: point.x }}
           className={cn(
             CONTEXT_MENU_CONTENT,

@@ -5,7 +5,6 @@ import { cn } from "../../lib/cn";
 import { useControllableState } from "../../primitives/use-controllable-state";
 import { useFloating } from "../../primitives/use-floating";
 import { DismissableLayerScope, useDismissableLayer } from "../../primitives/dismissable-layer";
-import { usePresence } from "../../primitives/presence";
 import { useRovingFocus } from "../../primitives/use-roving-focus";
 import { useHoverIntent } from "../../primitives/use-hover-intent";
 import { mergeRefs } from "../../primitives/merge-refs";
@@ -93,7 +92,6 @@ export function DropdownMenuContent({
   ...props
 }: DropdownMenuContentProps) {
   const { open, setOpen, anchorRef } = useDropdownMenu();
-  const { isPresent, ref: presRef } = usePresence(open);
   const { floatingRef, style, side } = useFloating({
     anchorRef,
     open,
@@ -141,7 +139,7 @@ export function DropdownMenuContent({
   }, [open, anchorRef]);
   // Selecting an item closes the menu: items call this through context.
   const close = React.useCallback(() => setOpen(false), [setOpen]);
-  if (!isPresent) return null;
+  if (!open) return null;
   return (
     <Portal>
       <DropdownMenuCloseContext.Provider value={close}>
@@ -154,7 +152,7 @@ export function DropdownMenuContent({
           // Escape is the stack's (useDismissableLayer): it closes this menu
           // only while it is the top layer.
           onKeyDown={rovingKeyDown}
-          ref={mergeRefs(floatingRef, dismissRef, presRef, contentRef)}
+          ref={mergeRefs(floatingRef, dismissRef, contentRef)}
           style={style}
           className={cn(
             DROPDOWN_MENU_CONTENT,

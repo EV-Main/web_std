@@ -8,10 +8,8 @@ pub const MENUBAR_TRIGGER: &str = concat!(
                        data-[state=open]:text-ink flex items-center rounded-row px-2 py-1 text-sm \
                        font-medium outline-hidden select-none"
 );
-pub const MENUBAR_CONTENT: &str = "bg-popover text-ink data-[state=open]:animate-in data-[state=closed]:fade-out-0 \
-                       data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 \
-                       data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 \
-                       data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 absolute z-50 \
+pub const MENUBAR_CONTENT: &str = "bg-popover text-ink \
+                       absolute z-50 \
                        min-w-[12rem] overflow-hidden rounded-panel border border-border p-1 shadow-md";
 pub const MENUBAR_ITEM: &str = concat!(
 	"focus:bg-hover focus:text-ink ",
@@ -50,10 +48,7 @@ pub const MENUBAR_SUB_TRIGGER: &str = concat!(
                            data-[state=open]:text-ink flex cursor-default items-center rounded-row px-2 min-h-(--control-h-sm) \
                            text-sm outline-none select-none data-[inset]:pl-8"
 );
-pub const MENUBAR_SUB_CONTENT: &str = "bg-popover text-ink data-[state=open]:animate-in data-[state=closed]:animate-out \
-                           data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 \
-                           data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 \
-                           data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 \
-                           data-[side=top]:slide-in-from-bottom-2 absolute z-50 min-w-[8rem] overflow-hidden rounded-panel \
+pub const MENUBAR_SUB_CONTENT: &str = "bg-popover text-ink \
+                           absolute z-50 min-w-[8rem] overflow-hidden rounded-panel \
                            border border-border p-1 shadow-lg";
 pub const MENUBAR_SUB_CHEVRON: &str = "ml-auto h-4 w-4";

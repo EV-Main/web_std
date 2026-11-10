@@ -6,7 +6,6 @@ import { useControllableState } from "../../primitives/use-controllable-state";
 import { Portal } from "../../primitives/portal";
 import { useFloating } from "../../primitives/use-floating";
 import { DismissableLayerScope, useDismissableLayer } from "../../primitives/dismissable-layer";
-import { usePresence } from "../../primitives/presence";
 import { useRovingFocus } from "../../primitives/use-roving-focus";
 import { useHoverIntent } from "../../primitives/use-hover-intent";
 import { mergeRefs } from "../../primitives/merge-refs";
@@ -91,7 +90,6 @@ export function MenubarContent({
   ...props
 }: React.ComponentProps<"div"> & { align?: "start" | "center" | "end" }) {
   const { open, setOpen, triggerRef } = useMenu();
-  const { isPresent, ref: presenceRef } = usePresence(open);
   const { floatingRef, style, side } = useFloating({
     anchorRef: triggerRef,
     open,
@@ -125,11 +123,11 @@ export function MenubarContent({
     items()[activeIndex]?.focus();
   }, [open, activeIndex]);
 
-  if (!isPresent) return null;
+  if (!open) return null;
   return (
     <Portal>
       <div
-        ref={mergeRefs(presenceRef, floatingRef, dismissRef, contentRef)}
+        ref={mergeRefs(floatingRef, dismissRef, contentRef)}
         data-slot="menubar-content"
         data-state={open ? "open" : "closed"}
         data-side={side}
@@ -395,17 +393,16 @@ export function MenubarSubTrigger({
 
 export function MenubarSubContent({ className, children, onKeyDown, ...props }: React.ComponentProps<"div">) {
   const { open, setOpen, triggerRef, focusFirst } = useSub();
-  const { isPresent, ref } = usePresence(open);
   const inner = React.useRef<HTMLDivElement | null>(null);
   React.useEffect(() => {
     if (!open || !focusFirst.current) return;
     focusFirst.current = false;
     inner.current?.querySelector<HTMLElement>("[role^='menuitem']")?.focus();
   }, [open, focusFirst]);
-  if (!isPresent) return null;
+  if (!open) return null;
   return (
     <div
-      ref={mergeRefs(ref as React.RefObject<HTMLDivElement>, inner)}
+      ref={inner}
       onKeyDown={(e) => {
         onKeyDown?.(e);
         if (e.key === "ArrowLeft" || e.key === "Escape") {
