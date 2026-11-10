@@ -133,7 +133,7 @@ export function ShellNav({
       data-slot="shell-nav"
       data-state={folded ? "folded" : "expanded"}
       className={cn(
-        "relative flex h-full w-(--shell-rail-w) flex-col gap-7 overflow-y-auto border-r border-border bg-card px-4.5 pb-5 pt-6",
+        "relative flex h-full w-(--shell-rail-w) flex-col gap-7 overflow-y-auto border-r border-border bg-card px-4.5 pb-5 pt-6 [--nav-menu-description:none]",
         className,
         // After `className`: a caller's width or padding is the expanded rail's.
         folded && "w-(--shell-rail-folded-w) gap-2 overflow-visible px-2 pt-3",

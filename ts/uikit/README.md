@@ -435,8 +435,9 @@ export function Nav() {
   `badgeLabel`: the rail's sections as menu rows (icon, label, badge, the
   description under them; hover tints the row and inks label and icon in
   `primary-ink`). An app's element drawing one is at home in both places:
-  inside a `ShellNav` the list drops the descriptions and takes the rail's row
-  size.
+  inside a `ShellNav` the list drops the descriptions (the rail sets
+  `--nav-menu-description: none`, which reaches an element whose stylesheet is
+  scoped to itself).
 - **`ShellNav`** — `groups` + `footerGroups` (pinned to the bottom), each a
   `NavSection`: a `NavGroup` of items, or a `NavPanel` `{ id, label, icon,
   content, hidden? }` whose body is the app's own (a tree, a filter, another

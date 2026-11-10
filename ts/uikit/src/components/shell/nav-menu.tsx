@@ -47,7 +47,7 @@ export function NavMenu({ label, href, current, linkComponent, children, classNa
       {...(menu && {
         onPointerEnter: (e: React.PointerEvent) => e.pointerType !== "touch" && show(true), // a tap is the link's
         onPointerLeave: (e: React.PointerEvent) => e.pointerType !== "touch" && show(false),
-        onFocus: () => show(true),
+        onFocus: (e: React.FocusEvent) => e.target.matches(":focus-visible") && show(true), // a tap focuses too
         onBlur: (e: React.FocusEvent) => !e.currentTarget.contains(e.relatedTarget) && show(false),
       })}
     >
@@ -98,13 +98,13 @@ export interface NavMenuListProps extends NavLinkCallbacks {
 
 /**
  * Sections of rows — icon, label, badge, the description under them — for a {@link NavMenu}. Inside a
- * {@link ShellNav} (an app's element drawn in the rail) the same list sheds its descriptions and sits
- * at the rail's row size.
+ * {@link ShellNav} (an app's element drawn in the rail) the same list sheds its descriptions: the rail
+ * sets `--nav-menu-description`, which inherits into an element whose stylesheet is scoped to itself.
  */
 export function NavMenuList({ groups, pathname, linkComponent, badgeLabel, onItemIntent, onNavigate, className }: NavMenuListProps) {
   const currentId = resolveActiveNavItem(groups.flatMap((g) => g.items), pathname)?.id;
   return (
-    <div data-slot="nav-menu-list" className={cn("flex w-80 max-w-full flex-col gap-1 in-data-[slot=shell-nav]:w-auto", className)}>
+    <div data-slot="nav-menu-list" className={cn("flex w-80 max-w-full flex-col gap-1", className)}>
       {groups.map((group) => (
         <NavMenuSection
           key={group.id}
@@ -154,7 +154,7 @@ function NavMenuRow({ item, current, row }: { item: NavItem; current: boolean; r
       onItemIntent={row.onItemIntent}
       onNavigate={row.onNavigate}
       className={cn(
-        "group/row flex items-start gap-3 rounded-row px-3 py-2.5 text-sm in-data-[slot=shell-nav]:items-center in-data-[slot=shell-nav]:py-2",
+        "group/row flex items-start gap-3 rounded-row px-3 py-2 text-sm",
         NAV_FOCUS,
         current ? CURRENT : "text-ink hover:bg-hover hover:text-primary-ink",
         item.disabled && "cursor-not-allowed opacity-(--disabled-opacity) hover:bg-transparent hover:text-ink",
@@ -162,7 +162,7 @@ function NavMenuRow({ item, current, row }: { item: NavItem; current: boolean; r
     >
       <Icon
         className={cn(
-          "mt-0.5 size-4.5 shrink-0 in-data-[slot=shell-nav]:mt-0",
+          "mt-px size-4.5 shrink-0",
           current ? "text-ink" : "text-ink-soft group-hover/row:text-primary-ink",
         )}
       />
@@ -175,7 +175,9 @@ function NavMenuRow({ item, current, row }: { item: NavItem; current: boolean; r
             item.badge
           )}
         </span>
-        <span className="line-clamp-2 text-xs text-ink-soft in-data-[slot=shell-nav]:hidden">{item.description}</span>
+        <span className="overflow-hidden text-xs text-ink-soft [display:var(--nav-menu-description,-webkit-box)] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
+          {item.description}
+        </span>
       </span>
       {trailing}
     </NavLink>
