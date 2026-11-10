@@ -121,15 +121,6 @@
   <div class="ctl"><button class="go" data-act="play">Play</button><button data-act="close">Close</button><button data-act="cycle">Open, then close</button></div>
   <template data-v="x"><div class="chip" style="position:absolute;top:60px">@user</div><div data-slot="hover-card-content" data-state="open" data-side="bottom" class="{{hover-card.HOVER_CARD_CONTENT}}" style="position:absolute;top:110px">Hover card body</div></template>
 </section>
-<section class="card" data-card>
-  <h3>Navigation menu content + viewport</h3>
-  <div class="meta">generated/navigation-menu.ts:11,17. Content: <code>data-motion=from-end</code> slide-in-from-right-52 + fade, 200ms; plus state zoom-95/fade 200ms. (Viewport: zoom-in-90.)</div>
-  <div class="stage"></div>
-  <div class="ctl"><button class="go" data-act="play">Play</button><button data-act="close">Close</button><button data-act="cycle">Open, then close</button>
-    <select data-variant><option value="from-end">from-end</option><option value="from-start">from-start</option></select></div>
-  <template data-v="from-end"><div class="chip" style="position:absolute;top:60px;left:30px">Nav item</div><div data-slot="navigation-menu-content" data-state="open" data-motion="from-end" class="{{navigation-menu.NAVIGATION_MENU_CONTENT}}" style="top:90px;left:30px">Content arrives from the end</div></template>
-  <template data-v="from-start"><div class="chip" style="position:absolute;top:60px;left:30px">Nav item</div><div data-slot="navigation-menu-content" data-state="open" data-motion="from-start" class="{{navigation-menu.NAVIGATION_MENU_CONTENT}}" style="top:90px;left:30px">Content arrives from the start</div></template>
-</section>
 </div>
 
 <h2 class="sec">5 &middot; Entrances (motion.css:336-380)</h2>

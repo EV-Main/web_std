@@ -4,7 +4,6 @@ import * as React from "react";
 import { cn } from "../../lib/cn";
 import { useControllableState } from "../../primitives/use-controllable-state";
 import { DismissableLayerScope, useDismissableLayer } from "../../primitives/dismissable-layer";
-import { usePresence } from "../../primitives/presence";
 import { mergeRefs } from "../../primitives/merge-refs";
 import { Slot } from "../../primitives/slot";
 import { NAVIGATION_MENU, NAVIGATION_MENU_CONTENT, NAVIGATION_MENU_INDICATOR, NAVIGATION_MENU_INDICATOR_ARROW, NAVIGATION_MENU_ITEM, NAVIGATION_MENU_LINK, NAVIGATION_MENU_LIST, NAVIGATION_MENU_TRIGGER_CHEVRON, NAVIGATION_MENU_TRIGGER_STYLE, NAVIGATION_MENU_VIEWPORT, NAVIGATION_MENU_VIEWPORT_WRAPPER } from "../../generated/navigation-menu";
@@ -137,16 +136,15 @@ export function NavigationMenuTrigger({
 
 export function NavigationMenuContent({ className, children, ...props }: React.ComponentProps<"div">) {
   const { open, setOpen, triggerRef } = useItem();
-  const { isPresent, ref: presenceRef } = usePresence(open);
   const dismissRef = useDismissableLayer({
     enabled: open,
     onDismiss: () => setOpen(false),
     exclude: [triggerRef],
   });
-  if (!isPresent) return null;
+  if (!open) return null;
   return (
     <div
-      ref={mergeRefs(presenceRef, dismissRef)}
+      ref={dismissRef}
       data-slot="navigation-menu-content"
       data-state={open ? "open" : "closed"}
       className={cn(

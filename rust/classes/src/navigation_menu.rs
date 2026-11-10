@@ -11,15 +11,9 @@ pub const NAVIGATION_MENU_TRIGGER_STYLE: &str = "group inline-flex h-(--control-
                              data-[state=open]:bg-hover focus-visible:ring-ring/50 \
                              outline-none transition-[color,box-shadow] focus-visible:ring-[3px] focus-visible:outline-1";
 
-pub const NAVIGATION_MENU_CONTENT: &str = "data-[motion^=from-]:animate-in data-[motion^=to-]:animate-out data-[motion^=from-]:fade-in \
-                       data-[motion^=to-]:fade-out data-[motion=from-end]:slide-in-from-right-52 \
-                       data-[motion=from-start]:slide-in-from-left-52 data-[motion=to-end]:slide-out-to-right-52 \
-                       data-[motion=to-start]:slide-out-to-left-52 \
-                       absolute top-full left-0 z-50 mt-1.5 w-max max-w-[calc(100vw-2rem)] overflow-hidden \
+pub const NAVIGATION_MENU_CONTENT: &str = "absolute top-full left-0 z-50 mt-1.5 w-max max-w-[calc(100vw-2rem)] \
+                       before:absolute before:inset-x-0 before:-top-2 before:h-2 \
                        rounded-panel border border-border bg-popover p-2 pr-2.5 text-ink shadow \
-                       data-[state=open]:animate-in data-[state=closed]:animate-out \
-                       data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 \
-                       data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 duration-200 \
                        **:data-[slot=navigation-menu-link]:focus:ring-0 \
                        **:data-[slot=navigation-menu-link]:focus:outline-none";
 
@@ -30,13 +24,11 @@ pub const NAVIGATION_MENU_LINK: &str = "data-[active=true]:bg-selected \
                     transition-all outline-none focus-visible:ring-[3px] focus-visible:outline-1 \
                     [&_svg:not([class*='size-'])]:size-4";
 
-pub const NAVIGATION_MENU_INDICATOR: &str = "data-[state=visible]:animate-in data-[state=hidden]:animate-out data-[state=hidden]:fade-out \
-                         data-[state=visible]:fade-in top-full z-[1] flex h-1.5 items-end justify-center overflow-hidden";
+pub const NAVIGATION_MENU_INDICATOR: &str = "top-full z-[1] flex h-1.5 items-end justify-center overflow-hidden";
 
-pub const NAVIGATION_MENU_VIEWPORT: &str = "origin-top-center bg-popover text-ink data-[state=open]:animate-in \
-                              data-[state=closed]:animate-out data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-90 \
+pub const NAVIGATION_MENU_VIEWPORT: &str = "bg-popover text-ink \
                               relative mt-1.5 h-[var(--radix-navigation-menu-viewport-height)] w-full overflow-hidden \
                               rounded-panel border border-border shadow md:w-[var(--radix-navigation-menu-viewport-width)]";
-pub const NAVIGATION_MENU_TRIGGER_CHEVRON: &str = "relative top-[1px] ml-1 size-3 transition duration-300 group-data-[state=open]:rotate-180";
+pub const NAVIGATION_MENU_TRIGGER_CHEVRON: &str = "relative top-[1px] ml-1 size-3 group-data-[state=open]:rotate-180";
 pub const NAVIGATION_MENU_VIEWPORT_WRAPPER: &str = "absolute top-full left-0 isolate z-50 flex justify-center";
 pub const NAVIGATION_MENU_INDICATOR_ARROW: &str = "bg-border relative top-[60%] h-2 w-2 rotate-45 rounded-tl-sm shadow-md";

@@ -9,9 +9,6 @@ import { NavBadge } from "./nav-badge";
 import { CURRENT, NAV_FOCUS, NavLink, type NavLinkCallbacks } from "./nav-link";
 import { resolveActiveNavItem, type NavGroup, type NavItem } from "./nav-model";
 
-/** Long enough to cross the gap between the trigger and its menu. */
-const CLOSE_DELAY_MS = 150;
-
 export interface NavMenuProps {
   label: React.ReactNode;
   /** Where a click on the trigger goes; the menu only previews. */
@@ -26,29 +23,22 @@ export interface NavMenuProps {
 }
 
 /**
- * A top bar's item that opens its menu while the pointer or focus is on it, the chevron flipping;
- * a click in the menu has navigated, so it closes. Goes inside a `NavigationMenuList`.
+ * A top bar's item whose menu is up exactly while the pointer or focus is on the item or the menu, the
+ * chevron flipped; a click in the menu has navigated, so it closes. Goes inside a `NavigationMenuList`.
  */
 export function NavMenu({ label, href, current, linkComponent, children, className }: NavMenuProps) {
   const [open, setOpen] = React.useState(false);
-  const closing = React.useRef<number | undefined>(undefined);
-  React.useEffect(() => () => window.clearTimeout(closing.current), []);
   const menu = children !== undefined;
-  const show = (next: boolean) => {
-    window.clearTimeout(closing.current);
-    if (next) setOpen(true);
-    else closing.current = window.setTimeout(() => setOpen(false), CLOSE_DELAY_MS);
-  };
   const Link: React.ElementType = linkComponent ?? "a";
   return (
     <NavigationMenuItem
       open={open}
       onOpenChange={setOpen}
       {...(menu && {
-        onPointerEnter: (e: React.PointerEvent) => e.pointerType !== "touch" && show(true), // a tap is the link's
-        onPointerLeave: (e: React.PointerEvent) => e.pointerType !== "touch" && show(false),
-        onFocus: (e: React.FocusEvent) => e.target.matches(":focus-visible") && show(true), // a tap focuses too
-        onBlur: (e: React.FocusEvent) => !e.currentTarget.contains(e.relatedTarget) && show(false),
+        onPointerEnter: (e: React.PointerEvent) => e.pointerType !== "touch" && setOpen(true), // a tap is the link's
+        onPointerLeave: (e: React.PointerEvent) => e.pointerType !== "touch" && setOpen(false),
+        onFocus: (e: React.FocusEvent) => e.target.matches(":focus-visible") && setOpen(true), // a tap focuses too
+        onBlur: (e: React.FocusEvent) => !e.currentTarget.contains(e.relatedTarget) && setOpen(false),
       })}
     >
       <NavigationMenuLink

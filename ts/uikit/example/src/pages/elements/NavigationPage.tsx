@@ -72,7 +72,7 @@ export default function NavigationPage() {
       </Block>
       <Block
         title="NavMenu"
-        note="A top bar's item whose menu opens on hover or focus and closes 150 ms after the pointer leaves, the chevron turning. NavMenuList draws the rail's own groups in it, each row's description under its label; inside a ShellNav the same list drops the descriptions."
+        note="A top bar's item whose menu opens on hover or focus and closes as soon as the pointer leaves the item and its menu, the chevron flipped. NavMenuList draws the rail's own groups in it, each row's description under its label; inside a ShellNav the same list drops the descriptions."
       >
         <Specimen className="min-h-96 items-start">
           <NavMenuSpecimen />

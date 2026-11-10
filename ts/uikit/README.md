@@ -429,8 +429,8 @@ export function Nav() {
   plain `<a>` that is never current.
 - **`NavMenu`** — a top bar's item inside a `NavigationMenuList`: `label`,
   `href` (where a click goes), `current`, `linkComponent`, and the menu as
-  `children` (none: a plain link). Hover or focus opens it, leaving closes it
-  150 ms later, the chevron turns; a click inside closes it. **`NavMenuList`**
+  `children` (none: a plain link). It is up exactly while hover or focus is on
+  the item or its menu, no motion either way, the chevron flipped; a click inside closes it. **`NavMenuList`**
   — `groups`, `pathname`, `linkComponent`, `onItemIntent` / `onNavigate`,
   `badgeLabel`: the rail's sections as menu rows (icon, label, badge, the
   description under them; hover tints the row and inks label and icon in
