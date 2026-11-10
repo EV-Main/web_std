@@ -80,21 +80,6 @@ pub fn launch_into(el: web_sys::Element, root: fn() -> Element, translator: Tran
 /// as the host-contract events of `@evinvest/mfe`; a hosted app adds no keydown listener of its own.
 #[derive(Clone)]
 pub struct Hosted(web_sys::Element);
-
-/// A binding in the host's keymap; it leaves when this drops.
-#[must_use = "the binding leaves the host's keymap when this drops"]
-pub struct Bound {
-	controller: AbortController,
-	closures: Vec<Closure<dyn Fn()>>,
-}
-
-impl Drop for Bound {
-	fn drop(&mut self) {
-		self.controller.abort();
-		self.closures.clear(); // after the abort: the host may call a leaf until it hears it
-	}
-}
-
 impl Hosted {
 	/// `ev:keymap`: `binding` joins the host's keymap, under the scope the host gives this element,
 	/// until the returned [`Bound`] drops. A leaf is labelled by its command's `Display` and runs
@@ -174,8 +159,18 @@ impl Hosted {
 	}
 }
 
-fn set(o: &Object, key: &str, value: &JsValue) {
-	Reflect::set(o, &key.into(), value).expect("a plain object takes any property");
+/// A binding in the host's keymap; it leaves when this drops.
+#[must_use = "the binding leaves the host's keymap when this drops"]
+pub struct Bound {
+	controller: AbortController,
+	closures: Vec<Closure<dyn Fn()>>,
+}
+
+impl Drop for Bound {
+	fn drop(&mut self) {
+		self.controller.abort();
+		self.closures.clear(); // after the abort: the host may call a leaf until it hears it
+	}
 }
 
 /// The language the host page is written in, read off the DOM `el` is mounted
@@ -195,6 +190,10 @@ pub fn host_locale(el: &web_sys::Element) -> Locale {
 		.expect("\"[lang]\" is a valid selector")
 		.and_then(|scope| scope.get_attribute("lang"))
 		.map_or(DEFAULT_LOCALE, |lang| negotiate(Some(&lang), &LOCALES))
+}
+
+fn set(o: &Object, key: &str, value: &JsValue) {
+	Reflect::set(o, &key.into(), value).expect("a plain object takes any property");
 }
 
 /// Define a microfrontend producer bundle. Expands in the producer crate (so its

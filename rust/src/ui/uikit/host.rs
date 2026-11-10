@@ -1,6 +1,9 @@
 //! Host access both ports need and the core may not have: the clock, the
 //! clipboard and the page's keymap. Framework-free, so one copy serves both.
 
+#[cfg(all(target_arch = "wasm32", feature = "wasm"))]
+pub(crate) use page::bind;
+
 use crate::ui::uikit::core::CalendarDate;
 
 /// Writes `text` to the clipboard, then calls `done` with whether it got
@@ -233,5 +236,3 @@ mod page {
 		listener.forget();
 	}
 }
-#[cfg(all(target_arch = "wasm32", feature = "wasm"))]
-pub(crate) use page::bind;
