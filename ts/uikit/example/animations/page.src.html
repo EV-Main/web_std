@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="en" class="dark" data-brand="ev">
+<head>
+<meta charset="utf-8">
+<title>uikit animations</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="kit.css">
+<style>
+  html{background:var(--background);color:var(--ink);font-family:var(--font-sans, system-ui, sans-serif)}
+  body{margin:0;padding:24px 32px 80px;max-width:1500px;margin-inline:auto}
+  h1{font-size:20px;margin:0 0 4px}
+  h2.sec{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);margin:36px 0 12px;border-bottom:1px solid var(--border);padding-bottom:6px}
+  .bar{position:sticky;top:0;z-index:200;display:flex;gap:18px;align-items:center;padding:10px 14px;margin:0 -14px 8px;background:color-mix(in srgb,var(--background) 92%,transparent);backdrop-filter:blur(6px);border-bottom:1px solid var(--border);font-size:13px}
+  .bar label{display:flex;gap:6px;align-items:center;cursor:pointer}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(440px,1fr));gap:16px}
+  .card{background:var(--card, #151515);border:1px solid var(--border);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:10px;min-width:0}
+  .card h3{margin:0;font-size:15px}
+  .meta{font-size:12px;color:var(--ink-soft);line-height:1.5}
+  .meta code{color:var(--ink-mid);font-size:11.5px}
+  .note{font-size:12px;color:#d9a441}
+  .stage{position:relative;overflow:hidden;transform:translateZ(0);height:300px;border:1px dashed var(--border);border-radius:8px;background:var(--background);display:flex;align-items:center;justify-content:center}
+  .stage.tall{height:360px}
+  .ctl{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .ctl button,.ctl select{font:inherit;font-size:12.5px;padding:5px 12px;border-radius:6px;border:1px solid var(--border);background:var(--secondary, #222);color:var(--ink);cursor:pointer}
+  .ctl button:hover{background:var(--hover)}
+  .ctl button.go{background:var(--primary);color:var(--on-primary);border-color:transparent}
+  .pad{padding:12px}
+  .stack{display:flex;flex-direction:column;gap:8px;width:80%}
+  .chip{padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--card, #1b1b1b);font-size:13px}
+</style>
+</head>
+<body>
+<h1>@evinvest/uikit : animations</h1>
+<div class="meta">Real kit CSS: <code>ts/uikit/styles/tokens.css</code> (= repo-root tokens.css + theme.css + motion.css) + Tailwind v4 + <code>tw-animate-css</code>, compiled over the kit's own generated class strings (<code>src/generated/*.ts</code>) into <code>kit.css</code>. Each element carries the real <code>data-slot</code> / <code>data-state</code> / classes.</div>
+
+<div class="bar">
+  <label><input type="checkbox" id="rm"> emulate prefers-reduced-motion (applies the kit's reduced blocks via <code>html.rm</code> copies)</label>
+  <label><input type="checkbox" id="slow"> slow-motion x5</label>
+  <span class="meta" id="status"></span>
+</div>
+
+<h2 class="sec">1 &middot; Toasts</h2>
+<div class="grid">
+<section class="card" data-custom="toast">
+  <h3>Toast stack: enter, collapse, hover-expand, close, auto-dismiss</h3>
+  <div class="meta">motion.css:20-181 (<code>[data-slot=toaster][data-stack]</code>). Enter: <code>ev-toast-enter</code> 350ms cubic-bezier(.21,.8,.4,1) backwards (translate from 100% + fade). Restack: transform 350ms same easing, opacity 350ms, height 350ms. Close: <code>data-state=closed</code> slides to --enter-y + fades, node dropped on transform transitionend. Collapsed: back toasts lift by --gap*index, scale 1-index*.05, only front 3 visible. Hover/focus on the stack: spread to --offset (pure CSS). Auto-dismiss: no-op <code>ev-toast-life</code> animation for --life (4s here), animationend closes; hover pauses it (animation-play-state 2nd slot). Reduced: opacity-only 200ms enter, transform 1ms.</div>
+  <div class="note">Note: the React port's Toaster auto-dismisses with setTimeout (sonner.tsx), not the CSS life animation; the life animation is the shared-CSS path (Dioxus). Layout vars (--index, --offset, --initial-height, --front-height) are computed by the same arithmetic as sonner.tsx.</div>
+  <div class="stage tall" id="toast-stage"><ol data-slot="toaster" data-position="bottom-right" data-y-position="bottom" data-stack style="--front-height:0px;--gap:14px" class="{{sonner.TOASTER_BASE}} bottom-4 right-4" id="toaster"></ol></div>
+  <div class="ctl"><button class="go" data-t="push">Play: push toast</button><button data-t="push4">Push 4</button><button data-t="auto">Push auto-dismiss (4s)</button><button data-t="close">Close front</button><button data-t="clear">Clear</button><span class="meta">hover the stack to expand</span></div>
+</section>
+</div>
+
+<h2 class="sec">2 &middot; Drawer (Vaul-style)</h2>
+<div class="grid">
+<section class="card" data-card>
+  <h3>Drawer + overlay</h3>
+  <div class="meta">motion.css:196-309. Panel: <code>ev-drawer-enter</code> 500ms cubic-bezier(.32,.72,0,1) backwards on <code>translate</code>; close: <code>transform</code> transition 500ms same easing to <code>--ev-drawer-out</code>. Overlay: <code>ev-drawer-fade-in</code> 500ms, close: opacity transition 500ms. Reduced: fade-only 200ms (+1ms transform). Drag (data-dragging) not shown.</div>
+  <div class="stage tall"></div>
+  <div class="ctl"><button class="go" data-act="play">Play (open)</button><button data-act="close">Close</button><button data-act="cycle">Open, then close</button>
+    <select data-variant><option>bottom</option><option>top</option><option>left</option><option>right</option></select></div>
+  <template data-v="bottom"><div data-slot="drawer-overlay" data-state="open" class="{{drawer.DRAWER_OVERLAY}}"></div><div data-slot="drawer-content" data-vaul-drawer-direction="bottom" data-state="open" class="{{drawer.DRAWER_CONTENT_BASE}} {{drawer.drawerDirectionClasses.bottom}}"><div class="{{drawer.DRAWER_HANDLE}}"></div><div class="{{drawer.DRAWER_BODY}}"><div class="{{drawer.DRAWER_HEADER}}"><div class="{{drawer.DRAWER_TITLE}}">Drawer</div><div class="{{drawer.DRAWER_DESCRIPTION}}">Slides in from the bottom.</div></div></div></div></template>
+  <template data-v="top"><div data-slot="drawer-overlay" data-state="open" class="{{drawer.DRAWER_OVERLAY}}"></div><div data-slot="drawer-content" data-vaul-drawer-direction="top" data-state="open" class="{{drawer.DRAWER_CONTENT_BASE}} {{drawer.drawerDirectionClasses.top}}"><div class="{{drawer.DRAWER_BODY}}"><div class="{{drawer.DRAWER_HEADER}}"><div class="{{drawer.DRAWER_TITLE}}">Drawer</div><div class="{{drawer.DRAWER_DESCRIPTION}}">Slides in from the top.</div></div></div></div></template>
+  <template data-v="left"><div data-slot="drawer-overlay" data-state="open" class="{{drawer.DRAWER_OVERLAY}}"></div><div data-slot="drawer-content" data-vaul-drawer-direction="left" data-state="open" class="{{drawer.DRAWER_CONTENT_BASE}} {{drawer.drawerDirectionClasses.left}}"><div class="{{drawer.DRAWER_BODY}}"><div class="{{drawer.DRAWER_HEADER}}"><div class="{{drawer.DRAWER_TITLE}}">Drawer</div><div class="{{drawer.DRAWER_DESCRIPTION}}">Slides in from the left.</div></div></div></div></template>
+  <template data-v="right"><div data-slot="drawer-overlay" data-state="open" class="{{drawer.DRAWER_OVERLAY}}"></div><div data-slot="drawer-content" data-vaul-drawer-direction="right" data-state="open" class="{{drawer.DRAWER_CONTENT_BASE}} {{drawer.drawerDirectionClasses.right}}"><div class="{{drawer.DRAWER_BODY}}"><div class="{{drawer.DRAWER_HEADER}}"><div class="{{drawer.DRAWER_TITLE}}">Drawer</div><div class="{{drawer.DRAWER_DESCRIPTION}}">Slides in from the right.</div></div></div></div></template>
+</section>
+</div>
+
+<h2 class="sec">3 &middot; Sheet, Dialog, AlertDialog (tw-animate-css)</h2>
+<div class="grid">
+<section class="card" data-card>
+  <h3>Sheet</h3>
+  <div class="meta">generated/sheet.ts:3-15. <code>animate-in/out</code> + <code>slide-in-from-*</code>/<code>slide-out-to-*</code>; open <code>duration-500</code>, close <code>duration-300</code>, <code>ease-in-out</code>, <code>fill-mode-forwards</code> on close. Overlay: fade-in-0/out-0 same durations. Reduced: motion.css:311-334 zeroes travel, leaves a fade.</div>
+  <div class="stage tall"></div>
+  <div class="ctl"><button class="go" data-act="play">Play</button><button data-act="close">Close</button><button data-act="cycle">Open, then close</button>
+    <select data-variant><option>right</option><option>left</option><option>top</option><option>bottom</option></select></div>
+  <template data-v="right"><div data-slot="sheet-overlay" data-state="open" class="{{sheet.SHEET_OVERLAY}}"></div><div data-slot="sheet-content" data-state="open" class="{{sheet.SHEET_CONTENT}} {{sheet.SHEET_SIDE_RIGHT}} p-4">Sheet (right)</div></template>
+  <template data-v="left"><div data-slot="sheet-overlay" data-state="open" class="{{sheet.SHEET_OVERLAY}}"></div><div data-slot="sheet-content" data-state="open" class="{{sheet.SHEET_CONTENT}} {{sheet.SHEET_SIDE_LEFT}} p-4">Sheet (left)</div></template>
+  <template data-v="top"><div data-slot="sheet-overlay" data-state="open" class="{{sheet.SHEET_OVERLAY}}"></div><div data-slot="sheet-content" data-state="open" class="{{sheet.SHEET_CONTENT}} {{sheet.SHEET_SIDE_TOP}} p-4">Sheet (top)</div></template>
+  <template data-v="bottom"><div data-slot="sheet-overlay" data-state="open" class="{{sheet.SHEET_OVERLAY}}"></div><div data-slot="sheet-content" data-state="open" class="{{sheet.SHEET_CONTENT}} {{sheet.SHEET_SIDE_BOTTOM}} p-4">Sheet (bottom)</div></template>
+</section>
+<section class="card" data-card>
+  <h3>Dialog</h3>
+  <div class="meta">generated/dialog.ts:3-5. Content: <code>fade-in-0 zoom-in-95</code> / <code>fade-out-0 zoom-out-95</code>, <code>duration-200</code>, <code>fill-mode-forwards</code> on close. Overlay: fade, 200ms.</div>
+  <div class="stage tall"></div>
+  <div class="ctl"><button class="go" data-act="play">Play</button><button data-act="close">Close</button><button data-act="cycle">Open, then close</button></div>
+  <template data-v="x"><div data-slot="dialog-overlay" data-state="open" class="{{dialog.DIALOG_OVERLAY}}"></div><div data-slot="dialog-content" data-state="open" class="{{dialog.DIALOG_CONTENT}}">Dialog content</div></template>
+</section>
+<section class="card" data-card>
+  <h3>AlertDialog</h3>
+  <div class="meta">generated/alert-dialog.ts:3-5. Same classes as Dialog (zoom-95 + fade, 200ms).</div>
+  <div class="stage tall"></div>
+  <div class="ctl"><button class="go" data-act="play">Play</button><button data-act="close">Close</button><button data-act="cycle">Open, then close</button></div>
+  <template data-v="x"><div data-slot="alert-dialog-overlay" data-state="open" class="{{alert-dialog.ALERT_DIALOG_OVERLAY}}"></div><div data-slot="alert-dialog-content" data-state="open" class="{{alert-dialog.ALERT_DIALOG_CONTENT}}">Alert dialog content</div></template>
+</section>
+</div>
+
+<h2 class="sec">4 &middot; Popovers, menus, tooltips (tw-animate-css)</h2>
+<div class="grid">
+<section class="card" data-card>
+  <h3>Popover (4 sides)</h3>
+  <div class="meta">generated/popover.ts:3. <code>fade-in-0 zoom-in-95</code> + <code>slide-in-from-{top,bottom,left,right}-2</code> by <code>data-side</code>; tw-animate default duration 150ms, ease. Close: fade-out-0 zoom-out-95. (Radix does the positioning; here static.)</div>
+  <div class="stage"></div>
+  <div class="ctl"><button class="go" data-act="play">Play</button><button data-act="close">Close</button><button data-act="cycle">Open, then close</button>
+    <select data-variant><option>bottom</option><option>top</option><option>left</option><option>right</option></select></div>
+  <template data-v="bottom"><div class="chip" style="position:absolute;top:70px">Trigger</div><div data-slot="popover-content" data-state="open" data-side="bottom" class="{{popover.POPOVER_CONTENT}}" style="position:absolute;top:120px;left:calc(50% - 9rem)">Popover below</div></template>
+  <template data-v="top"><div class="chip" style="position:absolute;bottom:70px">Trigger</div><div data-slot="popover-content" data-state="open" data-side="top" class="{{popover.POPOVER_CONTENT}}" style="position:absolute;bottom:120px;left:calc(50% - 9rem)">Popover above</div></template>
+  <template data-v="left"><div class="chip" style="position:absolute;right:30px">Trigger</div><div data-slot="popover-content" data-state="open" data-side="left" class="{{popover.POPOVER_CONTENT}}" style="position:absolute;right:130px;width:12rem">Popover left</div></template>
+  <template data-v="right"><div class="chip" style="position:absolute;left:30px">Trigger</div><div data-slot="popover-content" data-state="open" data-side="right" class="{{popover.POPOVER_CONTENT}}" style="position:absolute;left:130px;width:12rem">Popover right</div></template>
+</section>
+<section class="card" data-card>
+  <h3>Tooltip</h3>
+  <div class="meta">generated/tooltip.ts:3. <code>animate-in fade-in-0 zoom-in-95</code> unconditionally + slide-in-from-*-2; 150ms.</div>
+  <div class="stage"></div>
+  <div class="ctl"><button class="go" data-act="play">Play</button><button data-act="close">Close</button><button data-act="cycle">Open, then close</button></div>
+  <template data-v="x"><div class="chip" style="position:absolute;top:130px">Hover target</div><div data-slot="tooltip-content" data-state="open" data-side="top" class="{{tooltip.TOOLTIP_CONTENT}}" style="position:absolute;top:95px">Tooltip text</div></template>
+</section>
+<section class="card" data-card>
+  <h3>Hover card</h3>
+  <div class="meta">generated/hover-card.ts:3. Same fade/zoom-95/slide-2 set, 150ms.</div>
+  <div class="stage"></div>
+  <div class="ctl"><button class="go" data-act="play">Play</button><button data-act="close">Close</button><button data-act="cycle">Open, then close</button></div>
+  <template data-v="x"><div class="chip" style="position:absolute;top:60px">@user</div><div data-slot="hover-card-content" data-state="open" data-side="bottom" class="{{hover-card.HOVER_CARD_CONTENT}}" style="position:absolute;top:110px">Hover card body</div></template>
+</section>
+<section class="card" data-card>
+  <h3>Navigation menu content + viewport</h3>
+  <div class="meta">generated/navigation-menu.ts:11,17. Content: <code>data-motion=from-end</code> slide-in-from-right-52 + fade, 200ms; plus state zoom-95/fade 200ms. (Viewport: zoom-in-90.)</div>
+  <div class="stage"></div>
+  <div class="ctl"><button class="go" data-act="play">Play</button><button data-act="close">Close</button><button data-act="cycle">Open, then close</button>
+    <select data-variant><option value="from-end">from-end</option><option value="from-start">from-start</option></select></div>
+  <template data-v="from-end"><div class="chip" style="position:absolute;top:60px;left:30px">Nav item</div><div data-slot="navigation-menu-content" data-state="open" data-motion="from-end" class="{{navigation-menu.NAVIGATION_MENU_CONTENT}}" style="top:90px;left:30px">Content arrives from the end</div></template>
+  <template data-v="from-start"><div class="chip" style="position:absolute;top:60px;left:30px">Nav item</div><div data-slot="navigation-menu-content" data-state="open" data-motion="from-start" class="{{navigation-menu.NAVIGATION_MENU_CONTENT}}" style="top:90px;left:30px">Content arrives from the start</div></template>
+</section>
+</div>
+
+<h2 class="sec">5 &middot; Entrances (motion.css:336-380)</h2>
+<div class="grid">
+<section class="card" data-card>
+  <h3>data-enter="rise"</h3>
+  <div class="meta">motion.css:353,361. <code>ev-enter-rise</code> var(--ev-dur-base)=280ms var(--ev-ease-out)=cubic-bezier(.22,1,.36,1), backwards, fade + rise 8px (<code>translate</code>). Reduced: fade only (<code>ev-enter-fade</code>).</div>
+  <div class="stage"></div>
+  <div class="ctl"><button class="go" data-act="play">Play</button></div>
+  <template data-v="x"><div data-enter="rise" class="chip">Rises in</div></template>
+</section>
+<section class="card" data-card>
+  <h3>data-enter="stagger"</h3>
+  <div class="meta">motion.css:361-380. Each child does the rise, delayed by index * --enter-step (default --ev-stagger 35ms), capped at index 11. Page sections use --ev-stagger-section 50ms (page-frame.tsx:111): toggle at right.</div>
+  <div class="stage tall"></div>
+  <div class="ctl"><button class="go" data-act="play">Play (35ms rows)</button>
+    <select data-variant><option value="rows">35ms rows</option><option value="sections">50ms sections</option></select></div>
+  <template data-v="rows"><div data-enter="stagger" class="stack"><div class="chip">Row 1</div><div class="chip">Row 2</div><div class="chip">Row 3</div><div class="chip">Row 4</div><div class="chip">Row 5</div><div class="chip">Row 6</div><div class="chip">Row 7</div><div class="chip">Row 8</div></div></template>
+  <template data-v="sections"><div data-enter="stagger" class="stack" style="--enter-step:var(--ev-stagger-section)"><div class="chip">Section 1</div><div class="chip">Section 2</div><div class="chip">Section 3</div><div class="chip">Section 4</div><div class="chip">Section 5</div><div class="chip">Section 6</div></div></template>
+</section>
+<section class="card" data-custom="settled">
+  <h3>[data-slot="settled"] skeleton to content reveal</h3>
+  <div class="meta">motion.css:361 + settled.tsx:41-47. Loading shows the skeleton; on <code>data-state=revealed</code> the content runs the rise (280ms).</div>
+  <div class="stage"></div>
+  <div class="ctl"><button class="go" data-s="play">Play (loading 1.2s, then reveal)</button></div>
+</section>
+</div>
+
+<h2 class="sec">6 &middot; Skeleton, spinner, caret</h2>
+<div class="grid">
+<section class="card" data-card>
+  <h3>Skeleton</h3>
+  <div class="meta">motion.css:388-402; generated/skeleton.ts:3 (<code>animate-pulse</code> class keys the rule). <code>ev-skeleton-in</code> 200ms fade-in, then <code>ev-skeleton-pulse</code> 2s cubic-bezier(.4,0,.6,1) infinite (opacity to .5), delay 200ms. Reduced: pulse only, no entrance.</div>
+  <div class="stage"></div>
+  <div class="ctl"><button class="go" data-act="play">Play (re-mount)</button></div>
+  <template data-v="x"><div class="stack"><div data-slot="skeleton" class="{{skeleton.SKELETON_BASE}} h-4 w-3/4"></div><div data-slot="skeleton" class="{{skeleton.SKELETON_BASE}} h-4 w-full"></div><div data-slot="skeleton" class="{{skeleton.SKELETON_BASE}} h-4 w-1/2"></div></div></template>
+</section>
+<section class="card" data-card>
+  <h3>Spinner / OTP caret blink</h3>
+  <div class="meta">spinner.ts:3 <code>animate-spin</code> (tw 1s linear infinite). input-otp.ts:13 <code>animate-caret-blink</code> 1.25s ease-out infinite (tw-animate-css).</div>
+  <div class="stage"></div>
+  <div class="ctl"><button class="go" data-act="play">Play (re-mount)</button></div>
+  <template data-v="x"><div style="display:flex;gap:40px;align-items:center"><svg class="{{spinner.SPINNER}}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.2-8.55"/></svg><div class="{{input-otp.INPUT_OTP_SLOT_CARET_WRAPPER}}" style="position:static;width:30px;height:30px"><div class="{{input-otp.INPUT_OTP_SLOT_CARET}}"></div></div></div></template>
+</section>
+</div>
+
+<h2 class="sec">7 &middot; Chat and docked aside (motion.css:411-557)</h2>
+<div class="grid">
+<section class="card" data-custom="stream">
+  <h3>Streamed text, caret, assistant dimming</h3>
+  <div class="meta">motion.css:421-465. <code>chat-word</code>: <code>ev-word-in</code> 280ms ease-out (fade, 2px blur, 3px rise) with per-word inline delay. Caret: <code>ev-caret-pulse</code> 1.4s infinite while <code>data-streaming</code>; fades out by transition 280ms after. Bubble opacity .86 while streaming, to 1 in 400ms. Words appended on a timer here (stand-in for the stream).</div>
+  <div class="stage"></div>
+  <div class="ctl"><button class="go" data-s="play">Play</button></div>
+</section>
+<section class="card" data-card>
+  <h3>Typing dots</h3>
+  <div class="meta">motion.css:463-488. Fade-in 280ms, then <code>ev-typing-wave</code> 1.2s infinite, dots offset 160ms. Reduced: still dots shown instead.</div>
+  <div class="stage"></div>
+  <div class="ctl"><button class="go" data-act="play">Play (re-mount)</button></div>
+  <template data-v="x"><div data-slot="chat-typing" class="{{chat-typing.CHAT_TYPING_BASE}}"><span data-dot class="{{chat-typing.CHAT_TYPING_DOT}}"></span><span data-dot class="{{chat-typing.CHAT_TYPING_DOT}}"></span><span data-dot class="{{chat-typing.CHAT_TYPING_DOT}}"></span><span data-still class="{{chat-typing.CHAT_TYPING_STILL}}">...</span></div></template>
+</section>
+<section class="card" data-card>
+  <h3>Chat message / marker / attachment entrances</h3>
+  <div class="meta">motion.css:490-523. Message: <code>ev-chat-in</code> 400ms (fade, 3px blur, 10px rise); user: <code>ev-chat-in-user</code> adds scale .98 from right-bottom. Marker/attachment: <code>ev-chat-part-in</code> 280ms (fade, 4px rise). Reduced: plain fade 180ms linear.</div>
+  <div class="stage tall"></div>
+  <div class="ctl"><button class="go" data-act="play">Play</button></div>
+  <template data-v="x"><div class="stack"><div data-slot="chat-message" data-role="assistant" data-enter="rise" class="{{chat-message.CHAT_MESSAGE_BASE}}"><div class="{{chat-message.CHAT_MESSAGE_BODY}} {{chat-message.CHAT_MESSAGE_BODY_ASSISTANT}}"><div data-slot="chat-bubble" data-variant="assistant" class="{{chat-message.CHAT_BUBBLE_BASE}}">Assistant message</div></div></div><div data-slot="chat-marker" class="{{chat-message.CHAT_MARKER_SEPARATOR}}"><div class="{{chat-message.CHAT_MARKER_RULE}}"></div><span class="{{chat-message.CHAT_MARKER_SEPARATOR_LABEL}}">Today</span><div class="{{chat-message.CHAT_MARKER_RULE}}"></div></div><div data-slot="chat-message" data-role="user" data-enter="rise" class="{{chat-message.CHAT_MESSAGE_BASE}} {{chat-message.CHAT_MESSAGE_USER}}"><div class="{{chat-message.CHAT_MESSAGE_BODY}} {{chat-message.CHAT_MESSAGE_BODY_USER}}"><div data-slot="chat-bubble" data-variant="user" class="{{chat-message.CHAT_BUBBLE_BASE}} chip">User message</div></div></div><div data-slot="chat-attachment" class="chip">attachment.pdf</div></div></template>
+</section>
+<section class="card" data-custom="chatlog">
+  <h3>Chat log top fade + jump button</h3>
+  <div class="meta">motion.css:525-545. Log mask: <code>@property --ev-chat-fade</code> transitions 0 to 28px (280ms) on <code>data-scrolled</code>. Jump button: opacity + translate 280ms; <code>data-chat-jump=hidden</code>.</div>
+  <div class="stage"></div>
+  <div class="ctl"><button class="go" data-s="play">Play (toggle scrolled / hidden)</button></div>
+</section>
+<section class="card" data-card>
+  <h3>Docked aside panel</h3>
+  <div class="meta">motion.css:547-557; generated/aside.ts:ASIDE_PANEL_DOCKED. <code>ev-aside-enter</code> 280ms ease-out, fade + translateX(24px; -24px for left). No exit (owner unmounts).</div>
+  <div class="stage"></div>
+  <div class="ctl"><button class="go" data-act="play">Play</button><select data-variant><option>right</option><option>left</option></select></div>
+  <template data-v="right"><div style="position:absolute;right:0;top:0;bottom:0;display:flex"><div data-slot="aside-panel" data-mode="docked" data-side="right" class="{{aside.ASIDE_PANEL_DOCKED}} {{aside.asidePanelSideClasses.right}} p-3" style="width:240px">Aside (right)</div></div></template>
+  <template data-v="left"><div style="position:absolute;left:0;top:0;bottom:0;display:flex"><div data-slot="aside-panel" data-mode="docked" data-side="left" class="{{aside.ASIDE_PANEL_DOCKED}} {{aside.asidePanelSideClasses.left}} p-3" style="width:240px">Aside (left)</div></div></template>
+</section>
+</div>
+
+<h2 class="sec">8 &middot; Control transitions</h2>
+<div class="grid">
+<section class="card" data-card>
+  <h3>Hover: button, item row, nav row</h3>
+  <div class="meta">button.ts:3 <code>transition-all</code> (tw default 150ms ease); item.ts:7 <code>transition-colors duration-100</code>; section-nav.tsx:51 / nav-collapse.tsx:122 <code>transition-colors</code>. Hover with a real pointer: no way to force :hover statically, so no Play button here.</div>
+  <div class="stage"></div>
+  <template data-v="x"><div class="stack"><button class="{{button.BUTTON_BASE}} {{button.buttonVariantClasses.outline}}" style="--control-box:2.25rem;--control-pad:1rem">Outline button (hover me)</button><a href="#" class="{{item.ITEM_BASE}} {{item.itemVariants.outline}} p-3">Item row (hover me)</a><a href="#" class="flex min-h-(--control-h-md) items-center rounded-row px-2 text-body font-medium text-ink transition-colors hover:bg-hover">Nav row (hover me)</a></div></template>
+</section>
+<section class="card" data-custom="switch">
+  <h3>Switch, progress, accordion chevron</h3>
+  <div class="meta">switch.ts:3-5 <code>transition-all</code> / thumb <code>transition-transform</code> (150ms); progress.ts:5 <code>transition-all</code>; accordion.ts:9,13 <code>animate-accordion-up/down</code> 200ms ease-out (tw-animate-css) + chevron <code>transition-transform duration-200</code>.</div>
+  <div class="stage tall" style="flex-direction:column;gap:18px;align-items:stretch;padding:20px;justify-content:center">
+    <button id="sw" role="switch" data-state="unchecked" class="{{switch.SWITCH_BASE}}" style="font-size:16px"><span data-state="unchecked" class="{{switch.SWITCH_THUMB}}"></span></button>
+    <div class="{{progress.PROGRESS_TRACK}}"><div id="pg" class="{{progress.PROGRESS_INDICATOR}}" style="transform:translateX(-90%)"></div></div>
+    <div><button id="acc-t" data-state="closed" class="{{accordion.ACCORDION_TRIGGER}} w-full"><span>Accordion trigger</span><svg class="{{accordion.ACCORDION_CHEVRON}}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button>
+      <div id="acc-c" data-state="closed" hidden class="{{accordion.ACCORDION_CONTENT}}" style="--radix-accordion-content-height:56px"><div class="{{accordion.ACCORDION_CONTENT_INNER}}">Accordion content, a few lines of text to give the panel height.</div></div></div>
+  </div>
+  <div class="ctl"><button class="go" data-s="play">Play (toggle all)</button></div>
+</section>
+<section class="card" data-custom="navcollapse">
+  <h3>Nav collapse (grid-rows fold)</h3>
+  <div class="meta">nav-collapse.tsx:55-115. <code>grid-template-rows 0fr/1fr</code> + opacity/visibility, <code>duration-(--ev-dur-fast)=180ms ease-(--ev-ease-in-out)</code>, chevron rotate 90deg; <code>motion-reduce:transition-none</code>.</div>
+  <div class="stage"><div class="stack"><button id="nc-h" class="flex items-center gap-2 text-body font-medium"><svg id="nc-c" aria-hidden viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="size-4 transition-transform duration-(--ev-dur-fast) ease-(--ev-ease-in-out) motion-reduce:transition-none rotate-90"><path d="m9 18 6-6-6-6"/></svg>Group</button>
+    <div id="nc" data-slot="nav-collapse" data-state="open" class="grid grid-cols-[minmax(0,1fr)] transition-[grid-template-rows] duration-(--ev-dur-fast) ease-(--ev-ease-in-out) motion-reduce:transition-none grid-rows-[1fr]"><div id="nc-i" class="min-h-0 overflow-y-clip transition-[opacity,visibility] duration-(--ev-dur-fast) ease-(--ev-ease-in-out) motion-reduce:transition-none visible opacity-100"><div class="chip">Row A</div><div class="chip" style="margin-top:6px">Row B</div><div class="chip" style="margin-top:6px">Row C</div></div></div></div></div>
+  <div class="ctl"><button class="go" data-s="play">Play (toggle)</button></div>
+</section>
+<section class="card">
+  <h3>Not reproduced</h3>
+  <div class="meta"><b>AnimatedNumberColumns</b> (animated-number-columns.tsx): JS-driven digit roll, grid-columns enter/exit (350ms) and a 750ms spring <code>linear()</code>, driven by React state; no static CSS reproduction. <b>Drag/swipe</b> physics (drawer data-dragging, toast swipe --swipe-x) is pointer-driven. <b>hotbar.tsx</b> excluded (in flux). <b>Select content</b> carries no animate classes. Carousel/sidebar/tabs/slider transitions are plain <code>transition-*</code> utilities not shown individually.</div>
+</section>
+</div>
+
+<script>
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const root = document.documentElement;
+$("#rm").onchange = (e) => root.classList.toggle("rm", e.target.checked);
+
+let slow = false;
+$("#slow").onchange = (e) => {
+  slow = e.target.checked;
+  if (!slow) document.getAnimations().forEach((a) => (a.playbackRate = 1));
+};
+(function tick() {
+  if (slow) document.getAnimations().forEach((a) => { if (a.playbackRate !== 0.2) a.playbackRate = 0.2; });
+  requestAnimationFrame(tick);
+})();
+const S = () => (slow ? 5 : 1);
+
+// generic template cards: Play re-mounts the template (keyframes replay), Close flips data-state
+$$("[data-card]").forEach((card) => {
+  const stage = $(".stage", card);
+  const sel = $("[data-variant]", card);
+  const tpl = () => $(`template[data-v="${sel ? sel.value : $("template", card).dataset.v}"]`, card);
+  const play = () => { stage.replaceChildren(tpl().content.cloneNode(true)); void stage.offsetWidth; };
+  const close = () => $$('[data-state="open"]', stage).forEach((e) => e.setAttribute("data-state", "closed"));
+  card.addEventListener("click", async (e) => {
+    const act = e.target.dataset?.act;
+    if (act === "play") play();
+    else if (act === "close") close();
+    else if (act === "cycle") { play(); await sleep(1400 * S()); close(); }
+  });
+  if (sel) sel.onchange = play;
+  play();
+});
+
+// ---- toasts (layout arithmetic as sonner.tsx) ----
+(() => {
+  const ol = $("#toaster"); const stage = $("#toast-stage");
+  const GAP = 14; let id = 0; const items = []; // newest first
+  const tone = "{{tone.toneClasses.neutral}}";
+  function layout() {
+    const heights = items.map((t) => t.h);
+    ol.style.setProperty("--front-height", (items[0] ? items[0].h : 0) + "px");
+    let sum = 0;
+    items.forEach((t, i) => {
+      const s = t.el.style;
+      s.setProperty("--index", i); s.setProperty("--z-index", items.length - i);
+      s.setProperty("--offset", sum + i * GAP + "px"); s.setProperty("--initial-height", t.h + "px");
+      t.el.dataset.front = i === 0; t.el.dataset.visible = i < 3;
+      sum += t.h;
+    });
+  }
+  function push(auto) {
+    const n = ++id;
+    const el = document.createElement("li");
+    el.dataset.slot = "toast"; el.dataset.state = "open";
+    el.className = "{{sonner.TOAST_BASE}} " + tone + " touch-pan-y select-none";
+    el.innerHTML = `<div class="{{sonner.TOAST_CONTENT}}"><div class="{{sonner.TOAST_TITLE}}">Toast #${n}</div><div class="text-ink-soft text-sm">${auto ? "auto-dismisses in 4s" : "persists until closed"}</div></div><button type="button" data-slot="toast-close" class="{{sonner.TOAST_CLOSE}}" aria-label="Close">&times;</button>`;
+    if (auto) { el.dataset.autodismiss = "true"; el.style.setProperty("--life", "4s"); }
+    const t = { el, h: 0 };
+    ol.prepend(el);
+    el.style.height = "auto"; t.h = el.getBoundingClientRect().height; el.style.height = "";
+    items.unshift(t); layout();
+    const dismiss = () => { el.dataset.state = "closed"; };
+    $("button", el).onclick = dismiss;
+    el.addEventListener("animationend", (e) => { if (e.animationName === "ev-toast-life") dismiss(); });
+    el.addEventListener("transitionend", (e) => {
+      if (el.dataset.state === "closed" && e.propertyName === "transform") { items.splice(items.indexOf(t), 1); el.remove(); layout(); }
+    });
+  }
+  $(".card[data-custom=toast] .ctl").addEventListener("click", async (e) => {
+    const k = e.target.dataset?.t;
+    if (k === "push") push(false);
+    if (k === "push4") for (let i = 0; i < 4; i++) { push(false); await sleep(120 * S()); }
+    if (k === "auto") push(true);
+    if (k === "close" && items.length) items.find((t) => t.el.dataset.state === "open")?.el.setAttribute("data-state", "closed");
+    if (k === "clear") { items.length = 0; ol.replaceChildren(); layout(); }
+  });
+})();
+
+// ---- settled ----
+$(".card[data-custom=settled] [data-s=play]").onclick = async (e) => {
+  const stage = $(".card[data-custom=settled] .stage");
+  stage.innerHTML = `<div data-slot="settled" data-state="loading" class="stack"><div data-slot="skeleton" class="{{skeleton.SKELETON_BASE}} h-4 w-3/4"></div><div data-slot="skeleton" class="{{skeleton.SKELETON_BASE}} h-4 w-full"></div></div>`;
+  await sleep(1200 * S());
+  stage.innerHTML = `<div data-slot="settled" data-state="revealed" class="stack"><div class="chip">Content settled in</div><div class="chip">Second block</div></div>`;
+};
+
+// ---- chat stream ----
+$(".card[data-custom=stream] [data-s=play]").onclick = async () => {
+  const stage = $(".card[data-custom=stream] .stage");
+  const words = "The quick brown fox jumps over the lazy dog while the stream keeps arriving word by word".split(" ");
+  const b = document.createElement("div");
+  b.dataset.slot = "chat-bubble"; b.dataset.variant = "assistant"; b.dataset.streaming = ""; b.dataset.caret = "";
+  b.className = "{{chat-message.CHAT_BUBBLE_BASE}}"; b.style.width = "80%";
+  stage.replaceChildren(b);
+  for (let i = 0; i < words.length; i++) {
+    const w = document.createElement("span");
+    w.dataset.slot = "chat-word"; w.dataset.word = i; w.textContent = words[i];
+    b.append(w, " ");
+    await sleep(110 * S());
+  }
+  await sleep(400 * S());
+  b.removeAttribute("data-streaming");
+};
+
+// ---- chat log / jump ----
+(() => {
+  const card = $(".card[data-custom=chatlog]"); const stage = $(".stage", card);
+  stage.innerHTML = `<div data-slot="chat-log" class="stack" style="height:80%;overflow:hidden"><div class="chip">older message 1</div><div class="chip">older message 2</div><div class="chip">older message 3</div><div class="chip">older message 4</div></div><button data-chat-jump="hidden" class="chip" style="position:absolute;bottom:14px">Jump to latest</button>`;
+  $("[data-s=play]", card).onclick = () => {
+    const log = $("[data-slot=chat-log]", stage), j = $("[data-chat-jump]", stage);
+    const on = !log.hasAttribute("data-scrolled");
+    log.toggleAttribute("data-scrolled", on); j.dataset.chatJump = on ? "visible" : "hidden";
+  };
+})();
+
+// ---- switch / progress / accordion ----
+(() => {
+  const card = $(".card[data-custom=switch]");
+  let on = false;
+  $("[data-s=play]", card).onclick = () => {
+    on = !on;
+    const sw = $("#sw"), th = sw.firstElementChild, st = on ? "checked" : "unchecked";
+    sw.dataset.state = st; th.dataset.state = st;
+    $("#pg").style.transform = `translateX(-${on ? 10 : 90}%)`;
+    const t = $("#acc-t"), c = $("#acc-c");
+    t.dataset.state = on ? "open" : "closed"; c.dataset.state = on ? "open" : "closed";
+    if (on) c.hidden = false;
+    else c.addEventListener("animationend", () => { if (c.dataset.state === "closed") c.hidden = true; }, { once: true });
+  };
+})();
+
+// ---- nav collapse ----
+$(".card[data-custom=navcollapse] [data-s=play]").onclick = () => {
+  const nc = $("#nc"), inner = $("#nc-i"), open = nc.dataset.state !== "open";
+  nc.dataset.state = open ? "open" : "closed";
+  nc.classList.toggle("grid-rows-[1fr]", open); nc.classList.toggle("grid-rows-[0fr]", !open);
+  for (const c of ["visible", "opacity-100"]) inner.classList.toggle(c, open);
+  for (const c of ["invisible", "opacity-0"]) inner.classList.toggle(c, !open);
+  $("#nc-c").classList.toggle("rotate-90", open);
+};
+$("#nc-h").onclick = () => $(".card[data-custom=navcollapse] [data-s=play]").click();
+</script>
+</body>
+</html>

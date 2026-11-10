@@ -39,3 +39,9 @@ build), `npm run typecheck`.
 > Dev-only; not published. Lives inside the package dir but is excluded from the
 > npm tarball (`files` is just `dist` + `styles`) and from the package's own
 > `tsc`/`tsup`/`vitest` (all scoped to `src`/`test`).
+
+## Animations
+
+`animations/` is one page with every animation the kit still has, each on a
+Play button, built from the generated class tables and the kit's CSS:
+`node animations/build.mjs && xdg-open animations/index.html`.
