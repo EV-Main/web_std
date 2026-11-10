@@ -309,6 +309,11 @@ behaviour both suites run.
   (Dvorak), ЙЦУКЕН by the Latin label printed on the same key, and macOS Option chords (`ß` from
   ⌥S) reach their letter.
 - **A held key runs once.** A key-repeat reaching a leaf is kept from the browser and runs nothing.
+- **One undo history per page** (uikit `UndoProvider`): a linear stack of `{ label, undo, redo }`,
+  run one at a time in the order pressed, on root leaves (Ctrl+Z / ⌘Z; Ctrl+Shift+Z / ⇧⌘Z and
+  Ctrl+Y redo), so a field keeps its own text undo. A new entry drops the undone ones. An entry
+  writes back only while the state is still the value it left, and rejects otherwise: a rejection
+  drops the whole history, which no longer describes the page. Only a reversible change pushes one.
 - **A keymap resolves or panics.** A chord bound twice in one scope (a leader colliding with a root
   chord among them), or a chord naming no key a keydown normalizes to, fails resolution.
 
@@ -391,7 +396,16 @@ the app hands the host goes through `Hosted` as the host-contract events:
 
 A hosted element never adds a keydown listener of its own: the uikit binds its keys (⌘K) through
 `Hosted` when it is there, and into the page's own keymap (one `window` capture listener) when the
-Rust app is the page.
+Rust app is the page. A TS element dispatches the same events (`dispatchKeymap`, `dispatchUndo`);
+the host side is the uikit's `KeymapProvider` (`elements`: the scope per tag) and `UndoProvider`,
+which hear them at `window` and read `detail` as untrusted, a malformed one a thrown error naming
+the element.
+
+### Invariants
+
+- **An element claims no root chord.** Its bindings sit under the scope its host assigns its tag;
+  an element with none assigned is refused, so two elements never collide. They are bound while the
+  element is connected (a Dioxus one keeps running detached) and until its signal aborts.
 
 ## Generated TypeScript — `ts_gen`
 
