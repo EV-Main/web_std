@@ -9,6 +9,11 @@ import {
   delegatedHref,
   dispatchNavigate,
   dispatchSignedIn,
+  dispatchUndo,
+  KEYMAP_EVENT,
+  keymapDetail,
+  UNDO_EVENT,
+  undoEntry,
   dispatchSignOut,
   NAVIGATE_EVENT,
   navigateHref,
@@ -261,5 +266,39 @@ describe('delegatedHref: left to the browser', () => {
 
   it('should_leave_an_unparseable_href_without_throwing', () => {
     expect(delegatedHref(PLAIN, anchor('http://[::1'), PAGE)).toBeNull();
+  });
+});
+
+describe('ev:keymap and ev:undo, read as untrusted', () => {
+  const from = (type: string, detail: unknown) => {
+    const e = new CustomEvent(type, { detail });
+    Object.defineProperty(e, 'target', { value: { localName: 'mfe-x' } });
+    return e;
+  };
+  const signal = new AbortController().signal;
+
+  it('reads a well-formed binding, nested scopes and a per-platform trigger included', () => {
+    const run = () => {};
+    const binding = {
+      on: { other: { key: 'k', ctrl: true }, mac: { key: 'k', meta: true } },
+      label: 'go',
+      children: [{ on: { key: 'l' }, run: { label: 'Leads', run } }],
+    };
+    expect(keymapDetail(from(KEYMAP_EVENT, { binding, signal }))).toEqual({ binding, signal });
+  });
+
+  it('throws on a malformed one, naming the element', () => {
+    for (const detail of [null, { binding: { on: { key: 'l' }, run: { label: 'Leads' } }, signal }, { binding: { on: { key: 'l' }, run: { label: 'L', run() {} } } }, { binding: { on: { key: 1 }, label: 'x', children: [] }, signal }])
+      expect(() => keymapDetail(from(KEYMAP_EVENT, detail))).toThrow(/<mfe-x>'s ev:keymap/);
+    expect(() => undoEntry(from(UNDO_EVENT, { label: 'Move', undo: async () => {} }))).toThrow(/<mfe-x>'s ev:undo/);
+  });
+
+  it('carries the closures through as they were dispatched', () => {
+    const entry = { label: 'Move', undo: async () => {}, redo: async () => {} };
+    let heard: unknown;
+    const target = new EventTarget();
+    target.addEventListener(UNDO_EVENT, e => (heard = undoEntry(e)));
+    dispatchUndo(target, entry);
+    expect(heard).toEqual(entry);
   });
 });

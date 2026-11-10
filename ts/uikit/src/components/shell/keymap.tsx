@@ -1,6 +1,7 @@
 "use client";
 
 import { type Binding, type Chord, type Hint, type KeyInput, type Keymap, type Platform, type Trigger, Trie, currentPlatform, keyInput, render } from "@evinvest/keymap";
+import { type ElementBinding, KEYMAP_EVENT, keymapDetail } from "@evinvest/mfe";
 import * as React from "react";
 import { KEY_HELP_LABELS } from "../../generated/key-help";
 import { KeyHelp, type KeyHelpLabels } from "./key-help";
@@ -22,6 +23,26 @@ interface Registration {
   key: number;
   where: Where;
   latest: () => KeyBinding;
+}
+
+/** Where a hosted element's keys sit: a scope under the leader. */
+export interface ElementScope {
+  on: Chord | Trigger;
+  label: string;
+}
+
+interface Contribution {
+  key: number;
+  element: Element;
+  binding: ElementBinding;
+}
+
+// An element's leaf is bound while the element is connected: a Dioxus one keeps running detached.
+type Bound = Leaf & { from?: Element };
+
+interface Built {
+  trie: Trie<Bound>;
+  connected: ReadonlyMap<Element, boolean>;
 }
 
 interface Registry {
@@ -63,6 +84,8 @@ const shapeOf = (v: unknown) => JSON.stringify(v, (_, x) => (typeof x === "funct
 export interface KeymapProviderProps {
   /** Opens the scope every `useBinding(…, "leader")` contributes to. */
   leader: Chord | Trigger;
+  /** By tag: the scope under the leader a hosted element's `ev:keymap` bindings sit in. An element with none assigned is refused. */
+  elements?: Readonly<Record<string, ElementScope>>;
   labels?: KeyHelpLabels;
   children: React.ReactNode;
 }
@@ -70,9 +93,9 @@ export interface KeymapProviderProps {
 /**
  * The page's keymap, heard ahead of the page's own handlers and a focused same-origin frame's: the
  * leader's scope with a `?` help in it, and the which-key hint for whatever scope is open. Features
- * contribute with `useBinding` while mounted.
+ * contribute with `useBinding` while mounted, hosted elements with `ev:keymap` (`@evinvest/mfe`).
  */
-export function KeymapProvider({ leader, labels = {}, children }: KeymapProviderProps) {
+export function KeymapProvider({ leader, elements = {}, labels = {}, children }: KeymapProviderProps) {
   const [registrations, setRegistrations] = React.useState<readonly Registration[]>([]);
   const next = React.useRef(0);
   const add = React.useCallback((where: Where, latest: () => KeyBinding) => {
@@ -87,22 +110,53 @@ export function KeymapProvider({ leader, labels = {}, children }: KeymapProvider
   const title = labels.title ?? KEY_HELP_LABELS.title;
   const leaderShape = shapeOf(leader);
 
-  const keymap = React.useMemo((): Keymap<Leaf> => {
-    const from = (where: Where) => registrations.filter(r => r.where === where).map(r => live(r.latest(), r.latest, []));
-    const keybinds: KeyBinding = { on: { key: "?" }, run: { label: title, run: () => setHelp(true) } };
-    return { root: [{ on: JSON.parse(leaderShape) as Chord | Trigger, label: "leader", children: [...from("leader"), keybinds] }, ...from("root")] };
-  }, [registrations, leaderShape, title]);
-  const trie = React.useMemo(() => new Trie(keymap, platform, leaf => leaf.run !== null, leaf => leaf.label), [keymap, platform]);
-
-  const current = React.useRef(trie);
+  const scopesShape = shapeOf(elements);
+  const [contributions, setContributions] = React.useState<readonly Contribution[]>([]);
   React.useEffect(() => {
-    current.current = trie;
+    const scopes = JSON.parse(scopesShape) as Record<string, ElementScope>;
+    const onKeymap = (e: Event) => {
+      const { binding, signal } = keymapDetail(e);
+      const element = e.composedPath().find((n): n is Element => (n as Partial<Element>).nodeType === 1 && Object.hasOwn(scopes, (n as Element).localName));
+      if (element === undefined) throw new Error(`<${(e.target as Element).localName}> contributes keys, but its host assigns it no scope`);
+      if (signal.aborted) return;
+      const key = next.current++;
+      setContributions(cs => [...cs, { key, element, binding }]);
+      signal.addEventListener("abort", () => setContributions(cs => cs.filter(c => c.key !== key)), { once: true });
+    };
+    window.addEventListener(KEYMAP_EVENT, onKeymap);
+    return () => window.removeEventListener(KEYMAP_EVENT, onKeymap);
+  }, [scopesShape]);
+
+  const keymap = React.useMemo((): Keymap<Bound> => {
+    const from = (where: Where) => registrations.filter(r => r.where === where).map(r => live(r.latest(), r.latest, []));
+    const scopes = JSON.parse(scopesShape) as Record<string, ElementScope>;
+    const fromElement = (b: ElementBinding, element: Element): Binding<Bound> =>
+      "run" in b ? { on: b.on, run: { ...b.run, from: element } } : { on: b.on, label: b.label, children: b.children.map(c => fromElement(c, element)) };
+    const byElement = new Map<Element, Binding<Bound>[]>();
+    for (const c of contributions) byElement.set(c.element, [...(byElement.get(c.element) ?? []), fromElement(c.binding, c.element)]);
+    const hosted = [...byElement].map(([element, children]): Binding<Bound> => ({ ...scopes[element.localName]!, children }));
+    const keybinds: KeyBinding = { on: { key: "?" }, run: { label: title, run: () => setHelp(true) } };
+    return { root: [{ on: JSON.parse(leaderShape) as Chord | Trigger, label: "leader", children: [...from("leader"), ...hosted, keybinds] }, ...from("root")] };
+  }, [registrations, contributions, leaderShape, scopesShape, title]);
+  const build = React.useCallback((): Built => {
+    const connected = new Map(contributions.map(c => [c.element, c.element.isConnected]));
+    return { trie: new Trie(keymap, platform, leaf => leaf.run !== null && (leaf.from === undefined || connected.get(leaf.from)!), leaf => leaf.label), connected };
+  }, [keymap, platform, contributions]);
+  const built = React.useMemo(build, [build]);
+
+  const current = React.useRef(built);
+  const rebuild = React.useRef(build);
+  React.useEffect(() => {
+    current.current = built;
+    rebuild.current = build;
     setHint(undefined);
-  }, [trie]);
+  }, [built, build]);
 
   React.useEffect(() => {
     const step = (k: KeyInput, e: KeyboardEvent) => {
-      const trie = current.current;
+      // Connecting or leaving fires nothing here, so a hosted element's keys are re-read before a sequence starts.
+      if (current.current.trie.hint() === undefined && [...current.current.connected].some(([el, was]) => el.isConnected !== was)) current.current = rebuild.current();
+      const { trie } = current.current;
       const step = trie.key(k);
       if (step.kind === "pass") {
         if (step.cancelled) setHint(undefined);
@@ -120,7 +174,7 @@ export function KeymapProvider({ leader, labels = {}, children }: KeymapProvider
     // Keyed by document: a frame that navigates drops its listeners with it, and is attached again on the next blur.
     const frames = new Map<Document, () => void>();
     const follow = (doc: Document) => {
-      if (current.current.cancel()) setHint(undefined);
+      if (current.current.trie.cancel()) setHint(undefined);
       let at = doc.activeElement;
       while (at?.shadowRoot?.activeElement) at = at.shadowRoot.activeElement;
       // `tagName`, not `instanceof`: a nested frame's element is of its parent frame's realm.
@@ -153,7 +207,7 @@ export function KeymapProvider({ leader, labels = {}, children }: KeymapProvider
 
   const sequences = React.useMemo(() => {
     const out = new Map<string, string>();
-    const walk = (bs: readonly KeyBinding[], prefix: string) => {
+    const walk = (bs: readonly Binding<Bound>[], prefix: string) => {
       for (const b of bs) {
         const seq = prefix === "" ? render(b.on, platform) : `${prefix} ${render(b.on, platform)}`;
         if ("children" in b) walk(b.children, seq);
@@ -169,7 +223,7 @@ export function KeymapProvider({ leader, labels = {}, children }: KeymapProvider
     <RegistryContext.Provider value={registry}>
       {children}
       {hint && <KeyHint hint={hint} />}
-      <KeyHelp rows={help ? trie.help() : []} open={help} onOpenChange={setHelp} labels={{ title }} />
+      <KeyHelp rows={help ? current.current.trie.help() : []} open={help} onOpenChange={setHelp} labels={{ title }} />
     </RegistryContext.Provider>
   );
 }

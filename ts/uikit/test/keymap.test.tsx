@@ -1,6 +1,7 @@
 import * as React from "react";
 import { describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen } from "@testing-library/react";
+import { dispatchKeymap } from "@evinvest/mfe";
 import { KeymapProvider, type Leaf, useBinding } from "../src/components/shell/keymap";
 
 function Bind({ on, label, run, where }: { on: string; label: string; run: Leaf["run"]; where?: "leader" | "root" }) {
@@ -195,6 +196,57 @@ describe("KeymapProvider", () => {
     pressIn({ key: "s", code: "KeyS", altKey: true });
     pressIn({ key: "a", code: "KeyA" });
     expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it("binds an element's keys under the scope its host assigns, while it is connected and until it aborts", () => {
+    const leads = vi.fn();
+    render(
+      <KeymapProvider leader={{ key: "s", alt: true }} elements={{ "mfe-sites": { on: { key: "x" }, label: "Sites" } }}>
+        <Bind on="a" label="Assistant" run={() => {}} />
+      </KeymapProvider>,
+    );
+    const element = document.body.appendChild(document.createElement("mfe-sites"));
+    const inner = element.appendChild(document.createElement("div"));
+    const contributed = new AbortController();
+    act(() => dispatchKeymap(inner, { on: { key: "l" }, run: { label: "Leads", run: leads } }, contributed.signal));
+    leader();
+    expect(hint()).toHaveTextContent("Sites");
+    press({ key: "x", code: "KeyX" });
+    expect(hint()).toHaveTextContent("Alt+S X");
+    press({ key: "l", code: "KeyL" });
+    expect(leads).toHaveBeenCalledTimes(1);
+
+    element.remove();
+    leader();
+    expect(hint()).not.toHaveTextContent("Sites");
+    press({ key: "Escape", code: "Escape" });
+    document.body.appendChild(element);
+    leader();
+    press({ key: "x", code: "KeyX" });
+    press({ key: "l", code: "KeyL" });
+    expect(leads).toHaveBeenCalledTimes(2);
+
+    act(() => contributed.abort());
+    leader();
+    expect(hint()).not.toHaveTextContent("Sites");
+    element.remove();
+  });
+
+  it("refuses an element's keys when its host assigns it no scope", () => {
+    const errors: unknown[] = [];
+    const onError = (e: ErrorEvent) => {
+      errors.push(e.error);
+      e.preventDefault();
+    };
+    window.addEventListener("error", onError);
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    render(<KeymapProvider leader={{ key: "s", alt: true }}>{null}</KeymapProvider>);
+    const element = document.body.appendChild(document.createElement("mfe-stray"));
+    act(() => dispatchKeymap(element, { on: { key: "l" }, run: { label: "Leads", run: () => {} } }, new AbortController().signal));
+    window.removeEventListener("error", onError);
+    vi.restoreAllMocks();
+    element.remove();
+    expect(String(errors[0])).toMatch(/<mfe-stray>/);
   });
 
   it("refuses two bindings on one chord", () => {

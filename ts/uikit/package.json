@@ -49,6 +49,7 @@
   },
   "peerDependencies": {
     "@evinvest/keymap": "^0.1.0",
+    "@evinvest/mfe": "^0.4.0",
     "react": "^18 || ^19",
     "react-dom": "^18 || ^19"
   },
@@ -58,6 +59,7 @@
   },
   "devDependencies": {
     "@evinvest/keymap": "file:../keymap",
+    "@evinvest/mfe": "file:../mfe",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.1.0",
     "@types/node": "^22.10.0",

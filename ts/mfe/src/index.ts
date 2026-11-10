@@ -29,17 +29,23 @@ export { isSecureTransport } from './transport';
 export {
   API_VERSION,
   delegatedHref,
+  dispatchKeymap,
   dispatchNavigate,
   dispatchSignedIn,
   dispatchSignOut,
+  dispatchUndo,
+  KEYMAP_EVENT,
+  keymapDetail,
   NAVIGATE_EVENT,
   navigateHref,
   rootRelative,
   SIGNED_IN_EVENT,
   SIGNOUT_EVENT,
   speaksApi,
+  UNDO_EVENT,
+  undoEntry,
 } from './events';
-export type { LinkAnchor, LinkClick, MfeEventMap, MfeEventName, NavigateDetail } from './events';
+export type { ElementBinding, ElementLeaf, KeymapDetail, LinkAnchor, LinkClick, MfeEventMap, MfeEventName, NavigateDetail, UndoEntry } from './events';
 
 export {
   HOST_ATTRIBUTE_NAMES,

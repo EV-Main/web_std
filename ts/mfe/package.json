@@ -1,7 +1,7 @@
 {
   "name": "@evinvest/mfe",
   "version": "0.4.0",
-  "description": "Host contract for EV microfrontends: registry manifest, bundle loader, ev:navigate / ev:signed-in / signout events, apiVersion and host-mode attributes, plus a light-DOM React RemoteElement. Mirrors the producer side in the mfe module of the ev_lib crate.",
+  "description": "Host contract for EV microfrontends: registry manifest, bundle loader, ev:navigate / ev:signed-in / signout / ev:keymap / ev:undo events, apiVersion and host-mode attributes, plus a light-DOM React RemoteElement. Mirrors the producer side in the mfe module of the ev_lib crate.",
   "license": "BlueOak-1.0.0",
   "publishConfig": {
     "access": "public"
@@ -38,14 +38,19 @@
     "prepare": "tsup && tsup --config tsup.react.config.ts"
   },
   "peerDependencies": {
-    "react": "^18 || ^19"
+    "react": "^18 || ^19",
+    "@evinvest/keymap": "^0.1.0"
   },
   "peerDependenciesMeta": {
     "react": {
       "optional": true
+    },
+    "@evinvest/keymap": {
+      "optional": true
     }
   },
   "devDependencies": {
+    "@evinvest/keymap": "file:../keymap",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "jsdom": "^25.0.1",
