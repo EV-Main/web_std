@@ -296,10 +296,13 @@ behaviour both suites run.
   behind a root scope (a leader). A miss closes the open scope; a lone modifier does not; a root
   scope's chord pressed inside another restarts at it.
 - **The page's keymap hears a key first**, ahead of the handlers of what it hosts (an element, a
-  same-origin frame while it holds focus); what it leaves reaches them untouched. A cross-origin
-  frame's keys are its own.
-- **A key aimed at an editable, or arriving during IME composition, never acts** and closes the
-  open scope: typing and text undo stay the browser's — a root chord included.
+  same-origin frame while it or a frame nested in it holds focus); what it leaves reaches them
+  untouched. A key from a frame counts as aimed at an editable: the frame's app keeps its root
+  chords. A cross-origin frame's keys are its own.
+- **A leader opens from anywhere, a field included, and an open scope's next key is the keymap's**
+  (kept from the field, so it is not typed). **A root leaf never acts from an editable**: typing
+  and text undo stay the browser's. A key during IME composition never acts and closes the open
+  scope. The cost: on macOS, ⌥S inside a field opens the leader instead of typing `ß`.
 - **Which key was pressed:** `key` when it is one printable ASCII char (letter case from Shift
   alone, so CapsLock is ignored); else `key` when it names a key (`Escape`, `ArrowUp`); else the
   Latin letter or digit of `code` (`KeyS` → `s`). So a layout binds by the letter it shows

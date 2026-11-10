@@ -96,7 +96,7 @@ pub struct KeyInput {
 	pub repeat: bool,
 	/// An IME composition is under way: the key belongs to it.
 	pub composing: bool,
-	/// The event's innermost target takes text, so its undo and typing belong to the browser.
+	/// The event's innermost target takes text, so a root leaf leaves it its typing and undo.
 	/// `None` where the renderer has no DOM event path to tell (non-web Dioxus).
 	pub editable: Option<bool>,
 }
@@ -259,10 +259,11 @@ impl<C: Clone + Display> Trie<C> {
 	}
 
 	/// One keydown. A miss drops the open scope, a lone modifier doesn't; a root scope's chord
-	/// pressed inside another (a key-repeating leader) restarts at that scope instead.
+	/// pressed inside another (a key-repeating leader) restarts at that scope instead. A leader and
+	/// an open scope's keys act from an editable; a root leaf leaves it its typing and undo.
 	pub fn key(&mut self, k: &KeyInput) -> Step<C> {
 		let open = !self.pending.is_empty();
-		if k.editable.expect("a page keymap listens on a browser window, whose keydowns know their target") || k.composing {
+		if k.composing {
 			self.pending.clear();
 			return Step::Pass { cancelled: open };
 		}
@@ -291,6 +292,10 @@ impl<C: Clone + Display> Trie<C> {
 				}
 			},
 		};
+		let root_leaf = self.pending.is_empty() && matches!(self.root[i].1, Item::Run(..));
+		if root_leaf && k.editable.expect("a page keymap listens on a browser window, whose keydowns know their target") {
+			return Step::Pass { cancelled: open };
+		}
 		self.pending.push(i);
 		let sequence = self.sequence(&self.pending);
 		let command = match &self.at(&self.pending[..self.pending.len() - 1])[i].1 {

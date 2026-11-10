@@ -13,13 +13,19 @@ function Go({ home }: { home: () => void }) {
   return null;
 }
 
-const press = (init: KeyboardEventInit, target: EventTarget = document.body) => {
-  const e = new KeyboardEvent("keydown", { bubbles: true, cancelable: true, ...init });
+const press = (init: KeyboardEventInit, target: EventTarget = document.body, realm: typeof globalThis = globalThis) => {
+  const e = new realm.KeyboardEvent("keydown", { bubbles: true, cancelable: true, ...init });
   act(() => {
     target.dispatchEvent(e);
   });
   return e;
 };
+const focusFrame = (frame: HTMLIFrameElement, from: Window) =>
+  act(() => {
+    frame.focus();
+    from.dispatchEvent(new FocusEvent("blur"));
+  });
+const pressInto = (w: Window & typeof globalThis) => (init: KeyboardEventInit) => press(init, w.document.body, w);
 const leader = () => press({ key: "s", code: "KeyS", altKey: true });
 const hint = () => document.querySelector('[data-slot="key-hint"]');
 
@@ -55,21 +61,23 @@ describe("KeymapProvider", () => {
     expect(home).toHaveBeenCalledTimes(1);
   });
 
-  it("never acts on a key aimed at a field, and drops the open scope", () => {
+  it("opens the leader from a field and keeps its next key from it; a root leaf stays the field's", () => {
     const run = vi.fn();
+    const undo = vi.fn();
     render(
       <KeymapProvider leader={{ key: "s", alt: true }}>
         <Bind on="a" label="Assistant" run={run} />
+        <Bind on="Z" label="Undo" run={undo} where="root" />
         <textarea />
       </KeymapProvider>,
     );
     const field = screen.getByRole("textbox");
-    expect(press({ key: "ß", code: "KeyS", altKey: true }, field).defaultPrevented).toBe(false);
-    expect(hint()).toBeNull();
-    leader();
-    press({ key: "a", code: "KeyA" }, field);
-    expect(hint()).toBeNull();
-    expect(run).not.toHaveBeenCalled();
+    expect(press({ key: "Z", code: "KeyZ", shiftKey: true }, field).defaultPrevented).toBe(false);
+    expect(undo).not.toHaveBeenCalled();
+    expect(press({ key: "ß", code: "KeyS", altKey: true }, field).defaultPrevented).toBe(true);
+    expect(hint()).toHaveTextContent("Assistant");
+    expect(press({ key: "a", code: "KeyA" }, field).defaultPrevented).toBe(true);
+    expect(run).toHaveBeenCalledTimes(1);
   });
 
   it("lists exactly the bound leaves in the help, which ? opens and Esc closes", () => {
@@ -122,40 +130,71 @@ describe("KeymapProvider", () => {
 
   it("hears a same-origin frame while it holds focus: its own keys first, the rest to the frame", () => {
     const run = vi.fn();
+    const undo = vi.fn();
     render(
       <KeymapProvider leader={{ key: "s", alt: true }}>
         <Bind on="a" label="Assistant" run={run} />
+        <Bind on="Z" label="Undo" run={undo} where="root" />
         <iframe title="framed" />
       </KeymapProvider>,
     );
     const frame = screen.getByTitle<HTMLIFrameElement>("framed");
     const inner = frame.contentWindow! as Window & typeof globalThis;
-    const field = inner.document.body.appendChild(inner.document.createElement("textarea"));
     const seen: string[] = [];
     inner.document.addEventListener("keydown", e => seen.push(e.key));
-    act(() => {
-      frame.focus();
-      window.dispatchEvent(new FocusEvent("blur"));
-    });
-    const pressIn = (init: KeyboardEventInit, target: EventTarget = inner.document.body) => {
-      const e = new inner.KeyboardEvent("keydown", { bubbles: true, cancelable: true, ...init });
-      act(() => {
-        target.dispatchEvent(e);
-      });
-      return e;
-    };
+    focusFrame(frame, window);
+    const pressIn = pressInto(inner);
     expect(pressIn({ key: "s", code: "KeyS", altKey: true }).defaultPrevented).toBe(true);
     expect(hint()).toHaveTextContent("Assistant");
     pressIn({ key: "a", code: "KeyA" });
     expect(run).toHaveBeenCalledTimes(1);
     expect(pressIn({ key: "x", code: "KeyX" }).defaultPrevented).toBe(false);
-    expect(pressIn({ key: "ß", code: "KeyS", altKey: true }, field).defaultPrevented).toBe(false);
-    expect(seen).toEqual(["x", "ß"]);
+    expect(pressIn({ key: "Z", code: "KeyZ", shiftKey: true }).defaultPrevented).toBe(false);
+    expect(undo).not.toHaveBeenCalled();
+    expect(seen).toEqual(["x", "Z"]);
     act(() => {
       window.dispatchEvent(new FocusEvent("focus"));
     });
     pressIn({ key: "s", code: "KeyS", altKey: true });
-    expect(seen).toEqual(["x", "ß", "s"]);
+    expect(seen).toEqual(["x", "Z", "s"]);
+  });
+
+  it("keeps hearing a focused frame while bindings come and go", () => {
+    const run = vi.fn();
+    const tree = (mounted: boolean) => (
+      <KeymapProvider leader={{ key: "s", alt: true }}>
+        <Bind on="a" label="Assistant" run={run} />
+        {mounted && <Bind on="b" label="Other" run={() => {}} />}
+        <iframe title="framed" />
+      </KeymapProvider>
+    );
+    const view = render(tree(false));
+    const frame = screen.getByTitle<HTMLIFrameElement>("framed");
+    focusFrame(frame, window);
+    view.rerender(tree(true));
+    const pressIn = pressInto(frame.contentWindow! as Window & typeof globalThis);
+    pressIn({ key: "s", code: "KeyS", altKey: true });
+    pressIn({ key: "a", code: "KeyA" });
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it("follows focus into a frame nested in a frame", () => {
+    const run = vi.fn();
+    render(
+      <KeymapProvider leader={{ key: "s", alt: true }}>
+        <Bind on="a" label="Assistant" run={run} />
+        <iframe title="outer" />
+      </KeymapProvider>,
+    );
+    const outer = screen.getByTitle<HTMLIFrameElement>("outer");
+    const outerWin = outer.contentWindow! as Window & typeof globalThis;
+    const nested = outerWin.document.body.appendChild(outerWin.document.createElement("iframe"));
+    focusFrame(outer, window);
+    focusFrame(nested, outerWin);
+    const pressIn = pressInto(nested.contentWindow! as Window & typeof globalThis);
+    pressIn({ key: "s", code: "KeyS", altKey: true });
+    pressIn({ key: "a", code: "KeyA" });
+    expect(run).toHaveBeenCalledTimes(1);
   });
 
   it("refuses two bindings on one chord", () => {

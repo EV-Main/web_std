@@ -1,6 +1,6 @@
 "use client";
 
-import { type Binding, type Chord, type Hint, type Keymap, type Platform, type Trigger, Trie, currentPlatform, keyInput, render } from "@evinvest/keymap";
+import { type Binding, type Chord, type Hint, type KeyInput, type Keymap, type Platform, type Trigger, Trie, currentPlatform, keyInput, render } from "@evinvest/keymap";
 import * as React from "react";
 import { KEY_HELP_LABELS } from "../../generated/key-help";
 import { KeyHelp, type KeyHelpLabels } from "./key-help";
@@ -94,10 +94,16 @@ export function KeymapProvider({ leader, labels = {}, children }: KeymapProvider
   }, [registrations, leaderShape, title]);
   const trie = React.useMemo(() => new Trie(keymap, platform, leaf => leaf.run !== null, leaf => leaf.label), [keymap, platform]);
 
+  const current = React.useRef(trie);
   React.useEffect(() => {
+    current.current = trie;
     setHint(undefined);
-    const onKey = (e: KeyboardEvent) => {
-      const step = trie.key(keyInput(e));
+  }, [trie]);
+
+  React.useEffect(() => {
+    const step = (k: KeyInput, e: KeyboardEvent) => {
+      const trie = current.current;
+      const step = trie.key(k);
       if (step.kind === "pass") {
         if (step.cancelled) setHint(undefined);
         return;
@@ -107,32 +113,43 @@ export function KeymapProvider({ leader, labels = {}, children }: KeymapProvider
       setHint(trie.hint());
       if (step.kind === "run") step.command.run!();
     };
-    // A frame's keys never reach this window; a same-origin one is heard while it holds focus, a cross-origin one can't be.
-    let framed: Window | null = null;
-    const leaveFrame = () => {
-      framed?.removeEventListener("keydown", onKey, true);
-      framed = null;
-    };
-    const onBlur = () => {
-      if (trie.cancel()) setHint(undefined);
-      leaveFrame();
-      let at = document.activeElement;
+    const onKey = (e: KeyboardEvent) => step(keyInput(e), e);
+    // A frame's app keeps its root chords, as a field does.
+    const onFrameKey = (e: KeyboardEvent) => step({ ...keyInput(e), editable: true }, e);
+    // A frame's keys never reach its parent's window; a same-origin one is heard while it holds focus, a cross-origin one can't be.
+    // Keyed by document: a frame that navigates drops its listeners with it, and is attached again on the next blur.
+    const frames = new Map<Document, () => void>();
+    const follow = (doc: Document) => {
+      if (current.current.cancel()) setHint(undefined);
+      let at = doc.activeElement;
       while (at?.shadowRoot?.activeElement) at = at.shadowRoot.activeElement;
-      if (at instanceof HTMLIFrameElement && at.contentDocument !== null) {
-        framed = at.contentWindow!;
-        framed.addEventListener("keydown", onKey, true);
-      }
+      // `tagName`, not `instanceof`: a nested frame's element is of its parent frame's realm.
+      const inner = at?.tagName === "IFRAME" ? (at as HTMLIFrameElement).contentDocument : null;
+      if (inner === null || frames.has(inner)) return;
+      const w = inner.defaultView!;
+      const onBlur = () => follow(inner);
+      w.addEventListener("keydown", onFrameKey, true);
+      w.addEventListener("blur", onBlur);
+      frames.set(inner, () => {
+        w.removeEventListener("keydown", onFrameKey, true);
+        w.removeEventListener("blur", onBlur);
+      });
+    };
+    const onBlur = () => follow(document);
+    const leaveFrames = () => {
+      for (const detach of frames.values()) detach();
+      frames.clear();
     };
     window.addEventListener("keydown", onKey, true);
     window.addEventListener("blur", onBlur);
-    window.addEventListener("focus", leaveFrame);
+    window.addEventListener("focus", leaveFrames);
     return () => {
       window.removeEventListener("keydown", onKey, true);
       window.removeEventListener("blur", onBlur);
-      window.removeEventListener("focus", leaveFrame);
-      leaveFrame();
+      window.removeEventListener("focus", leaveFrames);
+      leaveFrames();
     };
-  }, [trie]);
+  }, []);
 
   const sequences = React.useMemo(() => {
     const out = new Map<string, string>();
