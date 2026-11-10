@@ -18,7 +18,7 @@ import {
   type NavPanel,
   type NavSection,
 } from "./nav-model";
-import { usePendingNavigation, useSlideMarker } from "./use-shell-nav";
+import { usePendingNavigation } from "./use-shell-nav";
 
 export interface ShellNavLabels extends NavCollapseLabels {
   /** Accessible name of the nav holding `groups`. Default `"Main"`. */
@@ -72,7 +72,9 @@ export type ShellNavProps = ShellNavBaseProps &
 // is that same hue.
 const NAV_FOCUS =
   "outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-secondary";
-const ROW = "flex items-center gap-3 rounded-row px-3 py-2 text-sm transition-colors";
+const ROW = "flex items-center gap-3 rounded-row px-3 py-2 text-sm";
+// a tint and an edge, not a fill: the current row is told apart, not shouted
+const CURRENT = "relative bg-selected text-ink before:absolute before:inset-y-1.5 before:left-0 before:w-0.5 before:rounded-full before:bg-primary";
 // Folded, a line between drawn sections stands in for their labels; a `hidden` panel draws none.
 const FOLDED_NAV =
   "flex flex-col gap-2 [&>:not([hidden])~:not([hidden])]:border-t [&>:not([hidden])~:not([hidden])]:border-border [&>:not([hidden])~:not([hidden])]:pt-2";
@@ -223,13 +225,6 @@ interface RowContext extends NavLinkCallbacks {
   badgeLabel: ((count: number) => string) | undefined;
 }
 
-// One marker node per SECTION, mounted once and moved — not one per rail: a
-// marker travelling between groups would cross headings that have nothing to do
-// with either row. Crossing groups unmounts one marker and mounts another (a
-// fade). `isolate` is load-bearing: the marker sits on a negative z-index and
-// without its own stacking context would land behind the rail's background.
-// The marker lives in the BODY, below the header, so a folding section clips it
-// together with its rows instead of leaving it painted over the next group.
 function ShellNavSection({
   group,
   currentId,
@@ -249,26 +244,14 @@ function ShellNavSection({
   collapsible: boolean;
   folded: boolean;
 }) {
-  const body = React.useRef<HTMLDivElement>(null);
   const labelId = React.useId();
   const regionId = React.useId();
-  const at = group.items.some((i) => i.id === currentId) ? (currentId ?? null) : null;
-  const [open, setOpen] = useNavGroupOpen(group, at !== null);
-  useSlideMarker(body, at);
+  const [open, setOpen] = useNavGroupOpen(group, group.items.some((i) => i.id === currentId));
   const folds = !folded && (group.collapsible ?? collapsible) && group.label !== undefined;
   const landing =
     group.href !== undefined && navItemMatch({ href: group.href, match: "exact" }, pathname) !== null;
   const content = (
-    <div ref={body} className={cn("relative isolate", folds && "pt-1")}>
-      {/* First in DOM order: the pre-hydration fill in motion.css reaches the marked
-          row through a sibling combinator, which only looks forward. */}
-      {at !== null && (
-        <span
-          data-slot="shell-nav-marker"
-          aria-hidden
-          className="pointer-events-none absolute left-0 top-0 -z-10 rounded-row bg-primary"
-        />
-      )}
+    <div className={cn(folds && "pt-1")}>
       <ul
         aria-labelledby={group.label !== undefined ? labelId : undefined}
         className={cn("flex flex-col gap-1", folds && "pl-3", folded && "items-center")}
@@ -350,9 +333,9 @@ function ShellNavIcon({ item, state, row }: { item: NavItem; state: NavItemState
       onItemIntent={row.onItemIntent}
       onNavigate={row.onNavigate}
       className={cn(
-        "grid size-(--control-h-md) place-items-center rounded-row transition-colors",
+        "grid size-(--control-h-md) place-items-center rounded-row",
         NAV_FOCUS,
-        state.active ? "text-on-primary" : "text-ink hover:bg-hover",
+        state.active ? CURRENT : "text-ink hover:bg-hover",
         item.disabled && "cursor-not-allowed opacity-(--disabled-opacity) hover:bg-transparent",
       )}
     >
@@ -393,9 +376,7 @@ function ShellNavRow({
       className={cn(
         ROW,
         NAV_FOCUS,
-        state.active
-          ? "font-semibold text-on-primary"
-          : cn("font-medium hover:bg-hover", nested ? "text-ink-mid" : "text-ink"),
+        state.active ? cn("font-medium", CURRENT) : cn("font-medium hover:bg-hover", nested ? "text-ink-mid" : "text-ink"),
         item.disabled && "cursor-not-allowed opacity-(--disabled-opacity) hover:bg-transparent",
       )}
     >
@@ -408,11 +389,7 @@ function ShellNavRow({
               the rail widens to the longest translation instead of truncating. */}
           <span className="min-w-0 flex-1 truncate">{item.label}</span>
           {typeof item.badge === "number" ? (
-            <NavBadge
-              count={item.badge}
-              active={state.active}
-              {...(row.badgeLabel ? { label: row.badgeLabel } : {})}
-            />
+            <NavBadge count={item.badge} {...(row.badgeLabel ? { label: row.badgeLabel } : {})} />
           ) : (
             item.badge
           )}

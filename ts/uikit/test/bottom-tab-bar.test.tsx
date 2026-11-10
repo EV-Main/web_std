@@ -28,8 +28,7 @@ const bar = (pathname: string, extra: Partial<React.ComponentProps<typeof Bottom
   <BottomTabBar items={TABS} pathname={pathname} linkComponent={FakeLink} {...extra} />
 );
 
-const marker = (root: HTMLElement) =>
-  root.querySelector<HTMLElement>('[data-slot="tab-bar-marker"]')!;
+const rules = (root: HTMLElement) => root.querySelectorAll('[data-slot="tab-bar-rule"]');
 
 describe("BottomTabBar", () => {
   it("lights the tab that claims the path through `also`", () => {
@@ -38,16 +37,12 @@ describe("BottomTabBar", () => {
     expect(getByRole("link", { name: "Home" })).not.toHaveAttribute("aria-current");
   });
 
-  it("slides one rule by whole tab widths and fades it on an unclaimed route", () => {
-    const { container, rerender } = render(bar("/wallet"));
-    const rule = marker(container);
-    expect(rule.style.translate).toBe("200% 0");
-    expect(rule).toHaveAttribute("data-state", "active");
-    // one tab wide: a quarter of the bar less its padding (jsdom normalises the calc)
-    expect(rule.style.width).toMatch(/0\.25|\/ 4/);
+  it("rules the current tab only, and no tab on an unclaimed route", () => {
+    const { container, getByRole, rerender } = render(bar("/wallet"));
+    expect(rules(container)).toHaveLength(1);
+    expect(getByRole("link", { name: /Wallet/ })).toContainElement(rules(container)[0] as HTMLElement);
     rerender(bar("/admin"));
-    expect(marker(container)).toBe(rule);
-    expect(rule).toHaveAttribute("data-state", "idle");
+    expect(rules(container)).toHaveLength(0);
   });
 
   it("moves the mark on a plain click, before the pathname changes", () => {
@@ -55,7 +50,7 @@ describe("BottomTabBar", () => {
     const { container, getByRole } = render(bar("/", { onNavigate }));
     fireEvent.click(getByRole("link", { name: "Invest" }));
     expect(getByRole("link", { name: "Invest" })).toHaveAttribute("aria-current", "page");
-    expect(marker(container).style.translate).toBe("100% 0");
+    expect(getByRole("link", { name: "Invest" })).toContainElement(rules(container)[0] as HTMLElement);
     expect(onNavigate).toHaveBeenCalledTimes(1);
     fireEvent.click(getByRole("link", { name: "Wallet" }), { metaKey: true });
     expect(getByRole("link", { name: "Invest" })).toHaveAttribute("aria-current", "page");

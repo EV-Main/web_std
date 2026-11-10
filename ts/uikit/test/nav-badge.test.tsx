@@ -24,11 +24,6 @@ describe("NavBadge", () => {
     const { container } = render(<NavBadge count={0} />);
     expect(container).toBeEmptyDOMElement();
   });
-
-  it("inverts on the marked row so it reads on the marker", () => {
-    const { container } = render(<NavBadge count={3} active />);
-    expect(container.firstChild).toHaveClass("bg-background", "text-ink");
-  });
 });
 
 describe("NavDot", () => {

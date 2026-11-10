@@ -462,48 +462,6 @@
     ev-skeleton-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) 200ms infinite;
 }
 
-/* ── App shell: the rail's active-row marker and the tab bar's rule ──────────
-   ShellNav: one marker node per nav section, placed on the [aria-current] row by
-   measurement and moved by a `transform` transition — on the compositor, so it
-   keeps its frames while the main thread renders the page just navigated to (a
-   JS layout projection here dropped exactly those). Until the first placement
-   (SSR, every frame to hydration) the marker has no position: it stays hidden
-   and the marked row carries the fill itself, so the first paint is right.
-   `data-placed` flips both at once; `entered` is a marker that mounted into a
-   section already on screen (a move across sections — a fade), `first` one that
-   arrived with its section (a cut: fading under a row whose own fill fades out
-   would dip). */
-@keyframes ev-shell-fade-in {
-  from {
-    opacity: 0;
-  }
-}
-[data-slot="shell-nav-marker"] {
-  transition: transform var(--ev-dur-base, 280ms) var(--ev-ease-out, ease-out);
-}
-[data-slot="shell-nav-marker"]:not([data-placed]) {
-  visibility: hidden;
-}
-[data-slot="shell-nav-marker"][data-placed="entered"] {
-  animation: ev-shell-fade-in var(--ev-dur-fast, 180ms) var(--ev-ease-out, ease-out);
-}
-[data-slot="shell-nav-marker"]:not([data-placed]) ~ * [aria-current="page"] {
-  background-color: var(--primary);
-}
-
-/* BottomTabBar: one rule for the whole bar, mounted once and translated by
-   whole tab widths (it is exactly one tab wide, so the two cannot drift). A
-   route no tab claims fades it out where it stands, and coming back fades it in
-   already in place. */
-[data-slot="tab-bar-marker"] {
-  transition:
-    translate var(--ev-dur-base, 280ms) var(--ev-ease-out, ease-out),
-    opacity var(--ev-dur-base, 280ms) var(--ev-ease-out, ease-out);
-}
-[data-slot="tab-bar-marker"][data-state="idle"] {
-  opacity: 0;
-}
-
 @keyframes ev-enter-fade {
   from {
     opacity: 0;
@@ -708,11 +666,6 @@
   }
   [data-slot="skeleton"].animate-pulse {
     animation: ev-skeleton-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-  }
-  [data-slot="shell-nav-marker"],
-  [data-slot="tab-bar-marker"] {
-    transition: none;
-    animation: none;
   }
 }
 

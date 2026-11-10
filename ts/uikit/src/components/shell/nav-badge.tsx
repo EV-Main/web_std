@@ -17,8 +17,6 @@ export interface NavBadgeProps extends Omit<React.ComponentProps<"span">, "child
    * an icon's top-right corner (the tab bar) — its parent must be `relative`.
    */
   variant?: NavBadgeVariant;
-  /** A pill on the marked row: inverted so it reads on the marker's fill. */
-  active?: boolean;
 }
 
 const PILL = "rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums";
@@ -41,7 +39,6 @@ export function NavBadge({
   max = 99,
   label = defaultLabel,
   variant = "pill",
-  active = false,
   className,
   ...props
 }: NavBadgeProps) {
@@ -53,7 +50,7 @@ export function NavBadge({
       className={cn(
         variant === "corner"
           ? CORNER
-          : cn(PILL, active ? "bg-background text-ink" : "bg-primary-ink/15 text-primary-ink"),
+          : cn(PILL, "bg-primary-ink/15 text-primary-ink"),
         className,
       )}
       {...props}

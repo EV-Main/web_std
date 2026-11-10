@@ -44,9 +44,6 @@ describe("shell motion contract", () => {
       '[data-enter="rise"]',
       '[data-enter="stagger"] > *',
       '[data-slot="settled"][data-state="revealed"]',
-      '[data-slot="shell-nav-marker"]',
-      '[data-slot="shell-nav-marker"]:not([data-placed])',
-      '[data-slot="tab-bar-marker"][data-state="idle"]',
       '[data-slot="skeleton"].animate-pulse',
     ]) {
       expect(sheet, selector).toContain(selector);
@@ -59,14 +56,6 @@ describe("shell motion contract", () => {
     expect(reduced).toContain('[data-enter="stagger"] > *');
     expect(reduced).toContain('[data-slot="settled"][data-state="revealed"]');
     expect(reduced).toMatch(/animation-name:\s*ev-enter-fade/);
-    expect(reduced).toContain('[data-slot="shell-nav-marker"]');
-    expect(reduced).toContain('[data-slot="tab-bar-marker"]');
     expect(reduced).toContain('[data-slot="skeleton"].animate-pulse');
-  });
-
-  it("keeps the marked row filled until the marker is placed", () => {
-    expect(sheet).toMatch(
-      /\[data-slot="shell-nav-marker"\]:not\(\[data-placed\]\) ~ \* \[aria-current="page"\]\s*\{\s*background-color:\s*var\(--primary\)/,
-    );
   });
 });

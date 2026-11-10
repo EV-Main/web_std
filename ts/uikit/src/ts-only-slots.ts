@@ -49,10 +49,9 @@ export const TS_ONLY_SLOTS = [
   "section-nav",
   "settled",
   "shell-nav",
-  "shell-nav-marker",
   "shell-nav-panel",
   "shell-nav-section",
   "tab-bar",
-  "tab-bar-marker",
+  "tab-bar-rule",
 ] as const;
 export type TsOnlySlot = (typeof TS_ONLY_SLOTS)[number];

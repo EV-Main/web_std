@@ -142,34 +142,6 @@ describe("ShellNav", () => {
     expect(onItemIntent.mock.calls.map(([i]) => i.id)).toEqual(["wallet", "profile"]);
   });
 
-  it("server-renders the marker unplaced, so the row carries the fill until layout", () => {
-    const html = renderToString(nav("/wallet"));
-    const host = document.createElement("div");
-    host.innerHTML = html;
-    const markers = host.querySelectorAll('[data-slot="shell-nav-marker"]');
-    expect(markers).toHaveLength(1);
-    expect(markers[0]).not.toHaveAttribute("data-placed");
-  });
-
-  it("places the marker on mount, and fades it in when it enters another section", () => {
-    const { container, rerender } = render(nav("/wallet"));
-    const markers = () => container.querySelectorAll<HTMLElement>('[data-slot="shell-nav-marker"]');
-    expect(markers()).toHaveLength(1);
-    expect(markers()[0]).toHaveAttribute("data-placed", "first");
-    rerender(nav("/invest/arb"));
-    expect(markers()).toHaveLength(1);
-    expect(markers()[0]).toHaveAttribute("data-placed", "entered");
-    expect(markers()[0]!.closest('[data-slot="shell-nav-section"]')).toHaveTextContent("Products");
-  });
-
-  it("keeps one marker node while the mark moves within a section", () => {
-    const { container, rerender } = render(nav("/"));
-    const before = container.querySelector('[data-slot="shell-nav-marker"]');
-    rerender(nav("/wallet"));
-    expect(container.querySelector('[data-slot="shell-nav-marker"]')).toBe(before);
-    expect(before).toHaveAttribute("data-placed", "first");
-  });
-
   it("renders the header and footer slots, and lets renderItem replace a row's content", () => {
     const { getByText, getByRole } = render(
       nav("/wallet", {
