@@ -23,7 +23,8 @@
     { "on": { "other": { "key": "z", "ctrl": true }, "mac": { "key": "z", "meta": true } }, "run": "undo" },
     { "on": { "key": "y", "ctrl": true }, "run": "redo" },
     { "on": { "other": { "key": "Z", "ctrl": true }, "mac": { "key": "Z", "meta": true } }, "run": "redo" },
-    { "on": { "other": { "key": "k", "ctrl": true }, "mac": { "key": "k", "meta": true } }, "run": "palette" }
+    { "on": { "other": { "key": "k", "ctrl": true }, "mac": { "key": "k", "meta": true } }, "run": "palette" },
+    { "on": { "key": "z" }, "label": "bare", "children": [{ "on": { "key": "1" }, "run": "one" }] }
   ],
   "keys": "space-separated keydowns: `+`-joined modifiers, a leading `!` aims the key at an editable, an uppercase letter is shifted, a bare `Shift` is a modifier-only keydown; `code` is the US one. An object is a raw keydown.",
   "steps": "pass · cancelled (a pass that dropped an open scope) · opened · closed · held · run <command>: <sequence>",
@@ -51,6 +52,7 @@
     { "why": "an open scope's next key is the keymap's, aimed at an editable or not", "keys": ["Alt+s", "!u", "!u"], "steps": ["opened", "run undo: Alt+S U", "pass"] },
     { "why": "a miss from an editable drops the scope and stays the browser's", "keys": ["!Alt+s", "!j"], "steps": ["opened", "cancelled"] },
     { "why": "a root leaf aimed at an editable stays the browser's", "keys": ["!Ctrl+z", "!Ctrl+k", "Alt+s", "!Ctrl+z"], "steps": ["pass", "pass", "opened", "cancelled"] },
+    { "why": "an unmodified leader is typing in an editable, and a leader outside it", "keys": ["!z", "z", "1"], "steps": ["pass", "opened", "run one: Z 1"] },
     { "why": "a key during IME composition never acts", "keys": ["Alt+s", { "key": "Process", "code": "KeyU", "composing": true }], "steps": ["opened", "cancelled"] },
     { "why": "root chords", "keys": ["Ctrl+z", "Ctrl+Z", "Ctrl+y", "Ctrl+k"], "steps": ["run undo: Ctrl+Z", "run redo: Ctrl+Shift+Z", "run redo: Ctrl+Y", "run palette: Ctrl+K"] },
     { "why": "modifiers match exactly", "keys": ["Ctrl+Alt+z", "Alt+u", "Meta+z"], "steps": ["pass", "pass", "pass"] },
@@ -81,7 +83,8 @@
       ["Ctrl+Z", "undo"],
       ["Ctrl+Y", "redo"],
       ["Ctrl+Shift+Z", "redo"],
-      ["Ctrl+K", "palette"]
+      ["Ctrl+K", "palette"],
+      ["Z 1", "one"]
     ] },
     { "platform": "mac", "unavailable": [], "rows": [
       ["⌥S U", "undo"],
@@ -95,7 +98,8 @@
       ["⌘Z", "undo"],
       ["⌃Y", "redo"],
       ["⇧⌘Z", "redo"],
-      ["⌘K", "palette"]
+      ["⌘K", "palette"],
+      ["Z 1", "one"]
     ] },
     { "platform": "other", "unavailable": ["home", "sites", "cache"], "rows": [
       ["Alt+S U", "undo"],
@@ -106,7 +110,8 @@
       ["Ctrl+Z", "undo"],
       ["Ctrl+Y", "redo"],
       ["Ctrl+Shift+Z", "redo"],
-      ["Ctrl+K", "palette"]
+      ["Ctrl+K", "palette"],
+      ["Z 1", "one"]
     ] }
   ],
   "invalid": [

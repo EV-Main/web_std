@@ -259,8 +259,9 @@ impl<C: Clone + Display> Trie<C> {
 	}
 
 	/// One keydown. A miss drops the open scope, a lone modifier doesn't; a root scope's chord
-	/// pressed inside another (a key-repeating leader) restarts at that scope instead. A leader and
-	/// an open scope's keys act from an editable; a root leaf leaves it its typing and undo.
+	/// pressed inside another (a key-repeating leader) restarts at that scope instead. A modified
+	/// leader and an open scope's keys act from an editable; a root leaf or an unmodified root chord
+	/// leaves it its typing and undo.
 	pub fn key(&mut self, k: &KeyInput) -> Step<C> {
 		let open = !self.pending.is_empty();
 		if k.composing {
@@ -292,8 +293,9 @@ impl<C: Clone + Display> Trie<C> {
 				}
 			},
 		};
-		let root_leaf = self.pending.is_empty() && matches!(self.root[i].1, Item::Run(..));
-		if root_leaf && k.editable.expect("a page keymap listens on a browser window, whose keydowns know their target") {
+		// At root a field keeps its typing (an unmodified chord, a leader's too) and its undo (a leaf).
+		let fields = self.pending.is_empty() && (matches!(self.root[i].1, Item::Run(..)) || !(k.ctrl || k.alt || k.meta));
+		if fields && k.editable.expect("a page keymap listens on a browser window, whose keydowns know their target") {
 			return Step::Pass { cancelled: open };
 		}
 		self.pending.push(i);

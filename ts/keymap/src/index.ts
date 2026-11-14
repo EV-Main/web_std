@@ -164,7 +164,7 @@ export class Trie<C> {
     }, this.#root);
   }
 
-  /** One keydown. A miss drops the open scope, a lone modifier doesn't; a root scope's chord pressed inside another (a key-repeating leader) restarts at that scope instead. A leader and an open scope's keys act from an editable; a root leaf leaves it its typing and undo. */
+  /** One keydown. A miss drops the open scope, a lone modifier doesn't; a root scope's chord pressed inside another (a key-repeating leader) restarts at that scope instead. A modified leader and an open scope's keys act from an editable; a root leaf or an unmodified root chord leaves it its typing and undo. */
   key(k: KeyInput): Step<C> {
     const open = this.#pending.length > 0;
     if (k.composing) {
@@ -190,7 +190,8 @@ export class Trie<C> {
       i = r;
     }
     const parent = this.#at(this.#pending);
-    if (this.#pending.length === 0 && k.editable && "run" in parent[i]![1]) return { kind: "pass", cancelled: open };
+    // At root a field keeps its typing (an unmodified chord, a leader's too) and its undo (a leaf).
+    if (this.#pending.length === 0 && k.editable && ("run" in parent[i]![1] || !(k.ctrl || k.alt || k.meta))) return { kind: "pass", cancelled: open };
     this.#pending.push(i);
     const sequence = this.#sequence(this.#pending);
     const item = parent[i]![1];
