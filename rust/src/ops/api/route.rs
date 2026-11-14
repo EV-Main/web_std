@@ -17,6 +17,7 @@ use axum::{
 	response::IntoResponse,
 	routing::{MethodFilter, MethodRouter, on},
 };
+use schemars::SchemaGenerator;
 pub use schemars::{self, JsonSchema};
 use serde::Serialize;
 use serde_json::Value;
@@ -48,7 +49,7 @@ pub struct Route<S, G> {
 	handler: MethodRouter<S>,
 	/// `<crate>::<module>::<fn>`.
 	handler_path: &'static str,
-	describe: fn(&mut GenContext, &mut Operation),
+	describe: fn(&mut GenContext, &mut SchemaGenerator, &mut Operation),
 }
 
 impl<S: Clone + Send + Sync + 'static, G> Route<S, G> {
@@ -98,7 +99,8 @@ impl<S: Clone + Send + Sync + 'static, G> Route<S, G> {
 pub fn document<S: Clone + Send + Sync + 'static, G: Guard>(title: &str, version: &str, base: &str, routes: &[Route<S, G>], docs: Docs) -> OpenApi {
 	let mut paths = Paths::default();
 	let mut ids = BTreeSet::new();
-	let schemas = in_context(|ctx| {
+	let (asked, answered) = in_context(|ctx| {
+		let mut answered = ctx.schema.settings().clone().for_serialize().into_generator();
 		for route in routes {
 			let id = route.id();
 			assert!(ids.insert(id), "two operations are named {id}: rename a handler");
@@ -115,7 +117,7 @@ pub fn document<S: Clone + Send + Sync + 'static, G: Guard>(title: &str, version
 				tags: route.handler_path.split("::").nth(1).filter(|m| *m != id).map(str::to_owned).into_iter().collect(),
 				..Operation::default()
 			};
-			(route.describe)(ctx, &mut op);
+			(route.describe)(ctx, &mut answered, &mut op);
 			let answers = op.responses.as_ref().map(|r| r.responses.keys().collect::<Vec<_>>()).unwrap_or_default();
 			assert!(
 				answers.iter().any(|s| matches!(s, StatusCode::Code(200..=299))),
@@ -152,9 +154,10 @@ pub fn document<S: Clone + Send + Sync + 'static, G: Guard>(title: &str, version
 			};
 			assert!(slot.replace(op).is_none(), "{} {} is routed twice", route.method, route.path);
 		}
-		ctx.schema.take_definitions(true)
+		(ctx.schema.take_definitions(true), answered.take_definitions(true))
 	});
 	generate::reset_context();
+	let (paths, schemas) = contracts(paths, asked, answered);
 	let mut schemas = referenced(&paths, schemas);
 	schemas.values_mut().for_each(flat_enums);
 	OpenApi {
@@ -187,6 +190,57 @@ pub fn document<S: Clone + Send + Sync + 'static, G: Guard>(title: &str, version
 		}),
 		..OpenApi::default()
 	}
+}
+
+/// `201` and the created resource.
+pub struct Created<T>(pub T);
+
+/// `201` a resource made now, `200` the one that stood already.
+pub enum Upserted<T> {
+	Created(T),
+	Existed(T),
+}
+
+/// One set of definitions from a request's and an answer's: a type whose schema differs between
+/// them is `<Name>Input` where a request takes it.
+fn contracts(paths: Paths, asked: serde_json::Map<String, Value>, answered: serde_json::Map<String, Value>) -> (Paths, serde_json::Map<String, Value>) {
+	let differ: BTreeSet<String> = asked.iter().filter(|(k, v)| answered.get(*k).is_some_and(|a| a != *v)).map(|(k, _)| k.clone()).collect();
+	fn input(v: &mut Value, differ: &BTreeSet<String>) {
+		match v {
+			Value::Object(o) => {
+				if let Some(Value::String(r)) = o.get_mut("$ref")
+					&& let Some(name) = r.strip_prefix("#/components/schemas/")
+					&& differ.contains(name)
+				{
+					*r = format!("#/components/schemas/{name}Input");
+				}
+				o.values_mut().for_each(|v| input(v, differ));
+			}
+			Value::Array(a) => a.iter_mut().for_each(|v| input(v, differ)),
+			_ => {}
+		}
+	}
+	let mut paths = serde_json::to_value(paths).expect("paths serialize");
+	for op in paths
+		.as_object_mut()
+		.into_iter()
+		.flat_map(|p| p.values_mut())
+		.filter_map(Value::as_object_mut)
+		.flat_map(|item| item.values_mut())
+	{
+		for part in ["parameters", "requestBody"] {
+			if let Some(v) = op.get_mut(part) {
+				input(v, &differ);
+			}
+		}
+	}
+	let mut schemas = answered;
+	for (name, mut schema) in asked {
+		input(&mut schema, &differ);
+		let name = if differ.contains(&name) { format!("{name}Input") } else { name };
+		schemas.insert(name, schema);
+	}
+	(serde_json::from_value(paths).expect("paths deserialize as they serialized"), schemas)
 }
 
 /// A string enum whose variants carry docs is a `oneOf` of one-value schemas to schemars: one `enum`
@@ -263,19 +317,15 @@ fn referenced(paths: &Paths, mut definitions: serde_json::Map<String, Value>) ->
 	kept
 }
 
-/// `201` and the created resource.
-pub struct Created<T>(pub T);
-
-/// `201` a resource made now, `200` the one that stood already.
-pub enum Upserted<T> {
-	Created(T),
-	Existed(T),
-}
-
-fn describe<I: OperationInput, O: OperationOutput>(ctx: &mut GenContext, op: &mut Operation) {
+/// A request's schemas under serde's deserialize contract (an `Option` field may be absent), an
+/// answer's under the serialize one (it is always there): `answered` is the latter's generator.
+fn describe<I: OperationInput, O: OperationOutput>(ctx: &mut GenContext, answered: &mut SchemaGenerator, op: &mut Operation) {
 	I::operation_input(ctx, op);
+	std::mem::swap(&mut ctx.schema, answered);
+	let answers = O::inferred_responses(ctx, op);
+	std::mem::swap(&mut ctx.schema, answered);
 	// An extractor's early answer overrides the handler's: the request never reaches it.
-	let answers = O::inferred_responses(ctx, op).into_iter().chain(I::inferred_early_responses(ctx, op)).collect::<Vec<_>>();
+	let answers = answers.into_iter().chain(I::inferred_early_responses(ctx, op)).collect::<Vec<_>>();
 	let responses = op.responses.get_or_insert_with(Responses::default);
 	for (status, answer) in answers {
 		match status {
