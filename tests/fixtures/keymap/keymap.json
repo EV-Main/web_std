@@ -53,6 +53,7 @@
     { "why": "a miss from an editable drops the scope and stays the browser's", "keys": ["!Alt+s", "!j"], "steps": ["opened", "cancelled"] },
     { "why": "a root leaf aimed at an editable stays the browser's", "keys": ["!Ctrl+z", "!Ctrl+k", "Alt+s", "!Ctrl+z"], "steps": ["pass", "pass", "opened", "cancelled"] },
     { "why": "an unmodified leader is typing in an editable, and a leader outside it", "keys": ["!z", "z", "1"], "steps": ["pass", "opened", "run one: Z 1"] },
+    { "why": "a bare-key leader is reached with Alt too, from an editable or not", "keys": ["!Alt+z", "!1", "Alt+z", "1", "Ctrl+Alt+z"], "steps": ["opened", "run one: Z 1", "opened", "run one: Z 1", "pass"] },
     { "why": "a key during IME composition never acts", "keys": ["Alt+s", { "key": "Process", "code": "KeyU", "composing": true }], "steps": ["opened", "cancelled"] },
     { "why": "root chords", "keys": ["Ctrl+z", "Ctrl+Z", "Ctrl+y", "Ctrl+k"], "steps": ["run undo: Ctrl+Z", "run redo: Ctrl+Shift+Z", "run redo: Ctrl+Y", "run palette: Ctrl+K"] },
     { "why": "modifiers match exactly", "keys": ["Ctrl+Alt+z", "Alt+u", "Meta+z"], "steps": ["pass", "pass", "pass"] },

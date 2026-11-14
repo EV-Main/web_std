@@ -164,7 +164,7 @@ export class Trie<C> {
     }, this.#root);
   }
 
-  /** One keydown. A miss drops the open scope, a lone modifier doesn't; a root scope's chord pressed inside another (a key-repeating leader) restarts at that scope instead. A modified leader and an open scope's keys act from an editable; a root leaf or an unmodified root chord leaves it its typing and undo. */
+  /** One keydown. A miss drops the open scope, a lone modifier doesn't; a root scope's chord pressed inside another (a key-repeating leader) restarts at that scope instead. A modified leader (a bare-key one with Alt) and an open scope's keys act from an editable; a root leaf or an unmodified root chord leaves it its typing and undo. */
   key(k: KeyInput): Step<C> {
     const open = this.#pending.length > 0;
     if (k.composing) {
@@ -182,9 +182,12 @@ export class Trie<C> {
       return { kind: "closed" };
     }
     const hit = (l: Level<C>) => l.findIndex(([c]) => same(c, { key, ctrl: k.ctrl, alt: k.alt, meta: k.meta }));
+    // A bare-key root scope is reached with Alt too: in a field the bare key types.
+    const alted = (j: number) => (j >= 0 || !k.alt || k.ctrl || k.meta ? j : this.#root.findIndex(([c, item]) => "children" in item && same(c, { key })));
     let i = hit(this.#at(this.#pending));
+    if (this.#pending.length === 0) i = alted(i);
     if (i < 0) {
-      const r = hit(this.#root);
+      const r = alted(hit(this.#root));
       this.#pending = [];
       if (!(open && r >= 0 && "children" in this.#root[r]![1])) return { kind: "pass", cancelled: open };
       i = r;

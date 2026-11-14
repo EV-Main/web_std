@@ -260,7 +260,7 @@ impl<C: Clone + Display> Trie<C> {
 
 	/// One keydown. A miss drops the open scope, a lone modifier doesn't; a root scope's chord
 	/// pressed inside another (a key-repeating leader) restarts at that scope instead. A modified
-	/// leader and an open scope's keys act from an editable; a root leaf or an unmodified root chord
+	/// leader (a bare-key one with Alt) and an open scope's keys act from an editable; a root leaf or an unmodified root chord
 	/// leaves it its typing and undo.
 	pub fn key(&mut self, k: &KeyInput) -> Step<C> {
 		let open = !self.pending.is_empty();
@@ -280,9 +280,18 @@ impl<C: Clone + Display> Trie<C> {
 			return Step::Closed;
 		}
 		let hit = |l: &Level<C>| l.iter().position(|(c, _)| c.key == key && c.ctrl == k.ctrl && c.alt == k.alt && c.meta == k.meta);
-		let i = match hit(self.at(&self.pending)) {
+		// A bare-key root scope is reached with Alt too: in a field the bare key types.
+		let alted = |j: Option<usize>| match j {
+			None if k.alt && !k.ctrl && !k.meta => self
+				.root
+				.iter()
+				.position(|(c, item)| matches!(item, Item::Scope(..)) && c.key == key && !c.ctrl && !c.alt && !c.meta),
+			j => j,
+		};
+		let here = hit(self.at(&self.pending));
+		let i = match if self.pending.is_empty() { alted(here) } else { here } {
 			Some(i) => i,
-			None => match hit(&self.root) {
+			None => match alted(hit(&self.root)) {
 				Some(i) if open && matches!(self.root[i].1, Item::Scope(..)) => {
 					self.pending.clear();
 					i
