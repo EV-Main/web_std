@@ -162,9 +162,10 @@ export function readLayer(path: string): TranslatedCatalogue {
 }
 
 /**
- * One layer cut to the keys English defines. An orphan moves to a new key only when its
- * recorded `en` is the English of exactly one key this layer lacks, and no other orphan
- * claims that key — what a renamed scope leaves. Every move and drop is a line.
+ * One layer cut to what is still a translation of today's English. An orphan moves to a new
+ * key only when its recorded `en` is the English of exactly one key this layer lacks, and no
+ * other orphan claims that key — what a renamed scope leaves. A stale entry is dropped. Every
+ * move and drop is a line.
  */
 function reconcile(
   en: Messages,
@@ -173,9 +174,11 @@ function reconcile(
 ): { kept: Record<string, TranslatedEntry>; lines: string[] } {
   const kept: Record<string, TranslatedEntry> = {};
   const orphans: [string, TranslatedEntry][] = [];
+  const lines: string[] = [];
   for (const [key, entry] of Object.entries(layer)) {
-    if (Object.hasOwn(en, key)) kept[key] = entry;
-    else orphans.push([key, entry]);
+    if (!Object.hasOwn(en, key)) orphans.push([key, entry]);
+    else if (entry.en === en[key]) kept[key] = entry;
+    else lines.push(`  ${label}: dropped stale ${key} (${JSON.stringify(entry.en)})`);
   }
   const lacking = new Map<string, string[]>();
   for (const [key, text] of Object.entries(en)) {
@@ -191,7 +194,6 @@ function reconcile(
     const target = targetOf(entry);
     if (target !== undefined) claims.set(target, (claims.get(target) ?? 0) + 1);
   }
-  const lines: string[] = [];
   for (const [key, entry] of orphans) {
     const target = targetOf(entry);
     if (target !== undefined && claims.get(target) === 1) {
@@ -238,7 +240,7 @@ export function writeCatalogues(
 // identical, so a check and the extract that fixes it can never be pointed at
 // different trees.
 
-const usage = (bin: string, does: string) =>
+const usage = (bin: string, does: string, more = "") =>
   `Usage: ${bin} [--root <dir>] [--messages <dir>] [--exclude <a,b>]
 
 ${does}
@@ -247,17 +249,18 @@ ${does}
   --messages <dir>   where the catalogues live (default: <root>/messages)
   --exclude <a,b>    directory and file names that are not source, at any depth
   --tsconfig <file>  whose paths resolve imports (default: <root>/tsconfig.json when present)
-  -h, --help         print this and exit`;
+${more}  -h, --help         print this and exit`;
 
 /**
  * `--root x --messages y --exclude a,b`; `--root` defaults to the working
  * directory. `null` when `--help` was asked for and printed.
  */
-function parseArgs(
+function parseArgs<S extends string>(
   argv: readonly string[],
   help: string,
-): (ExtractOptions & { messages: string }) | null {
-  const flags = parseFlags(argv, ["root", "messages", "exclude", "tsconfig"]);
+  switches: readonly S[],
+): (ExtractOptions & { messages: string; on: (name: S) => boolean }) | null {
+  const flags = parseFlags(argv, ["root", "messages", "exclude", "tsconfig"], switches);
   if (flags.help) {
     console.log(help);
     return null;
@@ -268,20 +271,22 @@ function parseArgs(
     root,
     messages: flags.value("messages") ?? join(root, "messages"),
     exclude: list(flags.value("exclude")),
+    on: flags.on,
     ...(tsconfig === undefined ? {} : { tsconfig }),
   };
 }
 
-function read(
+function read<S extends string = never>(
   argv: readonly string[],
   help: string,
-): { messages: string; entries: Entry[] } | null {
-  const args = parseArgs(argv, help);
+  switches: readonly S[] = [],
+): { messages: string; entries: Entry[]; on: (name: S) => boolean } | null {
+  const args = parseArgs(argv, help, switches);
   if (args === null) return null;
-  const { messages, ...options } = args;
+  const { messages, on, ...options } = args;
   if (!existsSync(options.root)) throw new InputError(`--root ${options.root} does not exist`);
   const { entries, errors } = collect(options);
-  if (errors.length === 0) return { messages, entries };
+  if (errors.length === 0) return { messages, entries, on };
 
   console.error(`${errors.length} t() call site${errors.length === 1 ? "" : "s"} the extractor cannot read:\n`);
   for (const error of errors) console.error(`  ${error}`);
@@ -317,9 +322,10 @@ export function runExtract(
 /**
  * `evinvest-i18n-check` — the build gate.
  *
- * Fatal: a committed English catalogue that no longer matches the code, and, per
- * non-source locale, any key served in English (missing, or every entry for it
- * refused), any refused entry in either layer (stale, structurally unequal, orphan).
+ * Fatal: a committed English catalogue that no longer matches the code, and any
+ * refused entry in either layer of a non-source locale (stale, structurally unequal,
+ * orphan). With `--release`, any key served in English too: until then a new string
+ * renders English and is listed.
  *
  * @param registry - Whose locales to check; see {@link runExtract}.
  */
@@ -331,11 +337,13 @@ export function runCheck(
     argv,
     usage(
       "evinvest-i18n-check",
-      "Fail when the English catalogue is out of date with the code, or any other\nlocale serves English for a key or carries a refused entry.",
+      "Fail when the English catalogue is out of date with the code, or any other\nlocale carries a refused entry; with --release, also when one serves English for a key.",
+      "  --release          an untranslated key fails too\n",
     ),
+    ["release"],
   );
   if (found === null) return;
-  const { messages, entries } = found;
+  const { messages, entries, on } = found;
 
   const generated = serialise(catalogue(entries));
   const enPath = cataloguePath(messages, registry.defaultLocale);
@@ -354,7 +362,7 @@ export function runCheck(
       readLayer(cataloguePath(messages, locale)),
     ),
   );
-  const { ok, report } = auditCatalogues(resolved, 1);
+  const { ok, report } = auditCatalogues(resolved, on("release") ? 1 : 0);
   if (!ok) {
     console.error(report);
     console.error(

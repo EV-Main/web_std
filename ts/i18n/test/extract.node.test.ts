@@ -77,7 +77,7 @@ describe("a key is read back to its scope", () => {
 });
 
 describe("writeCatalogues", () => {
-  it("moves a renamed scope's entries by their English, and drops what is ambiguous", () => {
+  it("moves a renamed scope's entries by their English, and drops what is stale or ambiguous", () => {
     const ru = (en: string, t: string) => ({ en, t });
     write({
       "app.ts":
@@ -89,6 +89,7 @@ describe("writeCatalogues", () => {
         "sites.title": ru("Sites", "Сайты"),
         "sites.save": ru("Save", "Сохранить"),
         "sites.gone": ru("Gone", "Ушло"),
+        "panel.fresh": ru("Fresh", "Свежее"),
       },
     });
 
@@ -99,6 +100,7 @@ describe("writeCatalogues", () => {
       "ru/common.json: 1 entries",
       "  ru/common.json: moved sites.title → panel.title",
       "ru/common.auto.json: 1 entries",
+      '  ru/common.auto.json: dropped stale panel.fresh ("Fresh")',
       "  ru/common.auto.json: moved sites.title → panel.title",
       '  ru/common.auto.json: dropped sites.save ("Save")',
       '  ru/common.auto.json: dropped sites.gone ("Gone")',
@@ -114,7 +116,7 @@ describe("writeCatalogues", () => {
 });
 
 describe("runCheck", () => {
-  const run = () => {
+  const run = (...flags: string[]) => {
     const exit = vi.spyOn(process, "exit").mockImplementation(code => {
       throw new Error(`exit ${code}`);
     });
@@ -122,7 +124,7 @@ describe("runCheck", () => {
     vi.spyOn(console, "log").mockImplementation(() => {});
     let threw: unknown = null;
     try {
-      runCheck(["--root", root]);
+      runCheck(["--root", root, ...flags]);
     } catch (e) {
       threw = e;
     }
@@ -150,7 +152,7 @@ describe("runCheck", () => {
     expect(passed.exit).not.toHaveBeenCalled();
   });
 
-  it("fails on a key no layer translates", () => {
+  it("lists a key no layer translates, and fails on it only with --release", () => {
     write({
       "app.ts": `${SCOPE}const shell = scope("shell");\nt(shell.signOut, "Log out");\n`,
       "messages/en/common.json": { "shell.signOut": "Log out" },
@@ -158,7 +160,9 @@ describe("runCheck", () => {
       "messages/ru/common.json": {},
     });
 
-    const failed = run();
+    expect(run().exit).not.toHaveBeenCalled();
+    vi.restoreAllMocks();
+    const failed = run("--release");
     expect(failed.exit).toHaveBeenCalledWith(1);
     expect(failed.stderr).toContain("untranslated (1): shell.signOut");
   });

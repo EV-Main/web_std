@@ -541,12 +541,13 @@ failing.
 `extract` writes `messages/en/common.json` and reconciles both layers of every
 other locale with it. An entry whose key the code no longer asks for moves to a
 new key only when its recorded `en` is the English of exactly one key that layer
-lacks (what renaming a scope leaves); otherwise it is dropped. Every move and
-drop is printed.
+lacks (what renaming a scope leaves); otherwise it is dropped. A stale entry
+(its `en` is not today's English) is dropped too. Every move and drop is printed.
 
 `check` is the build gate. Fatal: a committed English catalogue that no longer
-matches the code; and per locale, any key served in English, any stale or
-structurally unequal entry in either layer, any orphan.
+matches the code, and any stale, orphaned or structurally unequal entry in
+either layer. An untranslated key renders the call site's English and is listed;
+`--release` makes it fatal too.
 
 Both refuse a `t()` whose key does not resolve statically to a member chain off
 a `scope("<literal>")` — through `const` bindings in any enclosing block and
