@@ -1,19 +1,19 @@
 /**
- * `evinvest-i18n-slices` — which message ids each part of a Next.js App
+ * `evinvest-i18n-slices` — which catalogue keys each part of a Next.js App
  * Router app renders on the client, read off its import graph.
  *
  * A client provider's `messages` are serialised into every page's RSC payload.
- * Slicing is what keeps that to the ids a page can actually ask for: the
+ * Slicing is what keeps that to the keys a page can actually ask for: the
  * provider in the root layout carries the {@link MessageSlices.shell}, and each
  * page's `I18nScope` adds its route's slice.
  *
- * The one rule every decision here follows: **a slice may carry an id it does
- * not need, never miss one it does.** A missing id renders English to a reader
+ * The one rule every decision here follows: **a slice may carry a key it does
+ * not need, never miss one it does.** A missing key renders English to a reader
  * of another language, silently. So every import is followed (type-only ones
  * excepted), every file below a `"use client"` boundary counts as client, and
  * anything the graph cannot account for — a local import that does not
  * resolve, an `import()` of a computed path in a file an entry reaches, a
- * `t()` with computed English anywhere — is an error rather than a skip.
+ * `t()` with a computed key anywhere — is an error rather than a skip.
  *
  * Syntactic, like the extractor: `ts.createSourceFile` per file, no program and
  * no type checker; `paths` come from the app's tsconfig.
@@ -27,6 +27,7 @@ import type { MessageSlices } from "../slices.js";
 import {
   callsIn,
   DEFAULT_EXCLUDE,
+  dedupe,
   type Entry,
   InputError,
   list,
@@ -39,23 +40,27 @@ import {
 } from "./calls.js";
 
 /**
- * A module of closed tables of copy keyed by a row name — `TIP_COPY[anchor](t)`.
- * Followed as an import, that module would put every row in every slice that
- * reaches it. A rule narrows it to the rows whose name appears as a string
- * literal in a file the entry reaches (server or client: a server page passing
- * `anchor="wallet.x"` to a client tip counts).
+ * A closed table of copy keyed by an id — `TIP_COPY[anchor](t)` — whose `t()`
+ * calls all sit in one module. Followed as an import, that module would put
+ * every row in every slice that reaches it. A rule narrows it to the rows whose
+ * id appears as a string literal in a file the entry reaches (server or
+ * client: a server page passing `anchor="wallet.x"` to a client tip counts).
  *
- * A table is a top-level `const` initialised with an object literal holding
- * `t()` calls: `{ draft: t => t("Draft"), … } satisfies Record<State, …>`. Each
- * property's name is a row; the ids of the `t()` calls inside it are its copy.
- * The module's `t()` calls outside every table stay ordinary.
+ * The ids are not listed: they are read back out of the table's own keys
+ * through the templates — `tips.*.title` over `tips.wallet.x.title` gives the
+ * id `wallet.x`, and the id gives every template's key.
  */
 export interface TableRule {
-  /** Root-relative path of the module holding the tables. */
+  /** Root-relative path of the module holding the table's `t()` calls. */
   table: string;
   /**
+   * Key templates, one `*` each for the id: `["tips.*.title", "tips.*.body"]`.
+   * The table's keys that match none stay ordinary keys of the module.
+   */
+  keys: readonly string[];
+  /**
    * Root-relative files whose literals do not count — the module that lists
-   * every row name (a typed registry of anchors) would otherwise select every row.
+   * every id (a typed registry of anchors) would otherwise select every row.
    */
   ignore?: readonly string[];
 }
@@ -68,7 +73,7 @@ export interface SliceOptions {
   app?: string;
   /** The tsconfig whose `paths` and `baseUrl` resolve aliases. Defaults to `<root>/tsconfig.json` when present. */
   tsconfig?: string;
-  /** Names skipped when listing every id for `serverOnly`; as for `collect`. */
+  /** Names skipped when listing every key for `serverOnly`; as for `collect`. */
   exclude?: readonly string[];
   tables?: readonly TableRule[];
 }
@@ -104,13 +109,12 @@ const JS_TO_TS: Readonly<Record<string, readonly string[]>> = {
 /** One parsed file: what it renders, what it says, whether it starts a client boundary. */
 interface Module {
   client: boolean;
-  source: ts.SourceFile | null;
   entries: Entry[];
   /** Unreadable `t()` calls: errors wherever the file is, as they are for `collect`. */
   callErrors: string[];
   /**
    * Imports of a computed path: errors only in a file an entry reaches, the one
-   * place an unfollowed path could carry ids out of a slice.
+   * place an unfollowed path could carry keys out of a slice.
    */
   importErrors: string[];
   literals: ReadonlySet<string>;
@@ -144,7 +148,7 @@ const couldBePackage = (specifier: string): boolean =>
 const isFile = (path: string): boolean =>
   statSync(path, { throwIfNoEntry: false })?.isFile() ?? false;
 
-const sortedArray = (ids: Iterable<string>): string[] => [...ids].sort();
+const sortedArray = (keys: Iterable<string>): string[] => [...keys].sort();
 
 /** `"use client"` among the directive prologue — the statements before the first non-string one. */
 function startsClientBoundary(source: ts.SourceFile): boolean {
@@ -162,7 +166,7 @@ function scan(path: string, source: ts.SourceFile): Pick<Module, "importErrors" 
   const specifiers: Module["specifiers"] = [];
   const add = (node: ts.Node, specifier: ts.Node | undefined, what: string) => {
     const text = specifier === undefined ? null : literal(specifier);
-    // A computed path could load anything, and its ids would be in no slice.
+    // A computed path could load anything, and its keys would be in no slice.
     if (text === null)
       importErrors.push(`${where(path, source, node)}: ${what} of a non-literal path cannot be followed`);
     else specifiers.push({ specifier: text, at: where(path, source, node) });
@@ -284,78 +288,56 @@ function appDirectory(root: string, app: string | undefined): string {
   return found;
 }
 
-/** A table rule with its module's tables read. */
+/** A table rule with its templates applied to the table's keys. */
 interface PreparedRule {
   table: string;
   ignore: ReadonlySet<string>;
-  /** The module's ids called outside every table: carried whenever the module is. */
-  ordinary: ReadonlySet<string>;
-  rows: ReadonlyMap<string, ReadonlySet<string>>;
+  /** The table's keys the rule decides; the module's other keys stay ordinary. */
+  governed: ReadonlySet<string>;
+  byId: ReadonlyMap<string, readonly string[]>;
 }
 
-const unwrap = (node: ts.Expression): ts.Expression =>
-  ts.isSatisfiesExpression(node) || ts.isAsExpression(node) || ts.isTypeAssertionExpression(node) || ts.isParenthesizedExpression(node)
-    ? unwrap(node.expression)
-    : node;
-
-const rowName = (name: ts.PropertyName): string | null =>
-  ts.isIdentifier(name) || ts.isPrivateIdentifier(name)
-    ? name.text
-    : ts.isComputedPropertyName(name)
-      ? literal(name.expression)
-      : name.text;
-
-function prepare(rule: TableRule, path: string, source: ts.SourceFile): PreparedRule | string {
-  // Reparsed on its own so `callsIn` reads exactly the calls under one row; its `where` is not used.
-  const idsIn = (node: ts.Node): string[] => callsIn(path, parse(path, node.getText(source))).entries.map(e => e.id);
-  const rows = new Map<string, Set<string>>();
-  const tabled = new Map<string, number>();
-  for (const statement of source.statements) {
-    if (!ts.isVariableStatement(statement) || !(statement.declarationList.flags & ts.NodeFlags.Const)) continue;
-    for (const declaration of statement.declarationList.declarations) {
-      const init = declaration.initializer === undefined ? undefined : unwrap(declaration.initializer);
-      if (init === undefined || !ts.isObjectLiteralExpression(init) || idsIn(init).length === 0) continue;
-      for (const property of init.properties) {
-        const body = ts.isPropertyAssignment(property)
-          ? property.initializer
-          : ts.isMethodDeclaration(property) || ts.isAccessor(property)
-            ? property.body
-            : undefined;
-        const name = property.name === undefined ? null : rowName(property.name);
-        // A row with no literal name can be selected by nothing, so its ids stay ordinary.
-        if (body === undefined || name === null) continue;
-        const ids = idsIn(body);
-        rows.set(name, new Set([...(rows.get(name) ?? []), ...ids]));
-        for (const id of ids) tabled.set(id, (tabled.get(id) ?? 0) + 1);
-      }
+function prepare(rule: TableRule, keys: readonly string[]): PreparedRule | string {
+  const templates = rule.keys.map(template => {
+    const parts = template.split("*");
+    const [prefix, suffix] = parts;
+    if (parts.length !== 2 || prefix === undefined || suffix === undefined)
+      throw new InputError(`table rule for ${rule.table}: key template "${template}" needs exactly one "*"`);
+    return { prefix, suffix };
+  });
+  const governed = new Set<string>();
+  const byId = new Map<string, string[]>();
+  for (const key of keys) {
+    for (const { prefix, suffix } of templates) {
+      if (key.length <= prefix.length + suffix.length || !key.startsWith(prefix) || !key.endsWith(suffix))
+        continue;
+      const id = key.slice(prefix.length, key.length - suffix.length);
+      governed.add(key);
+      byId.set(id, [...(byId.get(id) ?? []), key]);
     }
   }
-  if (rows.size === 0)
-    return `table rule for ${rule.table}: no top-level const in it is an object literal of t() copy`;
-  // An id also called outside a table must stay carried with the module, so counts, not membership.
-  const calls = new Map<string, number>();
-  for (const { id } of callsIn(path, source).entries) calls.set(id, (calls.get(id) ?? 0) + 1);
-  const ordinary = new Set([...calls].filter(([id, n]) => n > (tabled.get(id) ?? 0)).map(([id]) => id));
-  return { table: path, ignore: new Set((rule.ignore ?? []).map(normal)), ordinary, rows };
+  if (governed.size === 0)
+    return `table rule for ${rule.table}: none of its t() keys matches ${rule.keys.join(", ")}`;
+  return { table: normal(rule.table), ignore: new Set((rule.ignore ?? []).map(normal)), governed, byId };
 }
 
 /**
- * Which ids each entry renders on the client.
+ * Which keys each entry renders on the client.
  *
  * - **Entries** are the App Router's own files under the app directory: every
  *   `page`, and the files that wrap or replace one — `layout`, `template`,
  *   `loading`, `error`, `not-found`, `forbidden`, `unauthorized`, `default`,
  *   `global-error`, `global-not-found`.
  * - **Client** is every file at or below a `"use client"` module on the path
- *   from an entry; its `t()` ids are the slice's.
- * - **`shell`** is every non-page entry's ids together: those render outside
+ *   from an entry; its `t()` keys are the slice's.
+ * - **`shell`** is every non-page entry's keys together: those render outside
  *   any page's `I18nScope` (a layout around it, an error boundary in its place),
  *   so the provider must carry them.
- * - **`routes`** maps each page to its ids minus the shell's.
- * - **`serverOnly`** is every id under `root` no slice carries.
+ * - **`routes`** maps each page to its keys minus the shell's.
+ * - **`serverOnly`** is every key under `root` no slice carries.
  *
  * @throws For what the caller has to fix before anything can be read: a missing
- *   app directory or tsconfig.
+ *   app directory or tsconfig, a key template without exactly one `*`.
  */
 export function messageSlices(options: SliceOptions): SliceResult {
   const root = resolve(options.root);
@@ -372,7 +354,6 @@ export function messageSlices(options: SliceOptions): SliceResult {
     if (!CODE.test(path)) {
       module = {
         client: false,
-        source: null,
         entries: [],
         callErrors: [],
         importErrors: [],
@@ -385,7 +366,6 @@ export function messageSlices(options: SliceOptions): SliceResult {
       const scanned = scan(path, source);
       module = {
         client: startsClientBoundary(source),
-        source,
         entries: calls.entries,
         callErrors: calls.errors,
         importErrors: scanned.importErrors,
@@ -434,7 +414,7 @@ export function messageSlices(options: SliceOptions): SliceResult {
     return { all, client };
   };
 
-  // Every id under the root, read the way `collect` reads it: what no slice
+  // Every key under the root, read the way `collect` reads it: what no slice
   // carries is `serverOnly`, and an unreadable call anywhere is an error here too.
   const skip = new Set([...DEFAULT_EXCLUDE, ...(options.exclude ?? [])]);
   const listed = [...sourceFiles(root, skip, "")];
@@ -451,29 +431,25 @@ export function messageSlices(options: SliceOptions): SliceResult {
       ruleErrors.push(`table rule: ${table} does not exist under ${root}`);
       continue;
     }
-    const { source } = load(table);
-    if (source === null) {
-      ruleErrors.push(`table rule: ${table} is not source`);
-      continue;
-    }
-    const prepared = prepare(rule, table, source);
+    const prepared = prepare(rule, load(table).entries.map(e => e.key));
     if (typeof prepared === "string") ruleErrors.push(prepared);
     else rules.push(prepared);
   }
 
-  const idsOf = ({ all, client }: { all: ReadonlySet<string>; client: ReadonlySet<string> }) => {
-    const ids = new Set<string>();
+  const keysOf = ({ all, client }: { all: ReadonlySet<string>; client: ReadonlySet<string> }) => {
+    const keys = new Set<string>();
     for (const path of client) {
-      const rule = rules.find(rule => rule.table === path);
-      for (const { id } of load(path).entries) if (rule === undefined || rule.ordinary.has(id)) ids.add(id);
+      const governed = rules.filter(rule => rule.table === path);
+      for (const { key } of load(path).entries)
+        if (!governed.some(rule => rule.governed.has(key))) keys.add(key);
     }
     for (const rule of rules) {
       for (const path of all) {
         if (path === rule.table || rule.ignore.has(path)) continue;
-        for (const value of load(path).literals) for (const id of rule.rows.get(value) ?? []) ids.add(id);
+        for (const value of load(path).literals) for (const key of rule.byId.get(value) ?? []) keys.add(key);
       }
     }
-    return ids;
+    return keys;
   };
 
   // Every file some entry loads: a computed import elsewhere (a test's
@@ -485,23 +461,24 @@ export function messageSlices(options: SliceOptions): SliceResult {
     return reached;
   };
 
-  const shell = idsOf(reachAndRecord(shellEntries));
+  const shell = keysOf(reachAndRecord(shellEntries));
   const routes: Record<string, string[]> = {};
   const carried = new Set(shell);
   for (const page of pages) {
-    const own = [...idsOf(reachAndRecord([page]))].filter(id => !shell.has(id));
-    for (const id of own) carried.add(id);
+    const own = [...keysOf(reachAndRecord([page]))].filter(key => !shell.has(key));
+    for (const key of own) carried.add(key);
     routes[page] = sortedArray(own);
   }
 
   for (const path of listed) load(path);
   const everyEntry = [...modules.values()].flatMap(module => module.entries);
-  const serverOnly = sortedArray(new Set(everyEntry.map(e => e.id).filter(id => !carried.has(id))));
+  const serverOnly = sortedArray(new Set(everyEntry.map(e => e.key).filter(key => !carried.has(key))));
 
   const errors = [
     ...ruleErrors,
     ...[...modules.values()].flatMap(module => module.callErrors),
     ...[...reachable].flatMap(path => load(path).importErrors),
+    ...dedupe(everyEntry).errors,
     ...graphErrors,
   ];
   return {
@@ -523,7 +500,7 @@ function strings(value: unknown): string[] | null {
   return found.length === value.length ? found : null;
 }
 
-/** `{ "tables": [{ "table", "ignore"? }] }`, checked field by field. */
+/** `{ "tables": [{ "table", "keys", "ignore"? }] }`, checked field by field. */
 function tablesFrom(raw: unknown, path: string): TableRule[] {
   const fail = (what: string) => new InputError(`${path}: ${what}`);
   if (!isRecord(raw)) throw fail("expected an object");
@@ -534,25 +511,27 @@ function tablesFrom(raw: unknown, path: string): TableRule[] {
   if (!Array.isArray(tables)) throw fail(`"tables" must be an array`);
   return tables.map((rule: unknown, at): TableRule => {
     if (!isRecord(rule)) throw fail(`tables[${at}] must be an object`);
-    const extra = Object.keys(rule).filter(key => !["table", "ignore"].includes(key));
+    const extra = Object.keys(rule).filter(key => !["table", "keys", "ignore"].includes(key));
     if (extra.length > 0) throw fail(`tables[${at}]: unknown field ${extra.join(", ")}`);
     const table = rule["table"];
+    const keys = strings(rule["keys"]);
     const ignore = rule["ignore"] === undefined ? [] : strings(rule["ignore"]);
     if (typeof table !== "string") throw fail(`tables[${at}].table must be a string`);
+    if (keys === null || keys.length === 0) throw fail(`tables[${at}].keys must be a non-empty array of strings`);
     if (ignore === null) throw fail(`tables[${at}].ignore must be an array of strings`);
-    return { table, ignore };
+    return { table, keys, ignore };
   });
 }
 
 const USAGE = `Usage: evinvest-i18n-slices [--root <dir>] [--config <json>] [--out <file>] [--check] [...]
 
-Read a Next.js App Router app's import graph and write which t() ids the client
+Read a Next.js App Router app's import graph and write which t() keys the client
 renders where: "shell" for the root provider, "routes" per page for its
 I18nScope, "serverOnly" for the rest.
 
   --root <dir>        the app (default: the working directory)
   --out <file>        the generated file (default: <root>/i18n-slices.json)
-  --config <json>     table rules: { "tables": [{ "table", "ignore"? }] }
+  --config <json>     table rules: { "tables": [{ "table", "keys", "ignore"? }] }
   --app <dir>         the App Router directory, relative to --root (default: app, else src/app)
   --tsconfig <file>   whose paths resolve aliases (default: <root>/tsconfig.json when present)
   --exclude <a,b>     names that are not source, for the serverOnly list
@@ -608,7 +587,7 @@ export function runSlices(argv: readonly string[]): void {
   if (errors.length > 0) {
     console.error(`${errors.length} thing${errors.length === 1 ? "" : "s"} the slice generator cannot account for:\n`);
     for (const error of errors) console.error(`  ${error}`);
-    console.error("\nA slice that misses an id renders English to a reader of another language, so these are fatal.");
+    console.error("\nA slice that misses a key renders English to a reader of another language, so these are fatal.");
     process.exit(1);
   }
 
@@ -619,11 +598,11 @@ export function runSlices(argv: readonly string[]): void {
       console.error(`${out} is out of date with the code. Run \`evinvest-i18n-slices\`.`);
       process.exit(1);
     }
-    console.log(`${out}: up to date (${slices.shell.length} shell ids, ${routes} routes)`);
+    console.log(`${out}: up to date (${slices.shell.length} shell keys, ${routes} routes)`);
     return;
   }
   writeFileSync(out, text);
   console.log(
-    `${out}: ${slices.shell.length} shell ids, ${routes} routes, ${slices.serverOnly.length} server-only`,
+    `${out}: ${slices.shell.length} shell keys, ${routes} routes, ${slices.serverOnly.length} server-only`,
   );
 }

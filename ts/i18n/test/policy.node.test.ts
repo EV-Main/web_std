@@ -9,17 +9,17 @@ import {
   availableIn,
   resolveCatalogue,
   type MissingContentPolicy,
+  type TranslatedCatalogue,
 } from "../src/policy/index.js";
 
-type Catalogues = [Locale, string[], Messages, Messages];
+type Catalogues = [Locale, Messages, TranslatedCatalogue];
 
 // Shared with ev_lib::i18n::policy (rust/tests/i18n.rs).
 const VECTORS = JSON.parse(readFileSync(join(import.meta.dirname, "../../../tests/fixtures/i18n/policy.json"), "utf8")) as {
   resolve: {
     locale: Locale;
-    source: string[];
-    auto: Messages;
-    overrides: Messages;
+    source: Messages;
+    translated: TranslatedCatalogue;
     messages: Messages;
     rejected: [string, string, string][];
     missing: string[];
@@ -30,8 +30,8 @@ const VECTORS = JSON.parse(readFileSync(join(import.meta.dirname, "../../../test
 };
 
 describe("shared vectors", () => {
-  it.each(VECTORS.resolve)("resolves $locale over $source", ({ locale, source, auto, overrides, ...expected }) => {
-    const r = resolveCatalogue(locale, source, auto, overrides);
+  it.each(VECTORS.resolve)("resolves $locale over $source", ({ locale, source, translated, ...expected }) => {
+    const r = resolveCatalogue(locale, source, translated);
     expect({
       messages: r.messages,
       rejected: r.rejected.map(({ key, reason, detail }) => [key, reason, detail]),
@@ -41,7 +41,7 @@ describe("shared vectors", () => {
   });
 
   it.each(VECTORS.audit)("audits at floor $floor: $report", ({ catalogues, floor, ok, report }) => {
-    const resolved = catalogues.map(([locale, source, auto, overrides]) => resolveCatalogue(locale, source, auto, overrides));
+    const resolved = catalogues.map(([locale, source, translated]) => resolveCatalogue(locale, source, translated));
     expect(auditCatalogues(resolved, floor)).toEqual({ ok, report });
   });
 

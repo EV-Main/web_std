@@ -26,18 +26,16 @@ fn declared_categories_match_what_select_can_return() {
 #[test]
 fn the_macro_registers_every_site_it_renders() {
 	let t = Translator::new(Messages::new(), Locale::En);
-	assert_eq!(crate::t!(t, "Plain"), "Plain");
-	assert_eq!(crate::t!(t, "{n, plural, one {# item} other {# items}}", n = 4), "4 items");
-	assert_eq!(crate::t!(t, ctx = "tests", "Plain"), "Plain");
+	assert_eq!(crate::t!(t, "tests.macro.plain", "Plain"), "Plain");
+	assert_eq!(crate::t!(t, "tests.macro.values", "{n, plural, one {# item} other {# items}}", n = 4), "4 items");
 
 	// Extraction is linking, not parsing: the branch below never runs, and its
-	// string is in the catalogue anyway. That is the whole reason for `inventory`.
+	// key is in the catalogue anyway. That is the whole reason for `inventory`.
 	if std::hint::black_box(false) {
-		let _ = crate::t!(t, "Never rendered");
+		let _ = crate::t!(t, "tests.macro.never_rendered", "Never rendered");
 	}
 
-	let catalogue = super::catalogue();
-	for id in ["Plain", "tests\u{4}Plain", "Never rendered"] {
-		assert!(catalogue.contains(id), "{id:?}");
-	}
+	let catalogue = super::catalogue().expect("no key is registered with two different Englishes");
+	assert_eq!(catalogue.get("tests.macro.plain").map(String::as_str), Some("Plain"));
+	assert_eq!(catalogue.get("tests.macro.never_rendered").map(String::as_str), Some("Never rendered"));
 }

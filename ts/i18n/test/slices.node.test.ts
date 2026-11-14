@@ -6,18 +6,20 @@ import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { collect, InputError, messageSlices, runSlices, serialiseSlices, type TableRule } from "../src/extract/index";
-import { messageId } from "../src/registry";
 
 // A miniature App Router app: a layout with a client nav, a client error
 // boundary, a wallet page reaching client leaves three ways (a client
 // component, a plain module it imports, an `import()`), and a table of tips
-// two pages pick rows out of, beside a heading the table module renders outside it. Each test works on its own copy, so a test that
+// two pages pick rows out of. Each test works on its own copy, so a test that
 // breaks the app breaks nothing else.
 const FIXTURE = fileURLToPath(new URL("./fixtures/slices-app", import.meta.url));
 const WALLET = "app/[locale]/wallet/page.tsx";
 const INVEST = "app/[locale]/invest/page.tsx";
-const TIPS: TableRule = { table: "tips/copy.ts", ignore: ["tips/catalog.ts"] };
-const INVEST_TIP = messageId("tips", "Invest tip");
+const TIPS: TableRule = {
+  table: "tips/copy.ts",
+  keys: ["tips.*.title", "tips.*.body"],
+  ignore: ["tips/catalog.ts"],
+};
 
 let root: string;
 
@@ -34,89 +36,94 @@ afterEach(() => {
 const write = (path: string, text: string) => writeFileSync(join(root, path), text);
 
 describe("messageSlices on a clean app", () => {
-  it("puts the ids of layouts and boundary files in the shell", () => {
+  it("puts the keys of layouts and boundary files in the shell", () => {
     const { slices, errors } = messageSlices({ root, tables: [TIPS] });
 
     expect(errors).toEqual([]);
-    expect(slices.shell).toEqual(["Home", "Something went wrong"]);
+    expect(slices.shell).toEqual(["err.title", "nav.home"]);
   });
 
-  it("gives a page the ids of its client tree, minus the shell", () => {
+  it("gives a page the keys of its client tree, minus the shell", () => {
     const { slices } = messageSlices({ root, tables: [TIPS] });
 
-    // Panel: a "use client" component the server page renders.
-    // Helper: a module with no directive, client because panel imports it.
-    // Lazy: reached through `import("./lazy")`.
-    // Wallet tip*: the row the page names with anchor="wallet.x".
-    expect(slices.routes[WALLET]).toEqual(["About", "Helper", "Lazy", "Panel", "Tips", "Wallet tip", "Wallet tip body"]);
+    // panel.k: a "use client" component the server page renders.
+    // helper.k: a module with no directive, client because panel imports it.
+    // lazy.k: reached through `import("./lazy")`.
+    // tips.wallet.x.*: the row the page names with anchor="wallet.x".
+    expect(slices.routes[WALLET]).toEqual([
+      "helper.k",
+      "lazy.k",
+      "panel.k",
+      "tips.a11y.about",
+      "tips.wallet.x.body",
+      "tips.wallet.x.title",
+    ]);
   });
 
-  it("selects only the table rows whose name a page uses", () => {
+  it("selects only the table rows whose id a page names", () => {
     const { slices } = messageSlices({ root, tables: [TIPS] });
 
-    expect(slices.routes[INVEST]).toEqual(["About", "Invest tip body", "Tips", INVEST_TIP]);
-    expect(slices.routes[WALLET]).not.toContain(INVEST_TIP);
-  });
-
-  it("carries a row's English the table module also renders outside the table", () => {
-    write("tips/copy.ts", `${readFileSync(join(root, "tips/copy.ts"), "utf8")}export const walletHeading = (t: Translate) => t("Wallet tip");\n`);
-
-    const { slices } = messageSlices({ root, tables: [TIPS] });
-
-    expect(slices.routes[INVEST]).toContain("Wallet tip");
+    expect(slices.routes[INVEST]).toEqual(["tips.a11y.about", "tips.invest.y.body", "tips.invest.y.title"]);
+    expect(slices.routes[WALLET]).not.toContain("tips.invest.y.title");
   });
 
   it("does not follow an import type into a client file", () => {
     const { slices } = messageSlices({ root, tables: [TIPS] });
 
-    expect(slices.routes[WALLET]).not.toContain("Type only");
-    expect(slices.serverOnly).toContain("Type only");
+    expect(slices.routes[WALLET]).not.toContain("typeonly.k");
+    expect(slices.serverOnly).toContain("typeonly.k");
   });
 
   it("files server t() calls and unimported files under serverOnly", () => {
     const { slices } = messageSlices({ root, tables: [TIPS] });
 
-    expect(slices.serverOnly).toEqual(["EV", "Orphan", "Type only", "Wallet"]);
+    expect(slices.serverOnly).toEqual(["meta.title", "orphan.k", "typeonly.k", "wallet.server"]);
   });
 
   it("treats a \"use client\" after a leading comment as a boundary", () => {
-    // nav.tsx opens with a block comment; were the directive missed, "Home"
+    // nav.tsx opens with a block comment; were the directive missed, nav.home
     // would fall to serverOnly and render English in every locale.
     const { slices } = messageSlices({ root, tables: [TIPS] });
 
-    expect(slices.shell).toContain("Home");
-    expect(slices.serverOnly).not.toContain("Home");
+    expect(slices.shell).toContain("nav.home");
+    expect(slices.serverOnly).not.toContain("nav.home");
   });
 
   it("does not treat a \"use client\" after an import as a boundary", () => {
     write(
       "shell/nav.tsx",
-      'import { useT } from "@evinvest/i18n/react";\n"use client";\nexport function Nav() {\n  const t = useT();\n  return t("Home");\n}\n',
+      'import { useT } from "@evinvest/i18n/react";\n"use client";\nexport function Nav() {\n  const t = useT();\n  return t("nav.home", "Home");\n}\n',
     );
 
     const { slices } = messageSlices({ root, tables: [TIPS] });
 
-    expect(slices.shell).toEqual(["Something went wrong"]);
-    expect(slices.serverOnly).toContain("Home");
+    expect(slices.shell).toEqual(["err.title"]);
+    expect(slices.serverOnly).toContain("nav.home");
   });
 
   it("carries every row of a table that has no rule", () => {
     const { slices, errors } = messageSlices({ root });
 
     expect(errors).toEqual([]);
-    expect(slices.routes[INVEST]).toEqual(["About", "Invest tip body", "Tips", "Wallet tip", "Wallet tip body", INVEST_TIP]);
+    expect(slices.routes[INVEST]).toEqual([
+      "tips.a11y.about",
+      "tips.invest.y.body",
+      "tips.invest.y.title",
+      "tips.wallet.x.body",
+      "tips.wallet.x.title",
+    ]);
   });
 
-  it("accounts for every id collect reads, in exactly one of shell, routes or serverOnly", () => {
+  it("accounts for every key collect reads, in exactly one of shell, routes or serverOnly", () => {
     const { slices } = messageSlices({ root, tables: [TIPS] });
-    const everyId = collect({ root }).entries.map(e => e.id).sort();
+    const everyKey = collect({ root }).entries.map(e => e.key).sort();
 
     const routed = Object.values(slices.routes).flat();
     const carried = [...slices.shell, ...routed];
 
-    expect([...new Set([...carried, ...slices.serverOnly])].sort()).toEqual(everyId);
-    expect(slices.serverOnly.filter(id => carried.includes(id))).toEqual([]);
-    expect(routed.filter(id => slices.shell.includes(id))).toEqual([]);
+    expect([...new Set([...carried, ...slices.serverOnly])].sort()).toEqual(everyKey);
+    expect(slices.serverOnly.filter(key => carried.includes(key))).toEqual([]);
+    expect(routed.filter(key => slices.shell.includes(key))).toEqual([]);
   });
 });
 
@@ -127,28 +134,44 @@ describe("collect", () => {
     const { entries, errors } = collect({ root });
 
     expect(errors).toEqual([]);
-    expect(entries.map(e => e.id).sort()).toEqual([
-      "About",
-      "EV",
-      "Helper",
-      "Home",
-      "Invest tip body",
-      "Lazy",
-      "Orphan",
-      "Panel",
-      "Something went wrong",
-      "Tips",
-      "Type only",
-      "Wallet",
-      "Wallet tip",
-      "Wallet tip body",
-      INVEST_TIP,
+    expect(entries.map(e => e.key).sort()).toEqual([
+      "err.title",
+      "helper.k",
+      "lazy.k",
+      "meta.title",
+      "nav.home",
+      "orphan.k",
+      "panel.k",
+      "tips.a11y.about",
+      "tips.invest.y.body",
+      "tips.invest.y.title",
+      "tips.wallet.x.body",
+      "tips.wallet.x.title",
+      "typeonly.k",
+      "wallet.server",
     ]);
-    expect(entries.find(e => e.id === "Home")).toEqual({ id: "Home", en: "Home", where: "shell/nav.tsx:7" });
+    expect(entries.find(e => e.key === "nav.home")).toEqual({
+      key: "nav.home",
+      en: "Home",
+      where: "shell/nav.tsx:7",
+    });
+  });
+
+  it("reports a computed key and a key defined twice with different English", () => {
+    write("scripts/bad.ts", 'const k = "x";\nt(k, "X");\nt("nav.home", "Start");\n');
+
+    const { errors } = collect({ root });
+
+    // Which of the two sites is "first" follows directory order, which the
+    // filesystem decides; the message names both either way.
+    expect(errors).toHaveLength(2);
+    expect(errors).toContain("scripts/bad.ts:2: t() key is not a string literal");
+    expect(errors).toContainEqual(expect.stringMatching(/"nav\.home" is also defined at .* with different English/));
+    expect(errors.join("\n")).toMatch(/shell\/nav\.tsx:7[\s\S]*scripts\/bad\.ts:3|scripts\/bad\.ts:3[\s\S]*shell\/nav\.tsx:7/);
   });
 
   it("reports the same unreadable call sites as the slice generator", () => {
-    write("scripts/bad.ts", 'const k = "x";\nt(k);\nt.ctx(k, "X");\n');
+    write("scripts/bad.ts", 'const k = "x";\nt(k, "X");\nt("no.english");\n');
 
     expect(messageSlices({ root, tables: [TIPS] }).errors).toEqual(collect({ root }).errors);
   });
@@ -182,12 +205,16 @@ describe("messageSlices on what the graph cannot account for", () => {
     expect(errors).toEqual(["components/dynamic.ts:2: import() of a non-literal path cannot be followed"]);
   });
 
-  it("reports a table rule whose module holds no table", () => {
-    const { errors } = messageSlices({ root, tables: [{ table: "components/helper.ts" }] });
+  it("reports a table rule whose templates match none of the table's keys", () => {
+    const { errors } = messageSlices({ root, tables: [{ table: "tips/copy.ts", keys: ["hints.*.title"] }] });
 
-    expect(errors).toEqual([
-      "table rule for components/helper.ts: no top-level const in it is an object literal of t() copy",
-    ]);
+    expect(errors).toEqual(["table rule for tips/copy.ts: none of its t() keys matches hints.*.title"]);
+  });
+
+  it("throws on a key template without a star", () => {
+    expect(() => messageSlices({ root, tables: [{ table: "tips/copy.ts", keys: ["tips.title"] }] })).toThrow(
+      'key template "tips.title" needs exactly one "*"',
+    );
   });
 
   it("reports an @/ alias when there is no tsconfig to map it", () => {
@@ -195,7 +222,7 @@ describe("messageSlices on what the graph cannot account for", () => {
 
     const { errors } = messageSlices({ root, tables: [TIPS] });
 
-    // Without the error, Home, Panel, Helper and Lazy fell to serverOnly silently.
+    // Without the error, nav.home, panel.k, helper.k and lazy.k fell to serverOnly silently.
     expect(errors).toContain(
       'app/[locale]/layout.tsx:3: cannot resolve "@/shell/nav" — a local import the graph cannot follow' +
         " (it is an alias, not a package, and no tsconfig was read to map it)",
@@ -233,7 +260,7 @@ describe("messageSlices on what the graph cannot account for", () => {
     const { slices, errors } = messageSlices({ root, tables: [TIPS] });
 
     expect(errors).toEqual([]);
-    expect(slices.routes[INVEST]).toEqual(["Helper", "Lazy", "Panel"]);
+    expect(slices.routes[INVEST]).toEqual(["helper.k", "lazy.k", "panel.k"]);
   });
 
   it("stops at scoped and bare package imports without an error", () => {
@@ -246,6 +273,12 @@ describe("messageSlices on what the graph cannot account for", () => {
     const { errors } = messageSlices({ root, tables: [TIPS] });
 
     expect(errors.filter(error => error.startsWith(INVEST))).toEqual([]);
+  });
+
+  it("throws on a key template with two stars", () => {
+    expect(() => messageSlices({ root, tables: [{ table: "tips/copy.ts", keys: ["tips.*.*"] }] })).toThrow(
+      'key template "tips.*.*" needs exactly one "*"',
+    );
   });
 });
 
@@ -281,12 +314,24 @@ describe("messageSlices on a file no entry reaches", () => {
     expect(errors).toEqual([]);
   });
 
-  it("still reports a t() whose English is not a string literal", () => {
-    write(UNREACHED, 'const k = "x";\nt(k);\n');
+  it("still reports a t() whose key is not a string literal", () => {
+    write(UNREACHED, 'const k = "x";\nt(k, "X");\n');
 
     const { errors } = messageSlices({ root, tables: [TIPS] });
 
-    expect(errors).toEqual([`${UNREACHED}:2: t() English is not a string literal`]);
+    expect(errors).toEqual([`${UNREACHED}:2: t() key is not a string literal`]);
+  });
+
+  it("still reports a key it defines with different English", () => {
+    write(UNREACHED, 't("nav.home", "Start");\n');
+
+    const { errors } = messageSlices({ root, tables: [TIPS] });
+
+    // Which site is named first follows directory order; both are named either way.
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toMatch(/"nav\.home" is also defined at .* with different English/);
+    expect(errors[0]).toContain(`${UNREACHED}:1`);
+    expect(errors[0]).toContain("shell/nav.tsx:7");
   });
 });
 
@@ -297,7 +342,7 @@ describe("messageSlices on a file only the shell reaches", () => {
       "app/[locale]/error.tsx",
       '"use client";\nimport { useT } from "@evinvest/i18n/react";\nimport { loadNav } from "@/shell/loader";\n\n' +
         'export default function ErrorBoundary() {\n  const t = useT();\n  void loadNav;\n' +
-        '  return <p>{t("Something went wrong")}</p>;\n}\n',
+        '  return <p>{t("err.title", "Something went wrong")}</p>;\n}\n',
     );
 
     const { errors } = messageSlices({ root, tables: [TIPS] });
@@ -325,7 +370,7 @@ describe("runSlices", () => {
 
     const written = JSON.parse(readFileSync(OUT(), "utf8")) as Record<string, unknown>;
     expect(written["//"]).toMatch(/^GENERATED by evinvest-i18n-slices/);
-    expect(written["shell"]).toEqual(["Home", "Something went wrong"]);
+    expect(written["shell"]).toEqual(["err.title", "nav.home"]);
   });
 
   it("passes --check when the file matches the code", () => {
@@ -339,7 +384,7 @@ describe("runSlices", () => {
 
   it("fails --check when the code has drifted from the file", () => {
     runSlices(["--root", root, "--config", CONFIG()]);
-    write("components/lazy.tsx", 'export default () => t("Lazy, renamed");\n');
+    write("components/lazy.tsx", 'export default () => t("lazy.renamed", "Lazy");\n');
     const exit = exits();
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
 
@@ -375,9 +420,9 @@ describe("runSlices", () => {
   });
 
   it("rejects an unknown field in a table rule", () => {
-    write("slices.config.json", JSON.stringify({ tables: [{ ...TIPS, keys: ["tips.*.title"] }] }));
+    write("slices.config.json", JSON.stringify({ tables: [{ ...TIPS, ignored: [] }] }));
 
-    expect(() => runSlices(["--root", root, "--config", CONFIG()])).toThrow("tables[0]: unknown field keys");
+    expect(() => runSlices(["--root", root, "--config", CONFIG()])).toThrow("tables[0]: unknown field ignored");
     expect(() => runSlices(["--root", root, "--config", CONFIG()])).toThrow(InputError);
   });
 

@@ -1,5 +1,5 @@
 {
-  "_": "The ICU-subset formatter contract both @evinvest/i18n and ev_lib::i18n run. format: [pattern, locale, values, expected]; plural: [locale, n, CLDR category]; number: [locale, n, how # renders]; translate: [locale, catalogue, ctx or null, inline en, values, expected] — a translation the catalogue lacks renders the English (a debug build's behaviour; a release one refuses).",
+  "_": "The ICU-subset formatter contract both @evinvest/i18n and ev_lib::i18n run. format: [pattern, locale, values, expected]; plural: [locale, n, CLDR category]; number: [locale, n, how # renders]; translate: [locale, catalogue, key, inline en, values, expected].",
   "format": [
     ["Hello, {name}.", "en", { "name": "Quy Nhơn" }, "Hello, Quy Nhơn."],
     ["Hello, {name}.", "en", {}, "Hello, {name}."],
@@ -10,6 +10,7 @@
     ["it''s fine", "en", {}, "it's fine"],
     ["Ranked #1 in Quy Nhon", "en", {}, "Ranked #1 in Quy Nhon"],
     ["Hello, {name", "en", { "name": "x" }, "Hello, {name"],
+
     ["{n, plural, =0 {no roles} one {# role} other {# roles}}", "en", { "n": 0 }, "no roles"],
     ["{n, plural, =0 {no roles} one {# role} other {# roles}}", "en", { "n": 1 }, "1 role"],
     ["{n, plural, =0 {no roles} one {# role} other {# roles}}", "en", { "n": 7 }, "7 roles"],
@@ -36,6 +37,7 @@
     ["{n, plural, other {rank '#'# }}", "en", { "n": 3 }, "rank #3 "],
     ["{n, plural, other {# x}}", "en", { "n": "abc" }, ""],
     ["{n, plural, other {# x}}", "en", {}, ""],
+
     ["{kind, select, villa {A villa} plot {A plot} other {A property}}", "en", { "kind": "villa" }, "A villa"],
     ["{kind, select, villa {A villa} plot {A plot} other {A property}}", "en", { "kind": "plot" }, "A plot"],
     ["{kind, select, villa {A villa} plot {A plot} other {A property}}", "en", { "kind": "penthouse" }, "A property"],
@@ -81,12 +83,11 @@
     ["de", -1234.5, "-1.234,5"]
   ],
   "translate": [
-    ["ru", { "Invest in the China+1 narrative": "Инвестируйте в нарратив «Китай+1»" }, null, "Invest in the China+1 narrative", {}, "Инвестируйте в нарратив «Китай+1»"],
-    ["ru", { "Invest in the China+1 narrative": "Инвестируйте в нарратив «Китай+1»" }, null, "Five hundred years of compounding", {}, "Five hundred years of compounding"],
-    ["ru", { "{n, plural, one {# role} other {# roles}}": "{n, plural, one {# вакансия} few {# вакансии} many {# вакансий}}" }, null, "{n, plural, one {# role} other {# roles}}", { "n": 3 }, "3 вакансии"],
-    ["ru", { "Added": "Добавлен", "tokens\u0004Added": "Начислены" }, "tokens", "Added", {}, "Начислены"],
-    ["ru", { "Added": "Добавлен" }, "tokens", "Added", {}, "Added"],
-    ["en", { "Invest in the China+1 narrative": "STALE" }, null, "Invest in the China+1 narrative", {}, "Invest in the China+1 narrative"],
-    ["en", { "{n, plural, one {# role} other {# roles}}": "{n, plural, other {# STALE}}" }, null, "{n, plural, one {# role} other {# roles}}", { "n": 5 }, "5 roles"]
+    ["ru", { "hero.title": "Инвестируйте в нарратив «Китай+1»" }, "hero.title", "Invest in the China+1 narrative", {}, "Инвестируйте в нарратив «Китай+1»"],
+    ["ru", { "hero.title": "Инвестируйте в нарратив «Китай+1»" }, "hero.subtitle", "Five hundred years of compounding", {}, "Five hundred years of compounding"],
+    ["ru", { "roles": "{n, plural, one {# вакансия} few {# вакансии} many {# вакансий}}" }, "roles", "{n, plural, one {# role} other {# roles}}", { "n": 3 }, "3 вакансии"],
+    ["ru", { "roles": "{n, plural, one {# вакансия} few {# вакансии} many {# вакансий}}" }, "shifts", "{n, plural, one {# role} other {# roles}}", { "n": 3 }, "3 roles"],
+    ["en", { "hero.title": "STALE" }, "hero.title", "Invest in the China+1 narrative", {}, "Invest in the China+1 narrative"],
+    ["en", { "roles": "{n, plural, other {# STALE}}" }, "roles", "{n, plural, one {# role} other {# roles}}", { "n": 5 }, "5 roles"]
   ]
 }

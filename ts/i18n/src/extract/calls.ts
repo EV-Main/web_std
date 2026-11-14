@@ -1,22 +1,18 @@
 /**
- * Reading `t(en)` / `t.ctx(ctx, en)` call sites out of one parsed file — shared by
- * the catalogue extractor and the slice generator, so both refuse exactly the
- * same call sites.
+ * Reading `t(key, en)` call sites out of one parsed file — shared by the
+ * catalogue extractor and the slice generator, so both refuse exactly the same
+ * call sites.
  */
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
 
 import ts from "typescript";
 
-import { messageId } from "../registry.js";
-
 /** One readable `t()` call site. */
 export interface Entry {
-  /** {@link messageId} of `ctx` and `en`: what every catalogue files it under. */
-  id: string;
+  key: string;
   /** The English as written at the call site. */
   en: string;
-  ctx?: string;
   /** `path/to/file.tsx:12` — where it was read from. */
   where: string;
 }
@@ -60,33 +56,19 @@ export function literal(node: ts.Node): string | null {
   return null;
 }
 
-/** Every `t(en)` and `t.ctx(ctx, en)` in one parsed file, plus the call sites that cannot be read. */
+/** Every `t(key, en)` in one parsed file, plus the call sites that cannot be read. */
 export function callsIn(path: string, source: ts.SourceFile): Extraction {
   const entries: Entry[] = [];
   const errors: string[] = [];
   const visit = (node: ts.Node) => {
-    if (ts.isCallExpression(node)) {
-      const callee = node.expression;
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === "t") {
+      const [keyArg, enArg] = node.arguments;
+      const key = keyArg === undefined ? null : literal(keyArg);
+      const en = enArg === undefined ? null : literal(enArg);
       const at = where(path, source, node);
-      if (ts.isIdentifier(callee) && callee.text === "t") {
-        const [enArg, valuesArg] = node.arguments;
-        const en = enArg === undefined ? null : literal(enArg);
-        if (en === null) errors.push(`${at}: t() English is not a string literal`);
-        else if (valuesArg !== undefined && literal(valuesArg) !== null)
-          errors.push(`${at}: t(${JSON.stringify(en)}, "…") — t() takes the English and its values; a key is no longer written`);
-        else entries.push({ id: messageId(undefined, en), en, where: at });
-      } else if (
-        ts.isPropertyAccessExpression(callee) &&
-        ts.isIdentifier(callee.expression) &&
-        callee.expression.text === "t" &&
-        callee.name.text === "ctx"
-      ) {
-        const [ctxArg, enArg] = node.arguments;
-        const ctx = ctxArg === undefined ? null : literal(ctxArg);
-        const en = enArg === undefined ? null : literal(enArg);
-        if (ctx === null || en === null) errors.push(`${at}: t.ctx() context and English must be string literals`);
-        else entries.push({ id: messageId(ctx, en), en, ctx, where: at });
-      }
+      if (key === null) errors.push(`${at}: t() key is not a string literal`);
+      else if (en === null) errors.push(`${at}: t("${key}", …) has no literal English second argument`);
+      else entries.push({ key, en, where: at });
     }
     ts.forEachChild(node, visit);
   };
@@ -94,11 +76,25 @@ export function callsIn(path: string, source: ts.SourceFile): Extraction {
   return { entries, errors };
 }
 
-/** One entry per id, at its first call site. */
-export function dedupe(entries: readonly Entry[]): Entry[] {
+/**
+ * One entry per key. Two call sites sharing a key with different English are
+ * an error — the catalogue can only hold one of them, so which one ships would
+ * be decided by file order.
+ */
+export function dedupe(entries: readonly Entry[]): Extraction {
   const seen = new Map<string, Entry>();
-  for (const entry of entries) if (!seen.has(entry.id)) seen.set(entry.id, entry);
-  return [...seen.values()];
+  const errors: string[] = [];
+  for (const entry of entries) {
+    const first = seen.get(entry.key);
+    if (first === undefined) seen.set(entry.key, entry);
+    else if (first.en !== entry.en)
+      errors.push(
+        `${entry.where}: "${entry.key}" is also defined at ${first.where} with different English\n` +
+          `    ${first.where}: ${JSON.stringify(first.en)}\n` +
+          `    ${entry.where}: ${JSON.stringify(entry.en)}`,
+      );
+  }
+  return { entries: [...seen.values()], errors };
 }
 
 /** The exact bytes a generated JSON file is written as — what a check compares against. */

@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { parseFlags } from "../src/extract/calls";
-import { InputError, runCheck, runCli, runExtract, serialiseAuto } from "../src/extract/index";
+import { InputError, runCheck, runCli, runExtract } from "../src/extract/index";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -163,35 +163,19 @@ describe("runCli", () => {
   });
 });
 
-describe("runExtract and runCheck", () => {
+describe("runExtract and runCheck arguments", () => {
   let root: string;
-  const AUTO = serialiseAuto("ru", { "From the code": "Из кода", "Menu": "Меню", "Gone": "Ушло" });
-  const RU = '{\n  "From": "Из кода, вручную"\n}\n';
-  const auto = () => readFileSync(join(root, "messages", "ru.auto.json"), "utf8");
-  const ru = () => readFileSync(join(root, "messages", "ru.json"), "utf8");
-
-  /** `process.exit(1)` as a throw; stderr collected. */
-  const run = (argv: string[]) => {
-    vi.spyOn(console, "log").mockImplementation(() => {});
-    const error = vi.spyOn(console, "error").mockImplementation(() => {});
-    vi.spyOn(process, "exit").mockImplementation((code?: string | number | null) => {
-      throw new Error(`exit ${code}`);
-    });
-    let outcome = "ok";
-    try {
-      runCheck(argv);
-    } catch (e) {
-      outcome = (e as Error).message;
-    }
-    return { outcome, stderr: error.mock.calls.map(c => c.join(" ")).join("\n") };
-  };
+  const EN = '{\n  "hero.title": "Committed"\n}\n';
+  const RU = '{\n  "hero.title": { "en": "Committed", "t": "Зафиксировано" }\n}\n';
+  const en = () => readFileSync(join(root, "messages", "en", "common.json"), "utf8");
+  const ru = () => readFileSync(join(root, "messages", "ru", "common.json"), "utf8");
 
   beforeEach(() => {
     root = mkdtempSync(join(tmpdir(), "i18n-cli-"));
-    writeFileSync(join(root, "page.tsx"), 'export const P = () => [t("From the code"), t("Menu")];\n');
-    mkdirSync(join(root, "messages"));
-    writeFileSync(join(root, "messages", "ru.auto.json"), AUTO);
-    writeFileSync(join(root, "messages", "ru.json"), RU);
+    writeFileSync(join(root, "page.tsx"), 'export const P = () => t("hero.title", "From the code");\n');
+    for (const locale of ["en", "ru"]) mkdirSync(join(root, "messages", locale), { recursive: true });
+    writeFileSync(join(root, "messages", "en", "common.json"), EN);
+    writeFileSync(join(root, "messages", "ru", "common.json"), RU);
   });
 
   afterEach(() => {
@@ -205,7 +189,7 @@ describe("runExtract and runCheck", () => {
 
     expect(log).toHaveBeenCalledTimes(1);
     expect(log).toHaveBeenCalledWith(expect.stringMatching(/^Usage: evinvest-i18n-extract/));
-    expect(auto()).toBe(AUTO);
+    expect(en()).toBe(EN);
     expect(ru()).toBe(RU);
   });
 
@@ -230,8 +214,12 @@ describe("runExtract and runCheck", () => {
 
     expect(() => runExtract(args)).toThrow(InputError);
     expect(() => runExtract(args)).toThrow(message);
-    expect(auto()).toBe(AUTO);
+    expect(en()).toBe(EN);
     expect(ru()).toBe(RU);
+  });
+
+  it("check rejects an unknown flag", () => {
+    expect(() => runCheck(["--root", root, "--bogus"])).toThrow(InputError);
   });
 
   it("rejects a --root that does not exist", () => {
@@ -240,54 +228,11 @@ describe("runExtract and runCheck", () => {
     expect(() => runExtract(["--root", missing])).toThrow(new InputError(`--root ${missing} does not exist`));
   });
 
-  it("refuses a locale with one of its two catalogues", () => {
-    rmSync(join(root, "messages", "ru.json"));
-
-    expect(() => runCheck(["--root", root])).toThrow(/ru\.auto\.json exists without .*ru\.json/);
-  });
-
-  it("extract prunes both catalogues to the code", () => {
+  it("still extracts with well-formed arguments", () => {
     vi.spyOn(console, "log").mockImplementation(() => {});
 
     runExtract([`--root=${root}`]);
 
-    expect(auto()).toBe(serialiseAuto("ru", { "From the code": "Из кода", "Menu": "Меню" }));
-    expect(ru()).toBe("{}\n");
-  });
-
-  it("check fails on an orphaned override, naming the string it most likely meant", () => {
-    const { outcome, stderr } = run(["--root", root]);
-
-    expect(outcome).toBe("exit 1");
-    expect(stderr).toMatch(/ru "From": orphan-override .*\n\s+nearest now: "From the code" \(page\.tsx:1\)/);
-    expect(stderr).toMatch(/ru "Gone": orphan-auto/);
-  });
-
-  it("check fails on English the code renders with no translation", () => {
-    writeFileSync(join(root, "messages", "ru.json"), "{}");
-    writeFileSync(join(root, "page.tsx"), 'export const P = () => [t("From the code"), t.ctx("tab", "From the code")];\n');
-    writeFileSync(join(root, "messages", "ru.auto.json"), serialiseAuto("ru", { "From the code": "Из кода", "Menu": "Меню" }));
-
-    const { outcome, stderr } = run(["--root", root]);
-
-    expect(outcome).toBe("exit 1");
-    expect(stderr).toMatch(/ru "tab\\u0004From the code": untranslated \(page\.tsx:1\)/);
-  });
-
-  it("check fails on a structural mismatch and passes once re-keyed and fixed", () => {
-    writeFileSync(join(root, "page.tsx"), 'export const P = () => t("Hi, {name}", { name });\n');
-    writeFileSync(join(root, "messages", "ru.auto.json"), serialiseAuto("ru", { "Hi, {name}": "Привет" }));
-    writeFileSync(join(root, "messages", "ru.json"), "{}");
-
-    expect(run(["--root", root]).stderr).toMatch(/placeholder-mismatch — generated: source interpolates \{name\}/);
-
-    writeFileSync(join(root, "messages", "ru.json"), JSON.stringify({ "Hi, {name}": "Привет, {name}" }));
-    expect(run(["--root", root]).outcome).toBe("ok");
-  });
-
-  it("refuses the old t(key, en) shape", () => {
-    writeFileSync(join(root, "page.tsx"), 'export const P = () => t("hero.title", "From the code");\n');
-
-    expect(run(["--root", root]).stderr).toMatch(/a key is no longer written/);
+    expect(en()).toBe('{\n  "hero.title": "From the code"\n}\n');
   });
 });

@@ -1,11 +1,9 @@
 //! The i18n vectors `@evinvest/i18n` runs too.
 #![cfg(feature = "i18n")]
 
-use std::collections::BTreeSet;
-
 use ev_lib::i18n::{
 	LOCALES, Locale, LocaleRegistry, LocaleRegistryConfig, MessageValue, MessageValues, Messages, RegistryError, Translator, format_message, locale_alternates, locale_path, negotiate,
-	policy::{MissingContentPolicy, Rejection, audit, available_in, resolve_catalogue},
+	policy::{MissingContentPolicy, Rejection, TranslatedCatalogue, TranslatedEntry, audit, available_in, resolve_catalogue},
 	split_locale_path,
 };
 use serde_json::Value;
@@ -83,14 +81,26 @@ fn translates() {
 	let fixture = fixture("format");
 	for case in cases(&fixture, "translate") {
 		let tr = Translator::new(messages(&case[1]), locale(&case[0]));
-		assert_eq!(tr.render(case[2].as_str(), str_of(&case[3]), &values(&case[4])), str_of(&case[5]), "{case}");
+		assert_eq!(tr.tv(str_of(&case[2]), str_of(&case[3]), &values(&case[4])), str_of(&case[5]), "{case}");
 	}
 }
 
 // ── policy ───────────────────────────────────────────────────────────────────
 
-fn ids(v: &Value) -> BTreeSet<String> {
-	v.as_array().expect("message ids").iter().map(|id| str_of(id).to_owned()).collect()
+fn translated(v: &Value) -> TranslatedCatalogue {
+	v.as_object()
+		.expect("a translated catalogue")
+		.iter()
+		.map(|(k, e)| {
+			(
+				k.clone(),
+				TranslatedEntry {
+					en: str_of(&e["en"]).to_owned(),
+					t: str_of(&e["t"]).to_owned(),
+				},
+			)
+		})
+		.collect()
 }
 
 fn rejection(r: &Rejection) -> Value {
@@ -101,7 +111,7 @@ fn rejection(r: &Rejection) -> Value {
 fn resolves_catalogues() {
 	let fixture = fixture("policy");
 	for case in cases(&fixture, "resolve") {
-		let resolved = resolve_catalogue(locale(&case["locale"]), &ids(&case["source"]), &messages(&case["auto"]), &messages(&case["overrides"]));
+		let resolved = resolve_catalogue(locale(&case["locale"]), &messages(&case["source"]), &translated(&case["translated"]));
 		assert_eq!(resolved.messages, messages(&case["messages"]), "{case}");
 		assert_eq!(Value::from(resolved.rejected.iter().map(rejection).collect::<Vec<_>>()), case["rejected"], "{case}");
 		assert_eq!(Value::from(resolved.missing), case["missing"], "{case}");
@@ -117,7 +127,7 @@ fn audits() {
 			.as_array()
 			.expect("catalogues")
 			.iter()
-			.map(|c| resolve_catalogue(locale(&c[0]), &ids(&c[1]), &messages(&c[2]), &messages(&c[3])))
+			.map(|c| resolve_catalogue(locale(&c[0]), &messages(&c[1]), &translated(&c[2])))
 			.collect();
 		let (ok, report) = audit(&resolved, case["floor"].as_f64().expect("floor"));
 		assert_eq!(report, str_of(&case["report"]), "{case}");

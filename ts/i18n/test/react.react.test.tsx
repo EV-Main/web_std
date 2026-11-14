@@ -20,8 +20,8 @@ afterEach(() => {
 });
 
 const MESSAGES = {
-  "Invest in the China+1 narrative": "Инвестируйте в нарратив «Китай+1»",
-  "{n, plural, one {# role} other {# roles}}": "{n, plural, one {# вакансия} few {# вакансии} many {# вакансий}}",
+  "hero.title": "Инвестируйте в нарратив «Китай+1»",
+  "roles.count": "{n, plural, one {# вакансия} few {# вакансии} many {# вакансий}}",
 };
 
 function Probe() {
@@ -29,8 +29,8 @@ function Probe() {
   const locale = useLocale();
   return (
     <span data-testid="out">
-      {locale}:{t("Invest in the China+1 narrative")}:
-      {t("{n, plural, one {# role} other {# roles}}", { n: 3 })}
+      {locale}:{t("hero.title", "Invest in the China+1 narrative")}:
+      {t("roles.count", "{n, plural, one {# role} other {# roles}}", { n: 3 })}
     </span>
   );
 }
@@ -39,7 +39,7 @@ describe("I18nProvider", () => {
   it("supplies locale and a bound translate function", () => {
     act(() => {
       root.render(
-        <I18nProvider missing="warn" locale="ru" messages={MESSAGES}>
+        <I18nProvider locale="ru" messages={MESSAGES}>
           <Probe />
         </I18nProvider>,
       );
@@ -49,20 +49,20 @@ describe("I18nProvider", () => {
     );
   });
 
-  it("reports an untranslated id through onMissing and renders the inline English", () => {
+  it("reports an unknown key through onMissing and renders the inline English", () => {
     const onMissing = vi.fn();
     function Missing() {
-      return <span>{useT().ctx("hero", "Five hundred years of compounding")}</span>;
+      return <span>{useT()("nope.key", "Five hundred years of compounding")}</span>;
     }
     act(() => {
       root.render(
-        <I18nProvider missing="warn" locale="ru" messages={MESSAGES} onMissing={onMissing}>
+        <I18nProvider locale="ru" messages={MESSAGES} onMissing={onMissing}>
           <Missing />
         </I18nProvider>,
       );
     });
     expect(container.textContent).toBe("Five hundred years of compounding");
-    expect(onMissing).toHaveBeenCalledWith("hero\u0004Five hundred years of compounding", "ru");
+    expect(onMissing).toHaveBeenCalledWith("nope.key", "ru");
   });
 });
 
@@ -81,12 +81,12 @@ describe("hooks without a provider", () => {
   });
 });
 
-/** Renders `locale|text` for one string, `k` being its English. */
+/** Renders `locale|text` for one key, with `EN:<key>` as the call site's English. */
 function Key({ k }: { k: string }) {
   const t = useT();
   return (
     <i>
-      {useLocale()}|{t(k)};
+      {useLocale()}|{t(k, `EN:${k}`)};
     </i>
   );
 }
@@ -98,10 +98,10 @@ const ROUTE = { b: "ru-b-route", c: "ru-c" };
 const quietReactErrors = () => vi.spyOn(console, "error").mockImplementation(() => {});
 
 describe("I18nScope", () => {
-  it("lays its messages over the provider's and takes the provider's locale", () => {
+  it("lays its keys over the provider's and takes the provider's locale", () => {
     act(() => {
       root.render(
-        <I18nProvider missing="warn" locale="ru" messages={SHELL}>
+        <I18nProvider locale="ru" messages={SHELL}>
           <I18nScope messages={ROUTE}>
             <Key k="a" />
             <Key k="b" />
@@ -117,7 +117,7 @@ describe("I18nScope", () => {
   it("widens only its own subtree", () => {
     act(() => {
       root.render(
-        <I18nProvider missing="warn" locale="ru" messages={SHELL}>
+        <I18nProvider locale="ru" messages={SHELL}>
           <I18nScope messages={ROUTE}>
             <Key k="b" />
           </I18nScope>
@@ -127,13 +127,13 @@ describe("I18nScope", () => {
       );
     });
 
-    expect(container.textContent).toBe("ru|ru-b-route;ru|ru-b-shell;ru|c;");
+    expect(container.textContent).toBe("ru|ru-b-route;ru|ru-b-shell;ru|EN:c;");
   });
 
-  it("lets the nearest of nested scopes win an id both carry", () => {
+  it("lets the nearest of nested scopes win a key both carry", () => {
     act(() => {
       root.render(
-        <I18nProvider missing="warn" locale="ru" messages={SHELL}>
+        <I18nProvider locale="ru" messages={SHELL}>
           <I18nScope messages={ROUTE}>
             <I18nScope messages={{ c: "ru-c-inner" }}>
               <Key k="b" />
@@ -150,7 +150,7 @@ describe("I18nScope", () => {
   it("renders the call site's English under the default locale", () => {
     act(() => {
       root.render(
-        <I18nProvider missing="warn" locale="en" messages={{}}>
+        <I18nProvider locale="en" messages={{}}>
           <I18nScope messages={ROUTE}>
             <Key k="c" />
           </I18nScope>
@@ -158,7 +158,7 @@ describe("I18nScope", () => {
       );
     });
 
-    expect(container.textContent).toBe("en|c;");
+    expect(container.textContent).toBe("en|EN:c;");
   });
 
   it("throws without a provider above it", () => {
@@ -175,11 +175,11 @@ describe("I18nScope", () => {
     }).toThrow(/<I18nScope> requires an <I18nProvider>/);
   });
 
-  it("passes an id neither carries to the provider's onMissing", () => {
+  it("passes a key neither carries to the provider's onMissing", () => {
     const onMissing = vi.fn();
     act(() => {
       root.render(
-        <I18nProvider missing="warn" locale="ru" messages={SHELL} onMissing={onMissing}>
+        <I18nProvider locale="ru" messages={SHELL} onMissing={onMissing}>
           <I18nScope messages={ROUTE}>
             <Key k="gone" />
           </I18nScope>
@@ -187,13 +187,29 @@ describe("I18nScope", () => {
       );
     });
 
-    expect(container.textContent).toBe("ru|gone;");
+    expect(container.textContent).toBe("ru|EN:gone;");
     expect(onMissing).toHaveBeenCalledWith("gone", "ru");
   });
 });
 
 describe("I18nProvider missing", () => {
-  it('warns once per id with "warn", across scopes and re-renders', () => {
+  it("leaves the console alone when unset, as before the mode existed", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const onMissing = vi.fn();
+    act(() => {
+      root.render(
+        <I18nProvider locale="ru" messages={{}} onMissing={onMissing}>
+          <Key k="x" />
+        </I18nProvider>,
+      );
+    });
+
+    expect(container.textContent).toBe("ru|EN:x;");
+    expect(onMissing).toHaveBeenCalledWith("x", "ru");
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('warns once per key with "warn", across scopes and re-renders', () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const tree = () => (
       <I18nProvider locale="ru" messages={{}} missing="warn">
@@ -208,13 +224,13 @@ describe("I18nProvider missing", () => {
     act(() => root.render(tree()));
     act(() => root.render(tree()));
 
-    expect(container.textContent).toBe("ru|x;ru|x;ru|x;ru|y;");
+    expect(container.textContent).toBe("ru|EN:x;ru|EN:x;ru|EN:x;ru|EN:y;");
     expect(warn).toHaveBeenCalledTimes(2);
-    expect(warn).toHaveBeenNthCalledWith(1, expect.stringContaining('"x" has no ru translation'));
-    expect(warn).toHaveBeenNthCalledWith(2, expect.stringContaining('"y" has no ru translation'));
+    expect(warn).toHaveBeenNthCalledWith(1, expect.stringContaining('"x" is not in the ru catalogue'));
+    expect(warn).toHaveBeenNthCalledWith(2, expect.stringContaining('"y" is not in the ru catalogue'));
   });
 
-  it('warns once per id when every render passes a new inline onMissing with "warn"', () => {
+  it('warns once per key when every render passes a new inline onMissing with "warn"', () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const tree = () => (
       <I18nProvider locale="ru" messages={{}} missing="warn" onMissing={() => {}}>
@@ -259,7 +275,7 @@ describe("I18nProvider missing", () => {
     expect(onMissing).toHaveBeenCalledTimes(2);
   });
 
-  it('fails the render with "throw", naming the id, the check and the slice generator', () => {
+  it('fails the render with "throw", naming the key and the slice generator', () => {
     quietReactErrors();
 
     expect(() => {
@@ -272,7 +288,7 @@ describe("I18nProvider missing", () => {
           </I18nProvider>,
         );
       });
-    }).toThrow(/"z" has no ru translation.*evinvest-i18n-check.*evinvest-i18n-slices/);
+    }).toThrow(/"z" is not in the ru catalogue.*evinvest-i18n-slices/);
   });
 
   it("neither warns nor throws under the default locale", () => {
@@ -290,7 +306,7 @@ describe("I18nProvider missing", () => {
       );
     });
 
-    expect(container.textContent).toBe("en|z;en|z;");
+    expect(container.textContent).toBe("en|EN:z;en|EN:z;");
     expect(warn).not.toHaveBeenCalled();
   });
 });

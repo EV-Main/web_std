@@ -7,7 +7,7 @@ export default function WalletPage() {
   const t = translator({}, "en");
   return (
     <main>
-      <h1>{t("Wallet")}</h1>
+      <h1>{t("wallet.server", "Wallet")}</h1>
       <Panel />
       <TipAnchor anchor="wallet.x" />
     </main>

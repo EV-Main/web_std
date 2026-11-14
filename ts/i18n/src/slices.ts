@@ -1,12 +1,12 @@
 /**
- * Sending a page only the messages it renders. Zero-dep and DOM-free, like the rest
+ * Sending a page only the keys it renders. Zero-dep and DOM-free, like the rest
  * of the core: the server picks, the client never sees what was left out.
  */
 import type { Messages } from "./registry";
 
 /**
- * Which message ids each part of an app renders on the client — what
- * `evinvest-i18n-slices` writes. Ids are sorted; a route's list leaves out
+ * Which keys each part of an app renders on the client — what
+ * `evinvest-i18n-slices` writes. Keys are sorted; a route's list leaves out
  * what `shell` already carries.
  */
 export interface MessageSlices {
@@ -19,8 +19,8 @@ export interface MessageSlices {
 }
 
 /**
- * The part of `messages` under `ids`, for an `I18nProvider` or `I18nScope`.
- * An id the catalogue lacks is left out rather than invented — the call site's
+ * The part of `messages` under `keys`, for an `I18nProvider` or `I18nScope`.
+ * A key the catalogue lacks is left out rather than invented — the call site's
  * English renders for it, exactly as with the whole catalogue.
  *
  * @example
@@ -28,12 +28,12 @@ export interface MessageSlices {
  * pickMessages(messagesFor(locale), slices.shell);
  * ```
  */
-export function pickMessages(messages: Messages, ids: Iterable<string>): Messages {
+export function pickMessages(messages: Messages, keys: Iterable<string>): Messages {
   const picked: [string, string][] = [];
-  for (const id of ids) {
+  for (const key of keys) {
     // Own keys only, so `toString` or `__proto__` never come off the prototype.
-    const pattern = Object.hasOwn(messages, id) ? messages[id] : undefined;
-    if (pattern !== undefined) picked.push([id, pattern]);
+    const pattern = Object.hasOwn(messages, key) ? messages[key] : undefined;
+    if (pattern !== undefined) picked.push([key, pattern]);
   }
   // `fromEntries` defines plain own properties: a `__proto__` key stays data,
   // and the result keeps `Object.prototype`, which RSC needs to serialise it.

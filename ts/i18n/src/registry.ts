@@ -11,35 +11,23 @@
  */
 import { formatPattern, type MessageValues } from "./format";
 
-/** A loaded catalogue: message id ({@link messageId}) → pattern. */
+/**
+ * A loaded catalogue: flat `key → pattern`. Flat rather than nested because the
+ * drift checker diffs, hashes, and reports per fully-qualified key, and a nested
+ * shape would make every one of those operations a tree walk for no gain at the
+ * call site (`t("hero.title")` reads the same either way).
+ */
 export type Messages = Readonly<Record<string, string>>;
 
 /**
- * Renders one string, identified by its source-language copy as authored at this
- * call site; `ctx` tells apart two meanings of one sentence.
+ * Renders one string: `en` is the source-language copy as authored at this call
+ * site, `key` is what a translated catalogue files it under.
  *
  * ```ts
- * t("Invest in the China+1 narrative")
- * t.ctx("tokens", "Added")
+ * t("hero.title", "Invest in the China+1 narrative")
  * ```
  */
-export interface Translate {
-  (en: string, values?: MessageValues): string;
-  ctx(ctx: string, en: string, values?: MessageValues): string;
-}
-
-/** Between a message's `ctx` and its English in its id — gettext's. */
-export const CTX_SEPARATOR = "\u0004";
-
-/** A message's identity: its English, prefixed by its `ctx` where it has one. */
-export const messageId = (ctx: string | undefined, en: string): string =>
-  ctx === undefined ? en : `${ctx}${CTX_SEPARATOR}${en}`;
-
-/** The English of a message id. */
-export const english = (id: string): string => {
-  const at = id.indexOf(CTX_SEPARATOR);
-  return at === -1 ? id : id.slice(at + 1);
-};
+export type Translate = (key: string, en: string, values?: MessageValues) => string;
 
 /**
  * The structural slice of `Element` `localeOfElement` reads. Spelled out rather
@@ -121,14 +109,11 @@ export interface LocaleRegistry<L extends string> {
   ) => Record<string, string>;
   /** Best locale for an `Accept-Language` header — for suggesting, not serving. */
   readonly negotiate: (header: string | null | undefined, locales?: readonly L[]) => L;
-  /**
-   * A {@link Translate} bound to one catalogue and locale. `onMissing` hears of an id
-   * the catalogue lacks, which then renders its English if `onMissing` returns.
-   */
+  /** A {@link Translate} bound to one catalogue and locale. */
   readonly translator: (
     messages: Messages,
     locale: L,
-    onMissing: (id: string, locale: L) => void,
+    onMissing?: (key: string, locale: L) => void,
   ) => Translate;
   /** Format one ICU-subset pattern in `locale`. */
   readonly formatMessage: (pattern: string, locale: L, values?: MessageValues) => string;
@@ -278,21 +263,16 @@ export function createLocaleRegistry<const Locales extends LocaleList>(
   const translator = (
     messages: Messages,
     locale: L,
-    onMissing: (id: string, locale: L) => void,
+    onMissing?: (key: string, locale: L) => void,
   ): Translate => {
     // The default locale is the authored source: its copy is the call site's.
     const source = locale === defaultLocale ? null : messages;
-    const render = (ctx: string | undefined, en: string, values?: MessageValues): string => {
+    return (key, en, values) => {
       if (source === null) return formatPattern(en, locale, values);
-      const id = messageId(ctx, en);
-      // Own keys only, so `toString` or `__proto__` never come off the prototype.
-      const pattern = Object.hasOwn(source, id) ? source[id] : undefined;
-      if (pattern === undefined) onMissing(id, locale);
+      const pattern = source[key];
+      if (pattern === undefined) onMissing?.(key, locale);
       return formatPattern(pattern ?? en, locale, values);
     };
-    return Object.assign((en: string, values?: MessageValues) => render(undefined, en, values), {
-      ctx: (ctx: string, en: string, values?: MessageValues) => render(ctx, en, values),
-    });
   };
 
   const localeOfElement = (node: LangScope): L =>

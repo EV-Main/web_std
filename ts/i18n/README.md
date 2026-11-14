@@ -173,7 +173,8 @@ scope, and import the trio from there.
 
 The extractor bins are bound to the generated registry. For another set, a
 three-line launcher of your own passes it through — `runExtract` / `runCheck`
-treat every listed locale but the default as a translation:
+write and check `<messages>/<default>/common.json` as the source and every
+other listed locale as a translation:
 
 ```js
 #!/usr/bin/env node
@@ -184,14 +185,14 @@ runCheck(process.argv.slice(2), i18n);
 
 The free `resolveCatalogue` and `availableIn` in `./policy` treat `en` as the
 source — the generated registry's default. Against a French-source registry
-they would read French copy as fully covered in English, so bind the policy to
-your registry instead:
+they would read an empty English catalogue as 100 % covered, so bind the policy
+to your registry instead:
 
 ```ts
 import { createPolicy } from "@evinvest/i18n/policy";
 
 const policy = createPolicy(i18n);                  // source = i18n.defaultLocale ("fr")
-const { messages, coverage } = policy.resolveCatalogue("en", ids, enAuto, enOverrides);
+const { messages, coverage } = policy.resolveCatalogue("en", fr, enCatalogue);
 policy.availableIn("en", posts, p => p.locales);    // "fr" always sees everything
 ```
 
@@ -249,89 +250,147 @@ declines the unknown segment and the request falls through to the `fallback`
 rewrite that resolves it as English. Without it, `/team` renders the homepage
 with `locale === "team"`.
 
-## The model
-
-**English lives only where it renders, and is each string's identity.** There
-are no keys:
-
-```tsx
-t("Invest in the China+1 narrative")
-t("{n, plural, one {# item} other {# items}}", { n })
-t.ctx("ledger", "Added")            // where one English means two things
-```
-
-A message's id is its English, or `ctx` + U+0004 + its English (gettext's
-msgid; `messageId`). Identical English is one string with one translation.
-Moving an element, renaming a component or a prop never touches a translation.
-
-Every other locale is two flat files under `messages/`, both keyed by id:
-
-```jsonc
-// messages/ru.auto.json — generated, one entry per line, collapsed in PR diffs
-{ "//": "GENERATED — overrides go in ru.json", "Invest in the China+1 narrative": "…" }
-// messages/ru.json — hand-written overrides, laid over it
-{ "Invest in the China+1 narrative": "Инвестируйте в нарратив «Китай+1»" }
-```
-
-Copy picked by data is a closed table, so every row's English is a literal:
-
-```ts
-const STATE = { draft: (t) => t("Draft"), verified: (t) => t("Verified") } satisfies Record<State, (t: T) => string>;
-```
-
 ## The policy
 
-Enforced by `@evinvest/i18n/policy` (and `ev_lib::i18n::policy`, canonical;
-both run `tests/fixtures/i18n/policy.json`).
+Three rules, enforced by `@evinvest/i18n/policy` rather than by review.
 
-**1.1 — English is canonical.** It defines the set of strings, the placeholders
-and the meaning; every other locale derives from it.
+**1.1 — English is canonical.** `en` is the authored source: it defines the key
+set, the placeholders, and the meaning. Every other locale is a derivation, and
+only English introduces keys. A key that exists solely in a translation is
+rejected as an orphan (it renders nowhere anyway — usually a rename that left the
+translation behind).
 
-**1.2 — A translation that no longer matches its English is not used.** Because
-the key *is* the English, an edited sentence leaves its old translation keyed by
-text nothing renders: an orphan. An orphaned override stops applying — the new
-English gets the generated translation — and `evinvest-i18n-check` fails,
-naming the nearest new string so re-keying is one rename.
+**1.2 — A translation that no longer matches its English source is not used.**
+English is served instead. This is the rule that stops a stale translation from
+quietly contradicting the site: when the English changes and the translation does
+not, the translation is no longer a translation of anything — it is last
+quarter's claim, in another language, presented as current.
 
 **1.3 — Compiled content with no translation for the current locale is hidden,**
 not silently served in English. See `availableIn`.
 
-Nothing compares *meaning* across languages. What is checkable is provenance
-(the key) and **structure**: placeholders, argument types, and the plural
-categories a locale requires — a Russian plural with only `one`/`other` is
-provably wrong. An override failing structure gives way to the generated entry;
-an id with neither accepted is missing.
+### What "semantic comparison" means here
+
+Nothing compares *meaning* across languages — no program does that reliably, and
+one claiming to would fail silently, which is worse than not trying. Two things
+*are* mechanically checkable, and together they catch what actually goes wrong:
+
+- **Provenance** — each translated entry records the English text it was written
+  against. If today's English differs, the entry is stale by construction.
+- **Structure** — placeholders, argument types, and the plural categories a
+  locale requires must all match. A Russian string handling only `one`/`other` is
+  *provably* not equivalent to an English plural, because Russian also needs
+  `few` and `many`. That one is arithmetic, not opinion.
+
+A translation can still be a bad translation of the right source. That is a
+reviewer's job, and the module does not pretend otherwise.
+
+### Catalogue format
+
+English stays a plain map. Every other locale carries the source it was
+translated from:
+
+```jsonc
+// messages/en/common.json — canonical
+{ "cart.items": "{n, plural, one {# item} other {# items}}" }
+
+// messages/ru/common.json — each entry records its source
+{
+  "cart.items": {
+    "en": "{n, plural, one {# item} other {# items}}",
+    "t": "{n, plural, one {# товар} few {# товара} many {# товаров} other {# товара}}"
+  }
+}
+```
+
+The source is stored as *text*, not a hash. A hash would be shorter and equally
+correct, but a reviewer could not see what the translator was looking at; inline,
+a drifted entry is self-evident in the diff.
 
 ```ts
-import { resolveCatalogue } from "@evinvest/i18n/policy";
+import { resolveCatalogue, auditCatalogues } from "@evinvest/i18n/policy";
 
-const { messages, rejected, missing } = resolveCatalogue("ru", ids, auto, overrides);
+const { messages, rejected, coverage } = resolveCatalogue("ru", en, ru);
+const t = translator(messages, "ru");   // stale keys already fell back to English
 ```
+
+Every English key is present in `messages` either way, so a page cannot break
+because a translation went stale — it degrades to canonical English.
+
+Wire `auditCatalogues` into CI. The runtime degrading safely is exactly why drift
+needs a second, noisy channel: a silent fallback looks identical to a site that
+was never translated, so without the check a locale can rot to zero coverage
+unnoticed.
 
 ## Translating
 
-`translator(messages, locale, onMissing)` — `onMissing` hears of an id the
-catalogue lacks, which then renders its English. For the default locale the
-catalogue is never read. Server Components call it directly:
+**English is written where it renders.** `t` takes the key *and* the English
+sentence, and `messages/en/common.json` is generated back out of the code.
 
 ```tsx
-const t = translator(messagesFor(locale), locale, id => { throw new Error(id); });
-return <h1>{t("The people behind the fund")}</h1>;
+t("hero.title", "Invest in the China+1 narrative")
 ```
 
-Client islands use the provider, mounted as high as the *client* tree goes.
-`missing` is required, as data a Server Component layout can pass:
-`"warn"` (once per id, then the English — development, where a new string is
-pending by construction) or `"throw"` (a build the check passed has none).
+Two things follow, and the signature is what makes them unavoidable. Copy cannot
+be edited in one place and read from another — there is only one place. And a
+key a translated catalogue lacks renders **the sentence the component asked
+for**, not a dotted key: the call site has the correct English in hand, so
+showing `hero.title` on screen instead would be strictly worse. `onMissing`
+still fires, and means one thing — the extractor was not re-run.
+
+For `en` the catalogue is never consulted at all; there is nothing left to look
+up.
+
+Server Components call `translator()` directly — the locale is already in their
+props, and there is no re-render to memoise against:
 
 ```tsx
-<I18nProvider locale={locale} messages={{ ...auto, ...overrides }} missing="throw">
+// app/[locale]/team/page.tsx  (Server Component)
+import { translator } from "@evinvest/i18n";
+
+export default async function TeamPage({ params }) {
+  const { locale } = await params;
+  const t = translator(await loadMessages(locale, "team"), locale);
+  return <h1>{t("team.title", "The people behind the fund")}</h1>;
+}
+```
+
+Client islands use the provider — mounted as high as the *client* tree goes, not
+around the whole document:
+
+```tsx
+import { I18nProvider } from "@evinvest/i18n/react";   // Server file, client boundary below
+import { useT } from "@evinvest/i18n/react";
+
+<I18nProvider locale={locale} messages={messages}>
   <WalletIsland />
 </I18nProvider>
 ```
 
-`I18nScope` lays its own `messages` over the provider's and inherits the locale
-and `missing` — see [Slicing the catalogue](#slicing-the-catalogue).
+A page widens the provider's catalogue with `I18nScope`, which lays its own
+`messages` over the provider's (`{ ...parent, ...own }`) and inherits the
+locale. That lets the root layout send only the keys its chrome renders, and
+each page add the keys its own client islands render — see
+[Slicing the catalogue](#slicing-the-catalogue). The scope's props are plain
+data, so the Server Component page renders it directly; without a provider
+above it, it throws.
+
+A Server Component layout cannot hand the provider an `onMissing` function, so
+the reaction to a key the catalogue lacks also comes as data: `missing="warn"`
+logs once per key, `missing="throw"` fails the render. Unset (the default), the
+call site's English renders and only `onMissing` hears of it. It never fires
+for the default locale, and scopes inherit it. An untranslated or
+policy-rejected key is absent from a resolved catalogue too, so keep `"throw"`
+for test runs against a fully translated one.
+
+```tsx
+// app/[locale]/wallet/page.tsx  (Server Component)
+import { I18nScope } from "@evinvest/i18n/react";
+
+<I18nScope messages={walletMessages}>
+  <WalletIsland />
+</I18nScope>
+```
 
 ## Slicing the catalogue
 
@@ -400,31 +459,42 @@ A **closed table** of copy — `TIP_COPY[anchor](t)`, every row's `t()` in one
 module — would put every row in every slice that imports it. A table rule
 narrows it to the rows whose id appears as a string literal in a file the entry
 reaches, server or client (a server page passing `anchor="wallet.x"` to a
-client tip counts). A table is every top-level `const` in the module whose
-initializer is an object literal of `t()` copy (through `satisfies`, `as`,
-parentheses); each property is a row, its calls the row's copy:
+client tip counts). The ids are read back out of the table's keys through the
+templates, so they are never listed twice:
 
 ```json
-{ "tables": [{ "table": "shared/tips/copy.ts", "ignore": ["shared/tips/catalog.ts"] }] }
+{
+  "tables": [
+    {
+      "table": "shared/tips/copy.ts",
+      "keys": ["tips.*.title", "tips.*.body"],
+      "ignore": ["shared/tips/catalog.ts"]
+    }
+  ]
+}
 ```
 
-Calls outside every table stay ordinary copy of the module, and an English in
-both a row and outside one stays carried. `ignore` lists files whose literals do
-not count — the typed registry that names every id would otherwise select every
-row.
+The table's keys matching no template (`tips.a11y.about`) stay ordinary keys
+of the module. `ignore` lists files whose literals do not count — the typed
+registry that names every id would otherwise select every row.
 
-**The rule's blind spot, and the one place the generator can miss a string.** It
-sees a row id only as a whole string literal, in a file the entry reaches. An id
-that reaches the table any other way is invisible, and nothing reports it:
+**The rule's blind spot, and the one place the generator can miss a key.** It
+sees an id only as a whole string literal, in a file the entry reaches. An id
+that reaches the table any other way is invisible, and nothing reports it —
+the row's copy is missing from the slice and renders in English:
 
 - built at runtime: `` anchor={`wallet.${kind}`} ``, `"wallet." + kind`;
 - from data: an API field, a URL parameter, a stored setting;
-- from a file the entry does not reach, or one listed in `ignore`;
+- from a file the entry does not reach, or one listed in `ignore` (a `const`
+  holding the literal in a reachable file is fine — the literal is there);
 - from a package in `node_modules`, whose files are never read.
 
-Keep every id a table is indexed with a literal in the code that renders it,
-and run the app's end-to-end suite with `missing="throw"`: that is what catches
-a row the rule did not see.
+Keep every id a table is indexed with a literal in the code that renders it
+(a `switch` or a lookup object of literals turns data into one), and run the
+app's end-to-end suite with `missing="throw"` on a fully translated locale:
+that is what catches a row the rule did not see. A literal that merely equals
+an id somewhere unrelated selects that row anyway — an extra key, never a
+missing one.
 
 ## Extracting
 
@@ -449,22 +519,19 @@ is read or written — a tool that writes committed files must not read a typo a
 also exit 2, with the message and no stack trace; exit 1 is the check itself
 failing.
 
-`extract` prunes every locale's two files to the ids the code renders, printing
-each dropped override with the nearest new string. The prune is unconditional
-because the scan cannot see a *deleted* call site — only what remains.
+`extract` writes `messages/en/common.json` and prunes every translated catalogue
+down to the keys the code still asks for. The prune is unconditional because the
+scan cannot see a *deleted* call site — only what remains.
 
-`check` is the build gate — put it in front of the app's `build`. Fatal: a
-string with no accepted translation in some locale, an orphaned override (with
-the nearest new string), a generated entry for English the code no longer
-renders, a structural mismatch, and a locale with one of its two files.
+`check` is the CI gate. Fatal: a committed English catalogue that no longer
+matches the code (it would hand `resolveCatalogue` a stale source to compare
+every translation against), and policy drift. Reported but not fatal:
+untranslated keys — a locale is filled in over time, and blocking CI on an
+unfinished translation would just get the check disabled.
 
-Both refuse a `t()` whose English (or `t.ctx`'s context) is not a literal, and
-the old `t("key", "English")` shape.
-
-`evinvest-i18n-rekey` moves a consumer off 0.13's keys once: `t("k", "en", …)`
-→ `t("en", …)`, `messages/<locale>/common.json` → `<locale>.json` overrides
-(an entry whose stored `en` drifted is dropped and reported; two keys sharing
-an English with different translations are reported for a `t.ctx`).
+Both refuse a `t()` whose key or English is not a literal. The point of inlining
+is that the copy is visible where it renders, and a runtime-assembled key is
+neither visible nor greppable.
 
 `typescript` is an optional peer dependency: needed to run the extractor, never
 to render a string.
@@ -525,9 +592,9 @@ reader who deliberately chose English should not be bounced out of it.
 ## Rust counterpart
 
 `ev_lib`'s `i18n` feature mirrors this package: the same registry, the same URL
-contract, the same formatter, the same policy, and the same call shape via the
-`t!` macro (`t!(tr, "en")`, `t!(tr, ctx = "…", "en")`). It reads the *same*
-catalogues, so they are portable between the two halves and neither can drift
+contract, the same formatter, the same policy, and the same `(key, en)` call
+shape via the `t!` macro. It reads the *same* `messages/<locale>/common.json`
+files, so a catalogue is portable between the two halves and neither can drift
 alone: both suites run the vectors in `tests/fixtures/i18n/`. Its extractor is the linker rather than a parser — a `t!` site that
 compiles is registered — which is why the Rust half needs no equivalent of the
 bins above.
