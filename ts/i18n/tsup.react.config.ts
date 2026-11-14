@@ -1,4 +1,13 @@
 import { defineConfig } from 'tsup';
+import type { Plugin } from 'esbuild';
+
+// The client subpath imports the core's own dist/index.js rather than inlining a second copy of it.
+const coreFromDist: Plugin = {
+  name: 'core-from-dist',
+  setup(build) {
+    build.onResolve({ filter: /^\.\.\/index$/ }, () => ({ path: './index.js', external: true }));
+  },
+};
 
 // Re-emits ONLY the client subpath, with `clean: false`, after the main `tsup`
 // run (see `tsup.config.ts`). tsup's `.d.ts` step deletes every existing
@@ -15,5 +24,6 @@ export default defineConfig({
   sourcemap: true,
   target: 'es2022',
   external: ['react', 'react-dom', 'react/jsx-runtime'],
+  esbuildPlugins: [coreFromDist],
   banner: { js: '"use client";' },
 });

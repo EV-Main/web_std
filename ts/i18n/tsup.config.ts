@@ -1,4 +1,13 @@
 import { defineConfig } from 'tsup';
+import type { Plugin } from 'esbuild';
+
+// The client subpath imports the core's own dist/index.js rather than inlining a second copy of it.
+const coreFromDist: Plugin = {
+  name: 'core-from-dist',
+  setup(build) {
+    build.onResolve({ filter: /^\.\.\/index$/ }, () => ({ path: './index.js', external: true }));
+  },
+};
 
 // Two configs so only the React subpath gets the `"use client"` banner. The
 // core (`.`) and Next (`./next`) entries are server-safe and must NOT carry the
@@ -49,6 +58,7 @@ export default defineConfig([
     sourcemap: true,
     target: 'es2022',
     external: ['react', 'react-dom', 'react/jsx-runtime'],
+    esbuildPlugins: [coreFromDist],
     banner: { js: '"use client";' },
   },
 ]);
