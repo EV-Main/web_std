@@ -145,7 +145,8 @@ pub struct ResolvedCatalogue {
 /// Apply rules 1.1 and 1.2 to one locale's two layers.
 ///
 /// Per key: a valid override, else a valid auto entry, else the key is `missing`. Valid means
-/// written against today's English and structurally equal to it. A key with no valid entry is
+/// written against today's English and structurally equal to it. A layer under a valid entry is
+/// never read, so its staleness is not reported. A key with no valid entry is
 /// absent from `messages`, so the call site's English renders and the translator reports it.
 ///
 /// ```
@@ -203,8 +204,10 @@ pub fn resolve_catalogue(locale: Locale, source: &Messages, auto: &TranslatedCat
 					reason,
 					detail,
 				}),
-				None if served.is_none() => served = Some(entry.t.clone()),
-				None => {}
+				None => {
+					served = Some(entry.t.clone());
+					break;
+				}
 			}
 		}
 		match served {

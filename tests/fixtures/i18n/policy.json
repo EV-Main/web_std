@@ -184,6 +184,16 @@
     {
       "locale": "ru",
       "source": {"hero": "Coastal Vietnam"},
+      "auto": {"hero": {"en": "Old", "t": "Старое авто"}},
+      "overrides": {"hero": {"en": "Coastal Vietnam", "t": "Побережье Вьетнама"}},
+      "messages": {"hero": "Побережье Вьетнама"},
+      "rejected": [],
+      "missing": [],
+      "coverage": 1
+    },
+    {
+      "locale": "ru",
+      "source": {"hero": "Coastal Vietnam"},
       "auto": {},
       "overrides": {"hero": {"en": "Coastal Vietnam", "t": "Побережье Вьетнама"}},
       "messages": {"hero": "Побережье Вьетнама"},

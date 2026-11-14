@@ -5,15 +5,17 @@
  * `evinvest-i18n-extract` read every key statically.
  */
 
-declare const brand: unique symbol;
-
-/** A message key: a scope root or any member chain below one. */
+/**
+ * A message key: a scope root or any member chain below one. Members are `any`: under
+ * `noUncheckedIndexedAccess` an index signature of `Key` reads as `Key | undefined`.
+ * That a key is a member chain off a scope is the extractor's check, not the type's.
+ */
 export interface Key {
-  readonly [brand]: true;
-  readonly [segment: string]: Key;
+  readonly "@evinvest/i18n/key": true; // a string brand: every bundle of this package (react, cjs) declares the same one
+  readonly [segment: string]: any;
 }
 
-const PATH = Symbol("@evinvest/i18n key path");
+const PATH = Symbol.for("@evinvest/i18n key path"); // `for`: the react and cjs bundles each carry a copy of this module
 
 function node(path: string): Key {
   const children = new Map<string, Key>();

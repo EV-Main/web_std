@@ -90,7 +90,8 @@ export interface ResolvedCatalogue<L extends string = Locale> {
  * Apply rules 1.1 and 1.2 to one locale's two layers.
  *
  * Per key: a valid override, else a valid auto entry, else the key is `missing`. Valid means
- * written against today's English and structurally equal to it. A key with no valid entry is
+ * written against today's English and structurally equal to it; a layer under a valid entry is
+ * never read, so its staleness is not reported. A key with no valid entry is
  * absent from `messages`, so the call site's English renders and `onMissing` hears of it.
  *
  * Bound to the generated registry, whose source is `en`. For a registry of your
@@ -192,8 +193,11 @@ function resolveAgainst<L extends string>(
       const entry = Object.hasOwn(entries, key) ? entries[key] : undefined;
       if (entry === undefined) continue;
       const problem = check(entry, en, locale, canonical);
-      if (problem !== null) rejected.push({ key, layer, ...problem });
-      else served ??= entry.t;
+      if (problem === null) {
+        served = entry.t;
+        break;
+      }
+      rejected.push({ key, layer, ...problem });
     }
     if (served === undefined) missing.push(key);
     else messages[key] = served;
