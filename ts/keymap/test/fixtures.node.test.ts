@@ -15,7 +15,7 @@ interface Case {
 const F = JSON.parse(readFileSync(join(import.meta.dirname, '../../../tests/fixtures/keymap/keymap.json'), 'utf8')) as {
   keymap: Binding<string>[];
   cases: Case[];
-  help: { platform: Platform; unavailable: string[]; rows: [string, string][] }[];
+  help: { platform: Platform; unavailable: string[]; rows: [string, string, string][] }[];
   invalid: { why: string; keymap: Binding<string>[]; panics: string }[];
 };
 
@@ -63,8 +63,11 @@ describe('keymap fixtures', () => {
 
   for (const h of F.help) {
     it(`help on ${h.platform} without [${h.unavailable.join(', ')}]`, () => {
-      const rows: HelpRow[] = h.rows.map(([sequence, label]) => ({ sequence, label }));
-      expect(trie(F.keymap, h.platform, h.unavailable).help()).toEqual(rows);
+      const rows: HelpRow[] = h.rows.map(([id, sequence, label]) => ({ id, sequence, label }));
+      const t = trie(F.keymap, h.platform, h.unavailable);
+      expect(t.help()).toEqual(rows);
+      const ids = (bs: readonly Binding<string>[]): string[] => bs.flatMap(b => ('run' in b ? [b.id] : ids(b.children)));
+      for (const id of ids(F.keymap)) expect(t.command(id), id).toBe(rows.find(r => r.id === id)?.label);
     });
   }
 

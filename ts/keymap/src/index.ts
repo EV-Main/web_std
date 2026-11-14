@@ -19,8 +19,8 @@ export interface Trigger {
   mac: Chord;
 }
 
-/** A leaf runs its command; a scope opens its children. */
-export type Binding<C> = { on: Chord | Trigger } & ({ run: C } | { label: string; children: readonly Binding<C>[] });
+/** A leaf runs its command; a scope opens its children. A leaf's `id` names it across languages and to whatever runs it without its keys (an agent), unique within one keymap. */
+export type Binding<C> = { on: Chord | Trigger } & ({ id: string; run: C } | { label: string; children: readonly Binding<C>[] });
 
 /** Every chord the page claims without a scope open. A leader is a root scope. */
 export interface Keymap<C> {
@@ -127,7 +127,7 @@ export function render(on: Chord | Trigger, platform: Platform): string {
   return renderChord(pick(on, platform), platform);
 }
 
-type Item<C> = { label: string } & ({ run: C } | { children: Level<C> });
+type Item<C> = { label: string } & ({ id: string; run: C } | { children: Level<C> });
 type Level<C> = [Chord, Item<C>][];
 
 const same = (a: Chord, b: Chord) => a.key === b.key && !!a.ctrl === !!b.ctrl && !!a.alt === !!b.alt && !!a.meta === !!b.meta;
@@ -140,6 +140,14 @@ export class Trie<C> {
 
   /** A command `available` rejects is unbound; a scope left with nothing in it, too. `label` names a command. */
   constructor(keymap: Keymap<C>, platform: Platform, available: (c: C) => boolean, label: (c: C) => string) {
+    const seen = new Set<string>();
+    const ids = (bs: readonly Binding<C>[]): void =>
+      bs.forEach(b => {
+        if (!("run" in b)) return ids(b.children);
+        if (seen.has(b.id)) throw new Error(`${JSON.stringify(b.id)} names two leaves`);
+        seen.add(b.id);
+      });
+    ids(keymap.root);
     const level = (bs: readonly Binding<C>[]): Level<C> => {
       bs.forEach((b, i) => {
         const c = pick(b.on, platform);
@@ -147,7 +155,7 @@ export class Trie<C> {
         if (bs.slice(0, i).some(o => same(pick(o.on, platform), c))) throw new Error(`${JSON.stringify(c)} is bound twice in one scope`);
       });
       return bs.flatMap((b): Level<C> => {
-        if ("run" in b) return available(b.run) ? [[pick(b.on, platform), { label: label(b.run), run: b.run }]] : [];
+        if ("run" in b) return available(b.run) ? [[pick(b.on, platform), { label: label(b.run), id: b.id, run: b.run }]] : [];
         const children = level(b.children);
         return children.length === 0 ? [] : [[pick(b.on, platform), { label: b.label, children }]];
       });
@@ -236,10 +244,22 @@ export class Trie<C> {
         const chord = renderChord(c, this.#platform);
         const sequence = prefix === "" ? chord : `${prefix} ${chord}`;
         if ("children" in item) walk(item.children, sequence);
-        else out.push({ sequence, label: item.label });
+        else out.push({ id: item.id, sequence, label: item.label });
       }
     };
     walk(this.#root, "");
     return out;
+  }
+
+  /** What the bound leaf `id` runs; `undefined` while it is unbound. */
+  command(id: string): C | undefined {
+    const find = (l: Level<C>): C | undefined => {
+      for (const [, item] of l) {
+        const hit = "children" in item ? find(item.children) : item.id === id ? item.run : undefined;
+        if (hit !== undefined) return hit;
+      }
+      return undefined;
+    };
+    return find(this.#root);
   }
 }

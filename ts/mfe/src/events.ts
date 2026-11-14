@@ -39,7 +39,8 @@ export const SIGNOUT_EVENT = 'signout';
 /**
  * The element contributes a binding to the page's keymap. The host places it under a scope it
  * assigns to the element (the element never claims a root chord, and two elements never
- * collide); it is bound while the element is connected, until `signal` aborts.
+ * collide) and names each leaf `<tag>/<id>`; it is bound while the element is connected, until
+ * `signal` aborts.
  */
 export const KEYMAP_EVENT = 'ev:keymap';
 /** The element made a change it can take back: an entry for the page's one undo history. */
@@ -148,13 +149,15 @@ function bindingOf(raw: unknown, who: string): ElementBinding {
   } else chordOf(on, who);
   const run: unknown = Reflect.get(raw, 'run');
   if (run !== undefined) {
+    const id: unknown = Reflect.get(raw, 'id');
+    if (typeof id !== 'string' || id === '') throw new Error(`${who}: a leaf has an id`);
     if (typeof run !== 'object' || run === null || typeof Reflect.get(run, 'label') !== 'string' || typeof Reflect.get(run, 'run') !== 'function')
       throw new Error(`${who}: a leaf runs { label, run }`);
-    return { on: on as Chord | Trigger, run: run as ElementLeaf };
+    return { on: on as Chord | Trigger, id, run: run as ElementLeaf };
   }
   const label: unknown = Reflect.get(raw, 'label');
   const children: unknown = Reflect.get(raw, 'children');
-  if (typeof label !== 'string' || !Array.isArray(children)) throw new Error(`${who}: a binding is a leaf { on, run } or a scope { on, label, children }`);
+  if (typeof label !== 'string' || !Array.isArray(children)) throw new Error(`${who}: a binding is a leaf { on, id, run } or a scope { on, label, children }`);
   return { on: on as Chord | Trigger, label, children: children.map(c => bindingOf(c, who)) };
 }
 

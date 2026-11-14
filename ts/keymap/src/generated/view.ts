@@ -6,7 +6,7 @@ export type Platform = (typeof PLATFORMS)[number];
 /**
  * One bound leaf, for the help.
  */
-export type HelpRow = { sequence: string, label: string, };
+export type HelpRow = { id: string, sequence: string, label: string, };
 /**
  * The which-key popup for the scope a chord has opened.
  */

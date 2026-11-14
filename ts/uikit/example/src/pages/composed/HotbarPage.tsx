@@ -18,7 +18,7 @@ export default function HotbarPage() {
     { id: "add-note", label: "Add note", icon: PencilIcon, pinned: false, onSelect: run("Add note") },
     { id: "export", label: "Export leads (CSV)", icon: FileTextIcon, pinned: false, onSelect: run("Export leads") },
   ];
-  const bind = (key: string, { id, label, onSelect }: HotbarAction) => ({ on: { key }, run: { id, label, run: onSelect } });
+  const bind = (key: string, { id, label, onSelect }: HotbarAction) => ({ on: { key }, id, run: { label, run: onSelect ?? null } });
   useBinding(bind("n", actions[0]!));
   useBinding(bind("o", actions[1]!));
   useBinding(bind("a", actions[3]!));

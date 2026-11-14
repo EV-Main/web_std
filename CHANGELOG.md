@@ -23,6 +23,17 @@ Rust crate and its TypeScript mirror at once.
 
 ### Breaking
 
+- **Every keymap leaf has a required, stable `id`** (`ev_lib::keymap`,
+  `@evinvest/keymap`, `@evinvest/uikit`, `@evinvest/mfe`): a leaf is
+  `{ on, id, run }` (`Node::Run { id, command }`), `id` moved off the uikit
+  `Leaf` onto the binding, and one id on two leaves fails resolution.
+  `HelpRow` carries `id`; `Trie::command(id)` is what a bound leaf runs. An
+  `ev:keymap` leaf without an id is refused, and the host names an element's
+  leaf `<tag>/<id>`. `useSequences` is replaced by `useKeymap()` →
+  `{ bound: Map<id, HelpRow>, run(id) }`: what is bound now, and running one
+  as its keys would (an unbound id throws) — the surface an agent drives.
+  The uikit's own leaves: `command-palette`, `undo`, `redo`, `redo.y`,
+  `key-help`.
 - **`evinvest-figma-render` renders on its own** (`@evinvest/figma-render`,
   minor): without `frames` it requires `--file` and is a client of Figma's MCP
   server: it issues the capture ids, runs the suite, polls, and in one

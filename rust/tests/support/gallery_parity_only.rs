@@ -881,11 +881,12 @@ fn p_key_hint() -> Element {
 
 fn p_key_help() -> Element {
 	use ev_lib::keymap::HelpRow;
-	let row = |sequence: &str, label: &str| HelpRow {
+	let row = |id: &str, sequence: &str, label: &str| HelpRow {
+		id: id.into(),
 		sequence: sequence.into(),
 		label: label.into(),
 	};
 	rsx! {
-		KeyHelp { default_open: true, rows: vec![row("Ctrl+K", "Command palette"), row("Space G H", "Go home")] }
+		KeyHelp { default_open: true, rows: vec![row("command-palette", "Ctrl+K", "Command palette"), row("home", "Space G H", "Go home")] }
 	}
 }

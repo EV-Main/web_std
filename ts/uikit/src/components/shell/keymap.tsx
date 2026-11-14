@@ -1,15 +1,14 @@
 "use client";
 
-import { type Binding, type Chord, type Hint, type KeyInput, type Keymap, type Platform, type Trigger, Trie, currentPlatform, keyInput, render } from "@evinvest/keymap";
+import { type Binding, type Chord, type HelpRow, type Hint, type KeyInput, type Keymap, type Platform, type Trigger, Trie, currentPlatform, keyInput } from "@evinvest/keymap";
 import { type ElementBinding, KEYMAP_EVENT, keymapDetail } from "@evinvest/mfe";
 import * as React from "react";
 import { KEY_HELP_LABELS } from "../../generated/key-help";
 import { KeyHelp, type KeyHelpLabels } from "./key-help";
 import { KeyHint } from "./key-hint";
 
-/** What a key runs. `run: null` leaves it unbound: absent from the hint and the help. `id` names it to whatever shows its keys (a `HotbarAction.binding`). */
+/** What a key runs. `run: null` leaves it unbound: absent from the hint and the help. */
 export interface Leaf {
-  id?: string;
   label: string;
   run: (() => void) | null;
 }
@@ -45,9 +44,16 @@ interface Built {
   connected: ReadonlyMap<Element, boolean>;
 }
 
+/** What is bound now, by leaf id (an element's as `<tag>/<id>`), and running one as its keys would. */
+export interface PageKeymap {
+  bound: ReadonlyMap<string, HelpRow>;
+  /** Throws on an id not bound now. */
+  run: (id: string) => void;
+}
+
 interface Registry {
   add: (where: Where, latest: () => KeyBinding) => () => void;
-  sequences: ReadonlyMap<string, string>;
+  keymap: PageKeymap;
 }
 
 const RegistryContext = React.createContext<Registry | null>(null);
@@ -73,7 +79,7 @@ function live(b: KeyBinding, latest: () => KeyBinding, path: readonly number[]):
       if (!("run" in now) || now.run.run === null) throw new Error("a bound leaf changed shape without re-registering");
       now.run.run();
     };
-    return { on: b.on, run: { ...b.run, run: b.run.run && run } };
+    return { on: b.on, id: b.id, run: { ...b.run, run: b.run.run && run } };
   }
   return { on: b.on, label: b.label, children: b.children.map((c, i) => live(c, latest, [...path, i])) };
 }
@@ -131,11 +137,13 @@ export function KeymapProvider({ leader, elements = {}, labels = {}, children }:
     const from = (where: Where) => registrations.filter(r => r.where === where).map(r => live(r.latest(), r.latest, []));
     const scopes = JSON.parse(scopesShape) as Record<string, ElementScope>;
     const fromElement = (b: ElementBinding, element: Element): Binding<Bound> =>
-      "run" in b ? { on: b.on, run: { ...b.run, from: element } } : { on: b.on, label: b.label, children: b.children.map(c => fromElement(c, element)) };
+      "run" in b
+        ? { on: b.on, id: `${element.localName}/${b.id}`, run: { ...b.run, from: element } }
+        : { on: b.on, label: b.label, children: b.children.map(c => fromElement(c, element)) };
     const byElement = new Map<Element, Binding<Bound>[]>();
     for (const c of contributions) byElement.set(c.element, [...(byElement.get(c.element) ?? []), fromElement(c.binding, c.element)]);
     const hosted = [...byElement].map(([element, children]): Binding<Bound> => ({ ...scopes[element.localName]!, children }));
-    const keybinds: KeyBinding = { on: { key: "?" }, run: { label: title, run: () => setHelp(true) } };
+    const keybinds: KeyBinding = { on: { key: "?" }, id: "key-help", run: { label: title, run: () => setHelp(true) } };
     return { root: [{ on: JSON.parse(leaderShape) as Chord | Trigger, label: "leader", children: [...from("leader"), ...hosted, keybinds] }, ...from("root")] };
   }, [registrations, contributions, leaderShape, scopesShape, title]);
   const build = React.useCallback((): Built => {
@@ -151,12 +159,15 @@ export function KeymapProvider({ leader, elements = {}, labels = {}, children }:
     rebuild.current = build;
     setHint(undefined);
   }, [built, build]);
+  // Connecting or leaving fires nothing here, so a hosted element's keys are re-read before a sequence starts.
+  const fresh = React.useCallback(() => {
+    if (current.current.trie.hint() === undefined && [...current.current.connected].some(([el, was]) => el.isConnected !== was)) current.current = rebuild.current();
+    return current.current.trie;
+  }, []);
 
   React.useEffect(() => {
     const step = (k: KeyInput, e: KeyboardEvent) => {
-      // Connecting or leaving fires nothing here, so a hosted element's keys are re-read before a sequence starts.
-      if (current.current.trie.hint() === undefined && [...current.current.connected].some(([el, was]) => el.isConnected !== was)) current.current = rebuild.current();
-      const { trie } = current.current;
+      const trie = fresh();
       const step = trie.key(k);
       if (step.kind === "pass") {
         if (step.cancelled) setHint(undefined);
@@ -203,22 +214,19 @@ export function KeymapProvider({ leader, elements = {}, labels = {}, children }:
       window.removeEventListener("focus", leaveFrames);
       leaveFrames();
     };
-  }, []);
+  }, [fresh]);
 
-  const sequences = React.useMemo(() => {
-    const out = new Map<string, string>();
-    const walk = (bs: readonly Binding<Bound>[], prefix: string) => {
-      for (const b of bs) {
-        const seq = prefix === "" ? render(b.on, platform) : `${prefix} ${render(b.on, platform)}`;
-        if ("children" in b) walk(b.children, seq);
-        else if (b.run.id !== undefined && b.run.run !== null) out.set(b.run.id, seq);
-      }
-    };
-    walk(keymap.root, "");
-    return out;
-  }, [keymap, platform]);
-
-  const registry = React.useMemo(() => ({ add, sequences }), [add, sequences]);
+  const run = React.useCallback(
+    (id: string) => {
+      if (current.current.trie.cancel()) setHint(undefined);
+      const command = fresh().command(id);
+      if (command === undefined) throw new Error(`no key runs "${id}" now`);
+      command.run!();
+    },
+    [fresh],
+  );
+  const bound = React.useMemo(() => new Map(built.trie.help().map(row => [row.id, row])), [built]);
+  const registry = React.useMemo(() => ({ add, keymap: { bound, run } }), [add, bound, run]);
   return (
     <RegistryContext.Provider value={registry}>
       {children}
@@ -239,7 +247,7 @@ export function useBinding(binding: KeyBinding, where: Where = "leader"): void {
   React.useEffect(() => add(where, () => latest.current), [add, where, shape]);
 }
 
-/** The keys that reach each bound leaf with an `id`, as its keycaps read. */
-export function useSequences(): ReadonlyMap<string, string> {
-  return useRegistry("useSequences").sequences;
+/** The page's keymap, for whatever reaches it without keys: a control showing its keycaps, an agent. */
+export function useKeymap(): PageKeymap {
+  return useRegistry("useKeymap").keymap;
 }

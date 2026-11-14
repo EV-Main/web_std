@@ -2,15 +2,15 @@ import * as React from "react";
 import { describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { dispatchKeymap } from "@evinvest/mfe";
-import { KeymapProvider, type Leaf, useBinding } from "../src/components/shell/keymap";
+import { KeymapProvider, type Leaf, type PageKeymap, useBinding, useKeymap } from "../src/components/shell/keymap";
 
 function Bind({ on, label, run, where }: { on: string; label: string; run: Leaf["run"]; where?: "leader" | "root" }) {
-  useBinding({ on: { key: on }, run: { label, run } }, where);
+  useBinding({ on: { key: on }, id: label, run: { label, run } }, where);
   return null;
 }
 
 function Go({ home }: { home: () => void }) {
-  useBinding({ on: { key: "g" }, label: "go", children: [{ on: { key: "h" }, run: { label: "Home", run: home } }] });
+  useBinding({ on: { key: "g" }, label: "go", children: [{ on: { key: "h" }, id: "go.home", run: { label: "Home", run: home } }] });
   return null;
 }
 
@@ -208,7 +208,7 @@ describe("KeymapProvider", () => {
     const element = document.body.appendChild(document.createElement("mfe-sites"));
     const inner = element.appendChild(document.createElement("div"));
     const contributed = new AbortController();
-    act(() => dispatchKeymap(inner, { on: { key: "l" }, run: { label: "Leads", run: leads } }, contributed.signal));
+    act(() => dispatchKeymap(inner, { on: { key: "l" }, id: "leads", run: { label: "Leads", run: leads } }, contributed.signal));
     leader();
     expect(hint()).toHaveTextContent("Sites");
     press({ key: "x", code: "KeyX" });
@@ -242,7 +242,7 @@ describe("KeymapProvider", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     render(<KeymapProvider leader={{ key: "s", alt: true }}>{null}</KeymapProvider>);
     const element = document.body.appendChild(document.createElement("mfe-stray"));
-    act(() => dispatchKeymap(element, { on: { key: "l" }, run: { label: "Leads", run: () => {} } }, new AbortController().signal));
+    act(() => dispatchKeymap(element, { on: { key: "l" }, id: "leads", run: { label: "Leads", run: () => {} } }, new AbortController().signal));
     window.removeEventListener("error", onError);
     vi.restoreAllMocks();
     element.remove();
@@ -260,5 +260,47 @@ describe("KeymapProvider", () => {
       ),
     ).toThrow(/twice/);
     vi.restoreAllMocks();
+  });
+
+  it("refuses one id on two leaves", () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(() =>
+      render(
+        <KeymapProvider leader={{ key: "s", alt: true }}>
+          <Bind on="a" label="One" run={() => {}} />
+          <Bind on="b" label="One" run={() => {}} where="root" />
+        </KeymapProvider>,
+      ),
+    ).toThrow(/names two leaves/);
+    vi.restoreAllMocks();
+  });
+
+  it("lists what is bound now by id, an element's under its tag, and runs one as its keys would", () => {
+    const leads = vi.fn();
+    let keymap: PageKeymap | undefined;
+    const Probe = () => {
+      keymap = useKeymap();
+      return null;
+    };
+    render(
+      <KeymapProvider leader={{ key: "s", alt: true }} elements={{ "mfe-sites": { on: { key: "x" }, label: "Sites" } }}>
+        <Bind on="a" label="Assistant" run={() => {}} />
+        <Bind on="l" label="Copy link" run={null} />
+        <Probe />
+      </KeymapProvider>,
+    );
+    const element = document.body.appendChild(document.createElement("mfe-sites"));
+    act(() => dispatchKeymap(element, { on: { key: "l" }, id: "leads", run: { label: "Leads", run: leads } }, new AbortController().signal));
+    expect([...keymap!.bound.values()]).toEqual([
+      { id: "Assistant", sequence: "Alt+S A", label: "Assistant" },
+      { id: "mfe-sites/leads", sequence: "Alt+S X L", label: "Leads" },
+      { id: "key-help", sequence: "Alt+S ?", label: "Keybinds" },
+    ]);
+    leader();
+    act(() => keymap!.run("mfe-sites/leads"));
+    expect(leads).toHaveBeenCalledTimes(1);
+    expect(hint()).toBeNull();
+    expect(() => keymap!.run("Copy link")).toThrow(/Copy link/);
+    element.remove();
   });
 });

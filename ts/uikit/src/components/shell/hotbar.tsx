@@ -9,7 +9,7 @@ import { Checkbox } from "../atomic/checkbox";
 import { Kbd } from "../atomic/kbd";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "../atomic/hover-card";
 import { Popover, PopoverContent, PopoverTrigger } from "../atomic/popover";
-import { useSequences } from "./keymap";
+import { useKeymap } from "./keymap";
 import { TriangleAlertIcon } from "./shell-icons";
 
 interface HotbarActionBase {
@@ -104,8 +104,8 @@ export function Hotbar({ actions, status, takeover, labels = {}, className, ...p
     if (ids.has(action.id)) throw new Error(`Hotbar: two actions have the id "${action.id}"`);
     ids.add(action.id);
   }
-  const sequences = useSequences();
-  const keys = (action: HotbarAction) => (action.binding === undefined ? undefined : sequences.get(action.binding));
+  const { bound } = useKeymap();
+  const keys = (action: HotbarAction) => (action.binding === undefined ? undefined : bound.get(action.binding)?.sequence);
 
   const overrides = React.useSyncExternalStore(subscribeOverrides, readOverrides, () => NO_OVERRIDES);
   const isPinned = (action: HotbarAction) => overrides[action.id] ?? action.pinned ?? true;
@@ -215,7 +215,10 @@ function HotbarItem({ action, keys, hide, onHide }: { action: HotbarAction; keys
       button
     ) : (
       <HoverCard open={hovered && !open} onOpenChange={setHovered}>
-        <HoverCardTrigger asChild>{button}</HoverCardTrigger>
+        {/* its own element: two triggers' anchor refs on one would leave the panel unanchored */}
+        <HoverCardTrigger asChild>
+          <span className="inline-flex shrink-0">{button}</span>
+        </HoverCardTrigger>
         <HoverCardContent side="top" align="start" data-slot="hotbar-preview" className="w-auto max-w-80 px-2.5 py-1.5 text-body-s">
           {action.preview}
         </HoverCardContent>

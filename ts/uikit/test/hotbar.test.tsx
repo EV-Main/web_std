@@ -24,7 +24,7 @@ afterEach(() => localStorage.clear());
 describe("Hotbar", () => {
   it("shows the keys of the binding an action names, while it is bound", () => {
     function Bound({ run }: { run: (() => void) | null }) {
-      useBinding({ on: { key: "n" }, run: { id: "next", label: "Next lead", run } });
+      useBinding({ on: { key: "n" }, id: "next", run: { label: "Next lead", run } });
       return null;
     }
     const full = [{ id: "next", label: "Next lead", icon: Glyph, onSelect: vi.fn(), binding: "next" }];

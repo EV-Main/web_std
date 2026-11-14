@@ -40,7 +40,10 @@ fn bindings(v: &Value) -> Vec<Binding<String>> {
 				None => chord(&b["on"]).into(),
 			},
 			node: match b.get("run") {
-				Some(run) => Node::Run(text(run)),
+				Some(run) => Node::Run {
+					id: text(&b["id"]),
+					command: text(run),
+				},
 				None => Node::Scope {
 					label: text(&b["label"]),
 					children: bindings(&b["children"]),
@@ -146,6 +149,14 @@ fn cases() {
 
 #[test]
 fn help_lists_every_bound_leaf() {
+	fn ids(bs: &[Binding<String>]) -> Vec<String> {
+		bs.iter()
+			.flat_map(|b| match &b.node {
+				Node::Run { id, .. } => vec![id.clone()],
+				Node::Scope { children, .. } => ids(children),
+			})
+			.collect()
+	}
 	let f = fixture();
 	for h in f["help"].as_array().expect("help is an array") {
 		let want: Vec<HelpRow> = h["rows"]
@@ -153,11 +164,16 @@ fn help_lists_every_bound_leaf() {
 			.expect("rows are an array")
 			.iter()
 			.map(|r| HelpRow {
-				sequence: text(&r[0]),
-				label: text(&r[1]),
+				id: text(&r[0]),
+				sequence: text(&r[1]),
+				label: text(&r[2]),
 			})
 			.collect();
-		assert_eq!(trie(&f, h).help(), want, "{h}");
+		let t = trie(&f, h);
+		assert_eq!(t.help(), want, "{h}");
+		for id in ids(&bindings(&f["keymap"])) {
+			assert_eq!(t.command(&id), want.iter().find(|r| r.id == id).map(|r| &r.label), "{id} in {h}");
+		}
 	}
 }
 

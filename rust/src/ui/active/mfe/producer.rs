@@ -83,7 +83,7 @@ pub struct Hosted(web_sys::Element);
 impl Hosted {
 	/// `ev:keymap`: `binding` joins the host's keymap, under the scope the host gives this element,
 	/// until the returned [`Bound`] drops. A leaf is labelled by its command's `Display` and runs
-	/// `run` with it.
+	/// `run` with it; the host names it by its `id` under this element's tag.
 	pub fn dispatch_keymap<C: Display + Clone + 'static>(&self, binding: &Binding<C>, run: impl Fn(&C) + 'static) -> Bound {
 		fn chord(c: &Chord) -> Object {
 			let o = Object::new();
@@ -100,7 +100,8 @@ impl Hosted {
 			let o = Object::new();
 			set(&o, "on", &on);
 			match &b.node {
-				Node::Run(command) => {
+				Node::Run { id, command } => {
+					set(&o, "id", &id.into());
 					let leaf = Object::new();
 					set(&leaf, "label", &command.to_string().into());
 					let (run, command) = (Rc::clone(run), command.clone());

@@ -164,7 +164,10 @@ pub fn use_command_palette_shortcut(on_trigger: impl FnMut() + 'static, enabled:
 				});
 				*slot = Some(keys.bind(Binding {
 					on: COMMAND_PALETTE,
-					node: Node::Run(Leaf { label: "Command palette", run }),
+					node: Node::Run {
+						id: "command-palette".into(),
+						command: Leaf { label: "Command palette", run },
+					},
 				}));
 			}
 		}));

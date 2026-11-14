@@ -1,7 +1,7 @@
 //! Scoped keybinds: a root the page claims globally, scopes a root chord opens, a which-key hint for
 //! the open one and every leaf for a help. See docs/ARCHITECTURE.md, "The `keymap` library".
 
-use std::fmt::Display;
+use std::{collections::HashSet, fmt::Display};
 
 /// One keydown to match. `key` is what [`KeyInput`] normalizes to: a printable ASCII char, whose
 /// case carries Shift (`"u"`, `"U"`, `"?"`), or a named key (`"Backspace"`). Shift is never a flag.
@@ -45,10 +45,11 @@ pub struct Binding<C> {
 	pub node: Node<C>,
 }
 
-/// A leaf is labelled by its command's `Display`; a scope by its own label.
+/// A leaf is labelled by its command's `Display`; a scope by its own label. A leaf's `id` names it
+/// across languages and to whatever runs it without its keys (an agent), unique within one keymap.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Node<C> {
-	Run(C),
+	Run { id: String, command: C },
 	Scope { label: String, children: Vec<Binding<C>> },
 }
 
@@ -184,6 +185,7 @@ pub struct HintRow {
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[cfg_attr(feature = "ts_gen", derive(serde::Serialize, ts_rs::TS))]
 pub struct HelpRow {
+	pub id: String,
 	pub sequence: String,
 	pub label: String,
 }
@@ -213,13 +215,22 @@ pub struct Trie<C> {
 type Level<C> = Vec<(Chord, Item<C>)>;
 
 enum Item<C> {
-	Run(String, C),
+	Run { label: String, id: String, command: C },
 	Scope(String, Level<C>),
 }
 
 impl<C: Clone + Display> Trie<C> {
 	/// A command `available` rejects is unbound; a scope left with nothing in it, too.
 	pub fn new(k: &Keymap<C>, platform: Platform, available: impl Fn(&C) -> bool) -> Self {
+		fn ids<'a, C>(bs: &'a [Binding<C>], seen: &mut HashSet<&'a str>) {
+			for b in bs {
+				match &b.node {
+					Node::Run { id, .. } => assert!(seen.insert(id), "{id:?} names two leaves"),
+					Node::Scope { children, .. } => ids(children, seen),
+				}
+			}
+		}
+		ids(&k.root, &mut HashSet::new());
 		let pick = |t: &Trigger| match platform {
 			Platform::Mac => t.mac,
 			Platform::Other => t.other,
@@ -233,8 +244,12 @@ impl<C: Clone + Display> Trie<C> {
 			bs.iter()
 				.filter_map(|b| {
 					let item = match &b.node {
-						Node::Run(c) if !available(c) => return None,
-						Node::Run(c) => Item::Run(c.to_string(), c.clone()),
+						Node::Run { command, .. } if !available(command) => return None,
+						Node::Run { id, command } => Item::Run {
+							label: command.to_string(),
+							id: id.clone(),
+							command: command.clone(),
+						},
 						Node::Scope { label, children } => match level(children, pick, available) {
 							l if l.is_empty() => return None,
 							l => Item::Scope(label.clone(), l),
@@ -254,7 +269,7 @@ impl<C: Clone + Display> Trie<C> {
 	fn at(&self, path: &[usize]) -> &Level<C> {
 		path.iter().fold(&self.root, |l, &i| match &l[i].1 {
 			Item::Scope(_, children) => children,
-			Item::Run(..) => unreachable!("a pending path only ever descends into scopes"),
+			Item::Run { .. } => unreachable!("a pending path only ever descends into scopes"),
 		})
 	}
 
@@ -303,7 +318,7 @@ impl<C: Clone + Display> Trie<C> {
 			},
 		};
 		// At root a field keeps its typing (an unmodified chord, a leader's too) and its undo (a leaf).
-		let fields = self.pending.is_empty() && (matches!(self.root[i].1, Item::Run(..)) || !(k.ctrl || k.alt || k.meta));
+		let fields = self.pending.is_empty() && (matches!(self.root[i].1, Item::Run { .. }) || !(k.ctrl || k.alt || k.meta));
 		if fields && k.editable.expect("a page keymap listens on a browser window, whose keydowns know their target") {
 			return Step::Pass { cancelled: open };
 		}
@@ -311,7 +326,7 @@ impl<C: Clone + Display> Trie<C> {
 		let sequence = self.sequence(&self.pending);
 		let command = match &self.at(&self.pending[..self.pending.len() - 1])[i].1 {
 			Item::Scope(..) => return Step::Opened,
-			Item::Run(_, c) => c.clone(),
+			Item::Run { command, .. } => command.clone(),
 		};
 		self.pending.clear();
 		if k.repeat { Step::Held } else { Step::Run { command, sequence } }
@@ -363,7 +378,11 @@ impl<C: Clone + Display> Trie<C> {
 				let chord = render(c, platform);
 				let sequence = if prefix.is_empty() { chord } else { format!("{prefix} {chord}") };
 				match item {
-					Item::Run(label, _) => out.push(HelpRow { sequence, label: label.clone() }),
+					Item::Run { label, id, .. } => out.push(HelpRow {
+						id: id.clone(),
+						sequence,
+						label: label.clone(),
+					}),
 					Item::Scope(_, children) => walk(children, &sequence, platform, out),
 				}
 			}
@@ -372,11 +391,22 @@ impl<C: Clone + Display> Trie<C> {
 		walk(&self.root, "", self.platform, &mut out);
 		out
 	}
+
+	/// What the bound leaf `id` runs; `None` while it is unbound.
+	pub fn command(&self, id: &str) -> Option<&C> {
+		fn find<'a, C>(l: &'a Level<C>, id: &str) -> Option<&'a C> {
+			l.iter().find_map(|(_, item)| match item {
+				Item::Run { id: i, command, .. } => (i == id).then_some(command),
+				Item::Scope(_, children) => find(children, id),
+			})
+		}
+		find(&self.root, id)
+	}
 }
 
 fn label<C>(item: &Item<C>) -> &str {
 	match item {
-		Item::Run(label, _) | Item::Scope(label, _) => label,
+		Item::Run { label, .. } | Item::Scope(label, _) => label,
 	}
 }
 

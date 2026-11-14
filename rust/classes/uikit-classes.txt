@@ -271,6 +271,7 @@ command-empty
 command-item
 command-item-{id}
 command-list
+command-palette
 command-palette-title
 confirm-dialog-confirm\
 confirm-dialog-description

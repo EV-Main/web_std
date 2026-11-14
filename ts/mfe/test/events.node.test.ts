@@ -282,13 +282,19 @@ describe('ev:keymap and ev:undo, read as untrusted', () => {
     const binding = {
       on: { other: { key: 'k', ctrl: true }, mac: { key: 'k', meta: true } },
       label: 'go',
-      children: [{ on: { key: 'l' }, run: { label: 'Leads', run } }],
+      children: [{ on: { key: 'l' }, id: 'leads', run: { label: 'Leads', run } }],
     };
     expect(keymapDetail(from(KEYMAP_EVENT, { binding, signal }))).toEqual({ binding, signal });
   });
 
   it('throws on a malformed one, naming the element', () => {
-    for (const detail of [null, { binding: { on: { key: 'l' }, run: { label: 'Leads' } }, signal }, { binding: { on: { key: 'l' }, run: { label: 'L', run() {} } } }, { binding: { on: { key: 1 }, label: 'x', children: [] }, signal }])
+    for (const detail of [
+      null,
+      { binding: { on: { key: 'l' }, id: 'leads', run: { label: 'Leads' } }, signal },
+      { binding: { on: { key: 'l' }, run: { label: 'Leads', run() {} } }, signal },
+      { binding: { on: { key: 'l' }, id: 'leads', run: { label: 'L', run() {} } } },
+      { binding: { on: { key: 1 }, label: 'x', children: [] }, signal },
+    ])
       expect(() => keymapDetail(from(KEYMAP_EVENT, detail))).toThrow(/<mfe-x>'s ev:keymap/);
     expect(() => undoEntry(from(UNDO_EVENT, { label: 'Move', undo: async () => {} }))).toThrow(/<mfe-x>'s ev:undo/);
   });

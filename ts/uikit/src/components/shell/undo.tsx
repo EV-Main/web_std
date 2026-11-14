@@ -58,9 +58,9 @@ export function UndoProvider({ labels, children }: { labels: UndoLabels; childre
 
   const undo = depth.done > 0 ? () => travel(true) : null;
   const redo = depth.undone > 0 ? () => travel(false) : null;
-  useBinding({ on: { other: { key: "z", ctrl: true }, mac: { key: "z", meta: true } }, run: { label: labels.undo, run: undo } }, "root");
-  useBinding({ on: { other: { key: "Z", ctrl: true }, mac: { key: "Z", meta: true } }, run: { label: labels.redo, run: redo } }, "root");
-  useBinding({ on: { key: "y", ctrl: true }, run: { label: labels.redo, run: redo } }, "root");
+  useBinding({ on: { other: { key: "z", ctrl: true }, mac: { key: "z", meta: true } }, id: "undo", run: { label: labels.undo, run: undo } }, "root");
+  useBinding({ on: { other: { key: "Z", ctrl: true }, mac: { key: "Z", meta: true } }, id: "redo", run: { label: labels.redo, run: redo } }, "root");
+  useBinding({ on: { key: "y", ctrl: true }, id: "redo.y", run: { label: labels.redo, run: redo } }, "root");
 
   React.useEffect(() => {
     const onUndo = (e: Event) => push(undoEntry(e));

@@ -4,27 +4,27 @@
       "on": { "key": "s", "alt": true },
       "label": "leader",
       "children": [
-        { "on": { "key": "u" }, "run": "undo" },
-        { "on": { "key": "U" }, "run": "redo" },
-        { "on": { "key": "Backspace" }, "run": "close" },
-        { "on": { "key": "?" }, "run": "help" },
-        { "on": { "key": "s" }, "run": "cache" },
+        { "on": { "key": "u" }, "id": "leader.undo", "run": "undo" },
+        { "on": { "key": "U" }, "id": "leader.redo", "run": "redo" },
+        { "on": { "key": "Backspace" }, "id": "leader.close", "run": "close" },
+        { "on": { "key": "?" }, "id": "leader.help", "run": "help" },
+        { "on": { "key": "s" }, "id": "leader.cache", "run": "cache" },
         {
           "on": { "key": "g" },
           "label": "go",
           "children": [
-            { "on": { "key": "h" }, "run": "home" },
-            { "on": { "key": "s" }, "run": "sites" }
+            { "on": { "key": "h" }, "id": "leader.go.home", "run": "home" },
+            { "on": { "key": "s" }, "id": "leader.go.sites", "run": "sites" }
           ]
         },
-        { "on": { "key": "1" }, "run": "one" }
+        { "on": { "key": "1" }, "id": "leader.one", "run": "one" }
       ]
     },
-    { "on": { "other": { "key": "z", "ctrl": true }, "mac": { "key": "z", "meta": true } }, "run": "undo" },
-    { "on": { "key": "y", "ctrl": true }, "run": "redo" },
-    { "on": { "other": { "key": "Z", "ctrl": true }, "mac": { "key": "Z", "meta": true } }, "run": "redo" },
-    { "on": { "other": { "key": "k", "ctrl": true }, "mac": { "key": "k", "meta": true } }, "run": "palette" },
-    { "on": { "key": "z" }, "label": "bare", "children": [{ "on": { "key": "1" }, "run": "one" }] }
+    { "on": { "other": { "key": "z", "ctrl": true }, "mac": { "key": "z", "meta": true } }, "id": "undo", "run": "undo" },
+    { "on": { "key": "y", "ctrl": true }, "id": "redo.y", "run": "redo" },
+    { "on": { "other": { "key": "Z", "ctrl": true }, "mac": { "key": "Z", "meta": true } }, "id": "redo", "run": "redo" },
+    { "on": { "other": { "key": "k", "ctrl": true }, "mac": { "key": "k", "meta": true } }, "id": "palette", "run": "palette" },
+    { "on": { "key": "z" }, "label": "bare", "children": [{ "on": { "key": "1" }, "id": "bare.one", "run": "one" }] }
   ],
   "keys": "space-separated keydowns: `+`-joined modifiers, a leading `!` aims the key at an editable, an uppercase letter is shifted, a bare `Shift` is a modifier-only keydown; `code` is the US one. An object is a raw keydown.",
   "steps": "pass · cancelled (a pass that dropped an open scope) · opened · closed · held · run <command>: <sequence>",
@@ -73,53 +73,54 @@
   ],
   "help": [
     { "platform": "other", "unavailable": [], "rows": [
-      ["Alt+S U", "undo"],
-      ["Alt+S Shift+U", "redo"],
-      ["Alt+S Backspace", "close"],
-      ["Alt+S ?", "help"],
-      ["Alt+S S", "cache"],
-      ["Alt+S G H", "home"],
-      ["Alt+S G S", "sites"],
-      ["Alt+S 1", "one"],
-      ["Ctrl+Z", "undo"],
-      ["Ctrl+Y", "redo"],
-      ["Ctrl+Shift+Z", "redo"],
-      ["Ctrl+K", "palette"],
-      ["Z 1", "one"]
+      ["leader.undo", "Alt+S U", "undo"],
+      ["leader.redo", "Alt+S Shift+U", "redo"],
+      ["leader.close", "Alt+S Backspace", "close"],
+      ["leader.help", "Alt+S ?", "help"],
+      ["leader.cache", "Alt+S S", "cache"],
+      ["leader.go.home", "Alt+S G H", "home"],
+      ["leader.go.sites", "Alt+S G S", "sites"],
+      ["leader.one", "Alt+S 1", "one"],
+      ["undo", "Ctrl+Z", "undo"],
+      ["redo.y", "Ctrl+Y", "redo"],
+      ["redo", "Ctrl+Shift+Z", "redo"],
+      ["palette", "Ctrl+K", "palette"],
+      ["bare.one", "Z 1", "one"]
     ] },
     { "platform": "mac", "unavailable": [], "rows": [
-      ["⌥S U", "undo"],
-      ["⌥S ⇧U", "redo"],
-      ["⌥S Backspace", "close"],
-      ["⌥S ?", "help"],
-      ["⌥S S", "cache"],
-      ["⌥S G H", "home"],
-      ["⌥S G S", "sites"],
-      ["⌥S 1", "one"],
-      ["⌘Z", "undo"],
-      ["⌃Y", "redo"],
-      ["⇧⌘Z", "redo"],
-      ["⌘K", "palette"],
-      ["Z 1", "one"]
+      ["leader.undo", "⌥S U", "undo"],
+      ["leader.redo", "⌥S ⇧U", "redo"],
+      ["leader.close", "⌥S Backspace", "close"],
+      ["leader.help", "⌥S ?", "help"],
+      ["leader.cache", "⌥S S", "cache"],
+      ["leader.go.home", "⌥S G H", "home"],
+      ["leader.go.sites", "⌥S G S", "sites"],
+      ["leader.one", "⌥S 1", "one"],
+      ["undo", "⌘Z", "undo"],
+      ["redo.y", "⌃Y", "redo"],
+      ["redo", "⇧⌘Z", "redo"],
+      ["palette", "⌘K", "palette"],
+      ["bare.one", "Z 1", "one"]
     ] },
     { "platform": "other", "unavailable": ["home", "sites", "cache"], "rows": [
-      ["Alt+S U", "undo"],
-      ["Alt+S Shift+U", "redo"],
-      ["Alt+S Backspace", "close"],
-      ["Alt+S ?", "help"],
-      ["Alt+S 1", "one"],
-      ["Ctrl+Z", "undo"],
-      ["Ctrl+Y", "redo"],
-      ["Ctrl+Shift+Z", "redo"],
-      ["Ctrl+K", "palette"],
-      ["Z 1", "one"]
+      ["leader.undo", "Alt+S U", "undo"],
+      ["leader.redo", "Alt+S Shift+U", "redo"],
+      ["leader.close", "Alt+S Backspace", "close"],
+      ["leader.help", "Alt+S ?", "help"],
+      ["leader.one", "Alt+S 1", "one"],
+      ["undo", "Ctrl+Z", "undo"],
+      ["redo.y", "Ctrl+Y", "redo"],
+      ["redo", "Ctrl+Shift+Z", "redo"],
+      ["palette", "Ctrl+K", "palette"],
+      ["bare.one", "Z 1", "one"]
     ] }
   ],
   "invalid": [
-    { "why": "a chord bound twice in one scope", "keymap": [{ "on": { "key": "u" }, "run": "a" }, { "on": { "key": "u" }, "run": "b" }], "panics": "twice" },
-    { "why": "a leader colliding with a root chord", "keymap": [{ "on": { "key": "s", "alt": true }, "label": "leader", "children": [{ "on": { "key": "u" }, "run": "a" }] }, { "on": { "key": "s", "alt": true }, "run": "b" }], "panics": "twice" },
-    { "why": "twice in a nested scope", "keymap": [{ "on": { "key": "s", "alt": true }, "label": "leader", "children": [{ "on": { "key": "u" }, "run": "a" }, { "on": { "key": "u" }, "run": "b" }] }], "panics": "twice" },
-    { "why": "a key no keydown normalizes to", "keymap": [{ "on": { "key": "ы" }, "run": "a" }], "panics": "names no key" },
-    { "why": "a lone modifier", "keymap": [{ "on": { "key": "Shift" }, "run": "a" }], "panics": "names no key" }
+    { "why": "a chord bound twice in one scope", "keymap": [{ "on": { "key": "u" }, "id": "a", "run": "a" }, { "on": { "key": "u" }, "id": "b", "run": "b" }], "panics": "twice" },
+    { "why": "a leader colliding with a root chord", "keymap": [{ "on": { "key": "s", "alt": true }, "label": "leader", "children": [{ "on": { "key": "u" }, "id": "a", "run": "a" }] }, { "on": { "key": "s", "alt": true }, "id": "b", "run": "b" }], "panics": "twice" },
+    { "why": "twice in a nested scope", "keymap": [{ "on": { "key": "s", "alt": true }, "label": "leader", "children": [{ "on": { "key": "u" }, "id": "a", "run": "a" }, { "on": { "key": "u" }, "id": "b", "run": "b" }] }], "panics": "twice" },
+    { "why": "a key no keydown normalizes to", "keymap": [{ "on": { "key": "ы" }, "id": "a", "run": "a" }], "panics": "names no key" },
+    { "why": "a lone modifier", "keymap": [{ "on": { "key": "Shift" }, "id": "a", "run": "a" }], "panics": "names no key" },
+    { "why": "one id on two leaves", "keymap": [{ "on": { "key": "u" }, "id": "a", "run": "a" }, { "on": { "key": "s", "alt": true }, "label": "leader", "children": [{ "on": { "key": "u" }, "id": "a", "run": "b" }] }], "panics": "names two leaves" }
   ]
 }

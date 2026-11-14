@@ -12,7 +12,7 @@ A React page uses it through `@evinvest/uikit`'s `KeymapProvider` and `useBindin
 import { Trie, keyInput, currentPlatform } from "@evinvest/keymap";
 
 const trie = new Trie(
-  { root: [{ on: { key: "s", alt: true }, label: "leader", children: [{ on: { key: "u" }, run: undo }] }] },
+  { root: [{ on: { key: "s", alt: true }, label: "leader", children: [{ on: { key: "u" }, id: "undo", run: undo }] }] },
   currentPlatform(),
   () => true,
   run => run.name,
@@ -28,9 +28,9 @@ window.addEventListener("keydown", e => {
 | Rust                           | TS                                          |
 | ------------------------------ | ------------------------------------------- |
 | `Chord { key, ctrl, .. }`      | `{ key, ctrl? }`                            |
-| `Node::Run(c)` / `Node::Scope` | `{ on, run: c }` / `{ on, label, children }` |
+| `Node::Run { id, command }` / `Node::Scope` | `{ on, id, run: command }` / `{ on, label, children }` |
 | `C: Display` labels a leaf     | the `label` argument of `new Trie`          |
 | `Step::Run { command, .. }`    | `{ kind: "run", command, sequence }`        |
-| `Option<Hint>`                 | `Hint \| undefined`                          |
+| `Option<Hint>`, `Option<&C>` (`command(id)`) | `Hint \| undefined`, `C \| undefined` |
 | a panic on a bad keymap        | a thrown `Error`                            |
 | `editable: Option<bool>`       | `editable: boolean` — only a DOM event reaches it; Rust's `None` is a non-web Dioxus renderer, which can't tell |

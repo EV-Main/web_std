@@ -276,16 +276,19 @@ and the apps behind a leader.
 
 ```
 Keymap<C> { root: [Binding] }        Binding { on: Trigger{other, mac}, node }
-                                     node: Run(C) | Scope { label, children }
+                                     node: Run { id, command: C } | Scope { label, children }
         │ Trie::new(keymap, platform, available)    a leader is a root Scope;
         ▼                                           unavailable leaves and emptied scopes drop out
 Trie<C> ── key(KeyInput) ─▶ Step: Pass{cancelled} · Opened · Closed · Held · Run{command, sequence}
         ├─ hint()  ─▶ Hint { prefix, rows: [{chord, label, scope}] }   the open scope (which-key)
-        └─ help()  ─▶ [HelpRow { sequence, label }]                     every bound leaf
+        ├─ help()  ─▶ [HelpRow { id, sequence, label }]                 every bound leaf
+        └─ command(id) ─▶ C                                             a bound leaf, by id
 ```
 
 A host owns what a keymap opens beyond its scopes (tilers' help aimed at a pane, the provider's
-help dialog) and calls the trie for the rest. No deps; with `wasm` the crate reads a
+help dialog) and calls the trie for the rest. A leaf's `id` is what names it to anything that
+reaches it without its keys: a control showing its keycaps, an agent listing and running what is
+bound (the uikit's `useKeymap`). It is not the label, which changes with the language. No deps; with `wasm` the crate reads a
 `KeyboardEvent` into a `KeyInput` and the platform from `navigator`. The TS twin is hand-written:
 its view types (`Hint`, `HelpRow`, `Platform`) are generated, and `tests/fixtures/keymap/` pins the
 behaviour both suites run.
@@ -315,7 +318,10 @@ behaviour both suites run.
   writes back only while the state is still the value it left, and rejects otherwise: a rejection
   drops the whole history, which no longer describes the page. Only a reversible change pushes one.
 - **A keymap resolves or panics.** A chord bound twice in one scope (a leader colliding with a root
-  chord among them), or a chord naming no key a keydown normalizes to, fails resolution.
+  chord among them), a chord naming no key a keydown normalizes to, or one id on two leaves (bound
+  or not) fails resolution.
+- **Anything a key runs is reachable by id.** Every leaf declares one, stable across releases and
+  languages; running a bound leaf by id does what its keys do.
 
 ## The I/O libraries — analytics, error_monitoring, experiments
 
@@ -391,6 +397,7 @@ the app hands the host goes through `Hosted` as the host-contract events:
 
 - `dispatch_keymap(binding, run)` — `ev:keymap`: the binding joins the page's one keymap, under the
   scope the host gives the element, until the returned `Bound` drops (its `AbortSignal` aborts).
+  The host names each leaf `<tag>/<id>`.
 - `dispatch_undo(label, undo, redo)` — `ev:undo`: an entry for the page's one undo history; an
   `Err` from either future rejects it.
 
@@ -404,7 +411,7 @@ the element.
 ### Invariants
 
 - **An element claims no root chord.** Its bindings sit under the scope its host assigns its tag;
-  an element with none assigned is refused, so two elements never collide. They are bound while the
+  an element with none assigned is refused, and its leaf ids sit under its tag, so two elements never collide. They are bound while the
   element is connected (a Dioxus one keeps running detached) and until its signal aborts.
 
 ## The `api` library

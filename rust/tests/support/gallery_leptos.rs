@@ -2399,19 +2399,25 @@ fn p_key_hint() -> AnyView {
 			prefix: "Space".into(),
 			rows: vec![row("G", "Go to", true), row("Shift+U", "Undo all", false)],
 		} />
-	}.into_any()
+	}
+	.into_any()
 }
 
 fn p_key_help() -> AnyView {
 	use ev_lib::keymap::HelpRow;
-	let row = |sequence: &str, label: &str| HelpRow {
+	let row = |id: &str, sequence: &str, label: &str| HelpRow {
+		id: id.into(),
 		sequence: sequence.into(),
 		label: label.into(),
 	};
 	view! {
 		<KeyHelp
 			default_open=true
-			rows=vec![row("Ctrl+K", "Command palette"), row("Space G H", "Go home")]
+			rows=vec![
+				row("command-palette", "Ctrl+K", "Command palette"),
+				row("home", "Space G H", "Go home"),
+			]
 		/>
-	}.into_any()
+	}
+	.into_any()
 }

@@ -167,10 +167,13 @@ pub fn use_command_palette_shortcut(on_trigger: impl FnMut() + 'static, enabled:
 			let trigger = Rc::clone(&trigger);
 			bound.set_value(Some(bind(Binding {
 				on: COMMAND_PALETTE,
-				node: Node::Run(Leaf {
-					label: "Command palette",
-					run: Rc::new(move || (trigger.borrow_mut())()),
-				}),
+				node: Node::Run {
+					id: "command-palette".into(),
+					command: Leaf {
+						label: "Command palette",
+						run: Rc::new(move || (trigger.borrow_mut())()),
+					},
+				},
 			})));
 		}
 	});

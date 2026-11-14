@@ -146,5 +146,5 @@ export const COMMAND_PALETTE: Trigger = { other: { key: "k", ctrl: true }, mac: 
 
 /** Binds `onTrigger` to `COMMAND_PALETTE` in the page's keymap, globally, while `enabled`. */
 export function useCommandPaletteShortcut(onTrigger: () => void, enabled = true, label: string = COMMAND_PALETTE_LABELS.title): void {
-  useBinding({ on: COMMAND_PALETTE, run: { id: "command-palette", label, run: enabled ? onTrigger : null } }, "root");
+  useBinding({ on: COMMAND_PALETTE, id: "command-palette", run: { label, run: enabled ? onTrigger : null } }, "root");
 }
