@@ -37,6 +37,7 @@ const ENTRIES = [
   "cli/check.mjs",
   "cli/slices.mjs",
   "cli/rekey.mjs",
+  "cli/translate.mjs",
 ];
 const REQUIRED = [
   "package.json",

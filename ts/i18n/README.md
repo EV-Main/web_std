@@ -530,7 +530,7 @@ directories is a hole that opens the day someone adds a slice, and an unscanned
 call site produces no error — just English forever in five locales.
 `--messages` defaults to `<root>/messages`.
 
-All four bins (with `evinvest-i18n-slices` below) parse their arguments
+All five bins (with `evinvest-i18n-slices` below) parse their arguments
 strictly: `-h` / `--help` prints the usage and exits 0; an unknown flag, a flag
 without its value, a repeated flag or a stray argument exits 2 before anything
 is read or written — a tool that writes committed files must not read a typo as
@@ -554,6 +554,11 @@ a `scope("<literal>")` — through `const` bindings in any enclosing block and
 through imports (named, namespace, re-exported, `export *`; tsconfig `paths`
 resolved, `--tsconfig` to pick one) — or whose English is not a literal.
 Computed access (`state[s]`) is refused.
+
+`evinvest-i18n-translate` (same arguments) asks `ask_llm -m translate` for every
+untranslated key, one root scope per request, and writes the answers the policy
+accepts to `common.auto.json`; a refused one is printed and stays untranslated.
+An override in `common.json` wins over anything it writes.
 
 `evinvest-i18n-rekey --root <app>` migrates a 0.13 app: `t("hero.title", en)`
 becomes `t(hero.title, en)` with one `const hero = scope("hero")` per root a file

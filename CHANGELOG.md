@@ -35,8 +35,9 @@ Rust crate and its TypeScript mirror at once.
   keys. `RejectionReason` `source-drift` is `stale`, and a `Rejection` names its
   `layer`. `evinvest-i18n-extract` moves an orphan to a renamed key by its
   recorded English when the match is unique, and prints every move and drop;
-  `evinvest-i18n-check` fails on any untranslated key too. `evinvest-i18n-rekey`
-  migrates a 0.13 app.
+  `evinvest-i18n-check` lists untranslated keys and fails on them with `--release`;
+  extract drops stale entries too. `evinvest-i18n-translate` fills untranslated
+  keys from `ask_llm -m translate`. `evinvest-i18n-rekey` migrates a 0.13 app.
 - **Every keymap leaf has a required, stable `id`** (`ev_lib::keymap`,
   `@evinvest/keymap`, `@evinvest/uikit`, `@evinvest/mfe`): a leaf is
   `{ on, id, run }` (`Node::Run { id, command }`), `id` moved off the uikit

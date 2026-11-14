@@ -1,10 +1,10 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { collect, runCheck, writeCatalogues } from "../src/extract/index";
+import { collect, runCheck, runTranslate, writeCatalogues } from "../src/extract/index";
 
 let root: string;
 
@@ -15,6 +15,7 @@ beforeEach(() => {
 afterEach(() => {
   rmSync(root, { recursive: true, force: true });
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
 });
 
 const write = (files: Record<string, string | object>) => {
@@ -165,5 +166,42 @@ describe("runCheck", () => {
     const failed = run("--release");
     expect(failed.exit).toHaveBeenCalledWith(1);
     expect(failed.stderr).toContain("untranslated (1): shell.signOut");
+  });
+});
+
+describe("runTranslate", () => {
+  it("asks one root scope at a time, writes what the policy accepts, and leaves the rest untranslated", () => {
+    // as the real one prints: its logs, its debug echo of the reply, then the reply
+    const fake = `#!/bin/sh
+echo '  2026-01-01T00:00:00Z DEBUG ask_llm: value: {"content": "<json>{\\"x\\": 1}</json>"}'
+case "$3" in
+  *shell.signOut*) echo '<json>{"shell.signOut": "Выйти", "shell.hi": "Привет, {name}"}</json>' ;;
+  *cart.items*) echo '<json>{"cart.items": "{n, plural, one {# товар} other {# товаров}}"}</json>' ;;
+esac
+`;
+    write({
+      "bin/ask_llm": fake,
+      "app.ts":
+        `${SCOPE}const shell = scope("shell");\nconst cart = scope("cart");\n` +
+        't(shell.signOut, "Sign out");\nt(shell.hi, "Hi, {name}");\nt(shell.done, "Done");\n' +
+        't(cart.items, "{n, plural, one {# item} other {# items}}");\n',
+      "messages/en/common.json": {},
+      "messages/ru/common.auto.json": { "shell.done": { en: "Done", t: "Готово" } },
+      "messages/ru/common.json": {},
+    });
+    chmodSync(join(root, "bin/ask_llm"), 0o755);
+    vi.stubEnv("PATH", `${join(root, "bin")}:${process.env["PATH"]}`);
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    runTranslate(["--root", root, "--exclude", "bin"]);
+
+    expect(json("messages/ru/common.auto.json")).toEqual({
+      "shell.done": { en: "Done", t: "Готово" },
+      "shell.hi": { en: "Hi, {name}", t: "Привет, {name}" },
+      "shell.signOut": { en: "Sign out", t: "Выйти" },
+    });
+    expect(log.mock.calls.map(c => c[0])).toEqual(["ru: cart — 0 of 1 translated", "ru: shell — 2 of 2 translated"]);
+    expect(error).toHaveBeenCalledWith("ru/cart.items: plural-category-missing — {n} needs few, many in ru; not written");
   });
 });

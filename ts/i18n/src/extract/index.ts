@@ -14,6 +14,7 @@
  * (see `createKeys`). `typescript` is an optional peer dependency: it is needed
  * to run the extractor, never to render a string.
  */
+import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -373,4 +374,76 @@ export function runCheck(
     process.exit(1);
   }
   console.log(report);
+}
+
+/** The ask for one root scope's untranslated strings; the answer comes back between the last `<json>` tags. */
+function prompt(locale: string, strings: Messages): string {
+  const language = new Intl.DisplayNames(["en"], { type: "language" }).of(locale);
+  const plural = new Intl.PluralRules(locale).resolvedOptions().pluralCategories.join(", ");
+  return (
+    `Translate these UI strings of a web app from English to ${language}. Each key is where its string sits in the app. ` +
+    `Keep every {placeholder} as it is. Keep ICU syntax ({n, plural, …}, {x, select, …}) with its argument names, ` +
+    `and give a plural every category ${language} needs: ${plural}. ` +
+    `Reply with one JSON object of the same keys and the translated strings, between <json> and </json>, and nothing else.\n\n` +
+    `<json>${JSON.stringify(strings)}</json>`
+  );
+}
+
+/** `ask_llm`'s answer: it logs to stdout too, its own debug echo of the reply first, so the last tags are the reply. */
+function answerOf(stdout: string, asked: Messages): Record<string, string> {
+  const open = stdout.lastIndexOf("<json>");
+  const close = stdout.lastIndexOf("</json>");
+  if (open === -1 || close < open) throw new Error(`ask_llm answered without <json> tags:\n${stdout.slice(-2000)}`);
+  const answer: unknown = JSON.parse(stdout.slice(open + "<json>".length, close));
+  const keys = (o: object) => Object.keys(o).sort().join("\n");
+  if (typeof answer !== "object" || answer === null || keys(answer) !== keys(asked))
+    throw new Error(`ask_llm answered other keys than were asked:\n${JSON.stringify(answer)}`);
+  for (const [key, value] of Object.entries(answer))
+    if (typeof value !== "string") throw new Error(`ask_llm answered ${key} with ${JSON.stringify(value)}`);
+  return answer as Record<string, string>;
+}
+
+/**
+ * `evinvest-i18n-translate` — every key no valid entry translates, asked of `ask_llm -m translate`
+ * one root scope at a time and written to `common.auto.json`. An answer the policy refuses
+ * (a placeholder lost, a plural short of a category) is printed and not written.
+ */
+export function runTranslate(
+  argv: readonly string[],
+  registry: CatalogueLocales = defaultLocaleRegistry,
+): void {
+  const found = read(
+    argv,
+    usage(
+      "evinvest-i18n-translate",
+      "Translate every untranslated key with `ask_llm -m translate`, one root scope at a time,\ninto <messages>/<locale>/common.auto.json.",
+    ),
+  );
+  if (found === null) return;
+  const { messages, entries } = found;
+  const en = catalogue(entries);
+  const { resolveCatalogue } = createPolicy(registry);
+
+  for (const locale of translatedLocales(messages, registry)) {
+    const path = autoCataloguePath(messages, locale);
+    const auto: Record<string, TranslatedEntry> = { ...readLayer(path) };
+    const { missing } = resolveCatalogue(locale, en, auto, readLayer(cataloguePath(messages, locale)));
+    const scopes = new Map<string, string[]>();
+    for (const key of missing) {
+      const root = key.split(".")[0] as string;
+      scopes.set(root, [...(scopes.get(root) ?? []), key]);
+    }
+    for (const [root, keys] of scopes) {
+      const asked: Messages = Object.fromEntries(keys.map(key => [key, en[key] as string]));
+      const stdout = execFileSync("ask_llm", ["-m", "translate", prompt(locale, asked)], { encoding: "utf8", maxBuffer: 1 << 26 });
+      const answer = answerOf(stdout, asked);
+      const fresh = Object.fromEntries(keys.map(key => [key, { en: en[key] as string, t: answer[key] as string }]));
+      const { rejected } = resolveCatalogue(locale, asked, fresh, {});
+      for (const r of rejected) console.error(`${locale}/${r.key}: ${r.reason} — ${r.detail}; not written`);
+      const refused = new Set(rejected.map(r => r.key));
+      for (const key of keys) if (!refused.has(key)) auto[key] = fresh[key] as TranslatedEntry;
+      console.log(`${locale}: ${root} — ${keys.length - refused.size} of ${keys.length} translated`);
+    }
+    writeFileSync(path, serialise(Object.fromEntries(Object.entries(auto).sort(([a], [b]) => (a < b ? -1 : 1)))));
+  }
 }
