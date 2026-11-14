@@ -46,7 +46,7 @@
 //! assert_eq!(t!(tr, ctx = "cart", "Added"), "Добавлен");
 //! ```
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 mod format;
 mod plural;
@@ -67,19 +67,11 @@ pub const LOCALES: [Locale; 5] = [Locale::En, Locale::Ru, Locale::Vi, Locale::Fr
 /// Also the only locale whose URLs carry no prefix — see [`locale_path`].
 pub const DEFAULT_LOCALE: Locale = Locale::En;
 
-/// A loaded catalogue: message id → pattern. `BTreeMap` so a report's order is deterministic.
-pub type Messages = BTreeMap<String, String>;
-
 /// Between a message's `ctx` and its English in its id — gettext's.
 pub const CTX_SEPARATOR: char = '\u{4}';
 
-/// A message's identity: its English, prefixed by its `ctx` where it has one.
-pub fn message_id(ctx: Option<&str>, en: &str) -> String {
-	match ctx {
-		Some(ctx) => format!("{ctx}{CTX_SEPARATOR}{en}"),
-		None => en.to_owned(),
-	}
-}
+/// A loaded catalogue: message id → pattern. `BTreeMap` so a report's order is deterministic.
+pub type Messages = BTreeMap<String, String>;
 
 impl Locale {
 	/// The BCP 47 language subtag — what goes in `<html lang>` and a URL prefix.
@@ -241,6 +233,14 @@ macro_rules! __i18n_register {
 #[cfg(not(target_arch = "wasm32"))]
 pub use inventory;
 
+/// A message's identity: its English, prefixed by its `ctx` where it has one.
+pub fn message_id(ctx: Option<&str>, en: &str) -> String {
+	match ctx {
+		Some(ctx) => format!("{ctx}{CTX_SEPARATOR}{en}"),
+		None => en.to_owned(),
+	}
+}
+
 /// A catalogue bound to one locale, ready to render — through [`t!`](crate::t).
 ///
 /// For [`Locale::En`] the catalogue is never consulted: its copy is the call site's.
@@ -359,7 +359,7 @@ pub struct Source {
 }
 /// The id of every [`t!`] site linked into this binary — what each locale's catalogue must cover.
 #[cfg(not(target_arch = "wasm32"))]
-pub fn catalogue() -> std::collections::BTreeSet<String> {
+pub fn catalogue() -> BTreeSet<String> {
 	inventory::iter::<Source>.into_iter().map(|s| message_id(s.ctx, s.en)).collect()
 }
 /// The language tags of an `Accept-Language` header, lowercased, best first.

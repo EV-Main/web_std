@@ -1,6 +1,8 @@
 //! The i18n vectors `@evinvest/i18n` runs too.
 #![cfg(feature = "i18n")]
 
+use std::collections::BTreeSet;
+
 use ev_lib::i18n::{
 	LOCALES, Locale, LocaleRegistry, LocaleRegistryConfig, MessageValue, MessageValues, Messages, RegistryError, Translator, format_message, locale_alternates, locale_path, negotiate,
 	policy::{MissingContentPolicy, Rejection, audit, available_in, resolve_catalogue},
@@ -87,7 +89,7 @@ fn translates() {
 
 // ── policy ───────────────────────────────────────────────────────────────────
 
-fn ids(v: &Value) -> std::collections::BTreeSet<String> {
+fn ids(v: &Value) -> BTreeSet<String> {
 	v.as_array().expect("message ids").iter().map(|id| str_of(id).to_owned()).collect()
 }
 
