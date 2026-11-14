@@ -53,6 +53,8 @@ export type {
 } from "./registry";
 export type { MessageValues } from "./format";
 export { pickMessages } from "./slices";
+export { scope } from "./key";
+export type { Key } from "./key";
 export type { MessageSlices } from "./slices";
 
 import { DEFAULT_LOCALE, LOCALES, LOCALE_LABELS } from "./generated/locales";
@@ -250,9 +252,10 @@ export function negotiate(
  *
  * @example
  * ```ts
+ * const cart = scope("cart");
  * const t = translator({ "cart.items": "{n, plural, one {# товар} few {# товара} many {# товаров}}" }, "ru");
- * t("cart.items", "{n, plural, one {# item} other {# items}}", { n: 2 });  // "2 товара"
- * t("nope", "Fallback copy");                                             // "Fallback copy"
+ * t(cart.items, "{n, plural, one {# item} other {# items}}", { n: 2 });  // "2 товара"
+ * t(cart.nope, "Fallback copy");                                         // "Fallback copy"
  * ```
  */
 export function translator(

@@ -5,11 +5,10 @@
 //! *derivation* of it, and nothing else may introduce a key.
 //!
 //! **1.2 — A translation that no longer matches its English source is not
-//! used.** The English string is served instead. This is the rule that keeps a
-//! stale translation from quietly contradicting the site: when English copy
-//! changes and the translation does not, the translation is no longer a
-//! translation of anything — it is last quarter's claim, in another language,
-//! presented as current.
+//! used.** A locale has two layers: generated (`common.auto.json`) and hand
+//! overrides (`common.json`), both `{en, t}`. A valid override wins, else a
+//! valid auto entry, else the call site's English renders and the key is
+//! reported missing.
 //!
 //! **1.3 — Compiled content with no translation for the current locale is
 //! hidden, not silently served in English.** See [`available_in`].
@@ -39,17 +38,13 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use super::{DEFAULT_LOCALE, Locale, Messages};
 
-/// A non-English catalogue as authored on disk.
+/// One layer of a non-English locale as it sits on disk: `messages/<locale>/common.auto.json`
+/// (generated) or `messages/<locale>/common.json` (overrides, written by hand).
 pub type TranslatedCatalogue = BTreeMap<String, TranslatedEntry>;
 /// One translated entry: the text, plus the English it was translated from.
 ///
-/// `en` is stored as the source *text* rather than a hash on purpose. A hash
-/// would be shorter and equally correct, but a reviewer reading a pull request
-/// could not see what the translator was looking at. With the text inline, a
-/// drifted entry is self-evident in the diff.
-///
-/// This is the on-disk shape of `messages/<locale>/*.json`, shared byte-for-byte
-/// with the TypeScript mirror:
+/// `en` is the source *text* rather than a hash, so a stale entry is self-evident in the diff.
+/// The same shape in both layers, shared byte-for-byte with the TypeScript mirror:
 ///
 /// ```json
 /// { "team.title": { "en": "Our team", "t": "Наша команда" } }
@@ -62,12 +57,36 @@ pub struct TranslatedEntry {
 	pub t: String,
 }
 
-/// Why a translated entry was refused, and English used instead.
+/// Which file of a locale an entry was read from.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Layer {
+	/// `common.json`: written by hand, wins over the generated layer.
+	Override,
+	/// `common.auto.json`: generated.
+	Auto,
+}
+
+impl Layer {
+	pub fn as_str(self) -> &'static str {
+		match self {
+			Self::Override => "override",
+			Self::Auto => "auto",
+		}
+	}
+}
+
+impl std::fmt::Display for Layer {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		f.write_str(self.as_str())
+	}
+}
+
+/// Why a translated entry was refused.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[cfg_attr(feature = "ts_gen", derive(strum::EnumIter))]
 pub enum RejectionReason {
 	/// Today's English differs from the `en` the translation was written against.
-	SourceDrift,
+	Stale,
 	/// The translation interpolates a different set of placeholders.
 	PlaceholderMismatch,
 	/// An argument is a plural/select in one language and not the other.
@@ -84,7 +103,7 @@ impl RejectionReason {
 	/// The kebab-case name; `ev_lib_gen` writes the TypeScript union from it.
 	pub fn as_str(self) -> &'static str {
 		match self {
-			Self::SourceDrift => "source-drift",
+			Self::Stale => "stale",
 			Self::PlaceholderMismatch => "placeholder-mismatch",
 			Self::ArgumentTypeMismatch => "argument-type-mismatch",
 			Self::PluralCategoryMissing => "plural-category-missing",
@@ -104,32 +123,30 @@ impl std::fmt::Display for RejectionReason {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Rejection {
 	pub key: String,
+	pub layer: Layer,
 	pub reason: RejectionReason,
 	pub detail: String,
 }
 
-/// The outcome of applying the policy to one locale's catalogue.
+/// The outcome of applying the policy to one locale.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ResolvedCatalogue {
 	pub locale: Locale,
-	/// Ready for [`Translator`](super::Translator): accepted translations,
-	/// English everywhere else.
+	/// Ready for [`Translator`](super::Translator): only the keys a valid entry translates.
 	pub messages: Messages,
-	/// Entries refused by rule 1.2, each falling back to English.
+	/// Every refused entry, in either layer.
 	pub rejected: Vec<Rejection>,
-	/// Keys English defines that this locale has not translated at all.
+	/// Keys English defines that no valid entry translates: served in English.
 	pub missing: Vec<String>,
-	/// Share of English keys actually served in this locale, 0–1.
+	/// Share of English keys served in this locale, 0–1.
 	pub coverage: f64,
 }
 
-/// Apply rules 1.1 and 1.2 to one locale's catalogue.
+/// Apply rules 1.1 and 1.2 to one locale's two layers.
 ///
-/// Never fails and never returns a hole: every key English defines is present in
-/// `messages`, served in the target locale when the translation passes and in
-/// English when it does not. A view therefore cannot break because a translation
-/// went stale — it degrades to canonical English, which is rule 1.2's entire
-/// point.
+/// Per key: a valid override, else a valid auto entry, else the key is `missing`. Valid means
+/// written against today's English and structurally equal to it. A key with no valid entry is
+/// absent from `messages`, so the call site's English renders and the translator reports it.
 ///
 /// ```
 /// use ev_lib::i18n::{Locale, Messages};
@@ -138,15 +155,17 @@ pub struct ResolvedCatalogue {
 /// let mut en = Messages::new();
 /// en.insert("hero.title".into(), "Coastal Vietnam".into());
 ///
-/// let mut ru = TranslatedCatalogue::new();
-/// // Translated from copy that has since changed — rule 1.2 refuses it.
-/// ru.insert("hero.title".into(), TranslatedEntry { en: "Coastal Vietnam, today".into(), t: "Прибрежный Вьетнам".into() });
+/// let mut auto = TranslatedCatalogue::new();
+/// auto.insert("hero.title".into(), TranslatedEntry { en: "Coastal Vietnam".into(), t: "Прибрежный Вьетнам".into() });
+/// let mut overrides = TranslatedCatalogue::new();
+/// // Written against copy that has since changed: refused, the auto entry serves.
+/// overrides.insert("hero.title".into(), TranslatedEntry { en: "Coastal Vietnam, today".into(), t: "Вьетнам".into() });
 ///
-/// let resolved = resolve_catalogue(Locale::Ru, &en, &ru);
-/// assert_eq!(resolved.messages["hero.title"], "Coastal Vietnam");
+/// let resolved = resolve_catalogue(Locale::Ru, &en, &auto, &overrides);
+/// assert_eq!(resolved.messages["hero.title"], "Прибрежный Вьетнам");
 /// assert_eq!(resolved.rejected.len(), 1);
 /// ```
-pub fn resolve_catalogue(locale: Locale, source: &Messages, translated: &TranslatedCatalogue) -> ResolvedCatalogue {
+pub fn resolve_catalogue(locale: Locale, source: &Messages, auto: &TranslatedCatalogue, overrides: &TranslatedCatalogue) -> ResolvedCatalogue {
 	if locale == DEFAULT_LOCALE {
 		return ResolvedCatalogue {
 			locale,
@@ -157,18 +176,16 @@ pub fn resolve_catalogue(locale: Locale, source: &Messages, translated: &Transla
 		};
 	}
 
+	let layers = [(Layer::Override, overrides), (Layer::Auto, auto)];
 	let mut messages = Messages::new();
 	let mut rejected = Vec::new();
 	let mut missing = Vec::new();
-	let mut accepted = 0usize;
 
-	// Rule 1.1 — English defines the key set, so a key only this locale has is a
-	// key nothing renders. Reported rather than ignored: it is usually a rename
-	// that left the translation behind.
-	for key in translated.keys() {
-		if !source.contains_key(key) {
+	for (layer, entries) in layers {
+		for key in entries.keys().filter(|k| !source.contains_key(*k)) {
 			rejected.push(Rejection {
 				key: key.clone(),
+				layer,
 				reason: RejectionReason::OrphanKey,
 				detail: format!("not defined in {DEFAULT_LOCALE} — only the canonical locale introduces keys"),
 			});
@@ -176,26 +193,30 @@ pub fn resolve_catalogue(locale: Locale, source: &Messages, translated: &Transla
 	}
 
 	for (key, en) in source {
-		let Some(entry) = translated.get(key) else {
-			missing.push(key.clone());
-			messages.insert(key.clone(), en.clone());
-			continue;
-		};
-
-		match check(entry, en, locale) {
-			Some((reason, detail)) => {
-				rejected.push(Rejection { key: key.clone(), reason, detail });
-				messages.insert(key.clone(), en.clone());
+		let mut served = None;
+		for (layer, entries) in layers {
+			let Some(entry) = entries.get(key) else { continue };
+			match check(entry, en, locale) {
+				Some((reason, detail)) => rejected.push(Rejection {
+					key: key.clone(),
+					layer,
+					reason,
+					detail,
+				}),
+				None if served.is_none() => served = Some(entry.t.clone()),
+				None => {}
 			}
-			None => {
-				messages.insert(key.clone(), entry.t.clone());
-				accepted += 1;
+		}
+		match served {
+			Some(t) => {
+				messages.insert(key.clone(), t);
 			}
+			None => missing.push(key.clone()),
 		}
 	}
 
 	let total = source.len();
-	let coverage = if total == 0 { 1.0 } else { accepted as f64 / total as f64 };
+	let coverage = if total == 0 { 1.0 } else { messages.len() as f64 / total as f64 };
 	ResolvedCatalogue {
 		locale,
 		messages,
@@ -226,7 +247,7 @@ pub fn audit(resolved: &[ResolvedCatalogue], floor: f64) -> (bool, String) {
 		lines.push(format!("{} {}  {pct}% coverage", if healthy { "ok  " } else { "FAIL" }, cat.locale));
 
 		for r in &cat.rejected {
-			lines.push(format!("       {}  [{}] {}", r.key, r.reason, r.detail));
+			lines.push(format!("       {}  [{} {}] {}", r.key, r.layer, r.reason, r.detail));
 		}
 		// Missing keys are listed but capped: a locale that has translated nothing
 		// yet would otherwise bury the drift that actually needs fixing.
@@ -290,10 +311,8 @@ fn check(entry: &TranslatedEntry, en: &str, locale: Locale) -> Option<(Rejection
 		return Some((RejectionReason::Empty, "translation is blank".to_owned()));
 	}
 
-	// Provenance. The one check that catches ordinary drift: English moved, the
-	// translation did not.
 	if entry.en != en {
-		return Some((RejectionReason::SourceDrift, format!("translated from {:?}, source is now {en:?}", entry.en)));
+		return Some((RejectionReason::Stale, format!("translated from {:?}, source is now {en:?}", entry.en)));
 	}
 
 	let source_args = scan_arguments(en);

@@ -4,6 +4,8 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { keyAt } from "./key";
+
 import {
   createLocaleRegistry,
   defaultLocaleRegistry,
@@ -148,9 +150,9 @@ describe("hreflang", () => {
 describe("translation follows the registry's default", () => {
   it("treats the default locale as the authored source", () => {
     const t = fr.translator({ "cta": "IGNORED" }, "fr");
-    expect(t("cta", "Appelez-nous")).toBe("Appelez-nous");
+    expect(t(keyAt("cta"), "Appelez-nous")).toBe("Appelez-nous");
     const en = fr.translator({ "cta": "Call us" }, "en");
-    expect(en("cta", "Appelez-nous")).toBe("Call us");
+    expect(en(keyAt("cta"), "Appelez-nous")).toBe("Call us");
   });
 
   it("reads lang inheritance against its own list", () => {
@@ -221,18 +223,18 @@ describe("policy and extract take the registry's source locale", () => {
     // The bug a default-registry policy would have: `en` is its source, so an
     // empty English catalogue over French copy reads as 100 % translated.
     const source = { cta: "Appelez-nous" };
-    expect(resolveCatalogue("en", source, {}).coverage).toBe(1);
+    expect(resolveCatalogue("en", source, {}, {}).coverage).toBe(1);
 
     const policy = createPolicy(fr);
-    const en = policy.resolveCatalogue("en", source, {});
+    const en = policy.resolveCatalogue("en", source, {}, {});
     expect(en.coverage).toBe(0);
     expect(en.missing).toEqual(["cta"]);
-    expect(en.messages).toEqual(source);
-    expect(policy.resolveCatalogue("fr", source, {}).coverage).toBe(1);
+    expect(en.messages).toEqual({});
+    expect(policy.resolveCatalogue("fr", source, {}, {}).coverage).toBe(1);
   });
 
   it("names the registry's source locale in rejections", () => {
-    const orphan = createPolicy(fr).resolveCatalogue("en", {}, { gone: { en: "x", t: "y" } });
+    const orphan = createPolicy(fr).resolveCatalogue("en", {}, { gone: { en: "x", t: "y" } }, {});
     expect(orphan.rejected[0]?.detail).toMatch(/not defined in fr/);
   });
 
@@ -244,13 +246,14 @@ describe("policy and extract take the registry's source locale", () => {
     expect(availableIn("en", ["a"], () => [])).toEqual(["a"]);
   });
 
-  it("writes the default locale's catalogue and prunes the others", () => {
+  it("writes the default locale's catalogue and reconciles the others", () => {
     const messages = mkdtempSync(join(tmpdir(), "i18n-registry-"));
     for (const dir of ["fr", "en", "ru"]) mkdirSync(join(messages, dir));
     writeFileSync(
       join(messages, "en", "common.json"),
       JSON.stringify({ cta: { en: "Appelez-nous", t: "Call us" }, stale: { en: "x", t: "y" } }),
     );
+    writeFileSync(join(messages, "en", "common.auto.json"), "{}");
 
     expect(translatedLocales(messages, fr)).toEqual(["en"]);
     const lines = writeCatalogues(messages, [{ key: "cta", en: "Appelez-nous", where: "a.tsx:1" }], fr);

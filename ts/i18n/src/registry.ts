@@ -10,6 +10,7 @@
  * Zero-dep and DOM-free, like the rest of the core.
  */
 import { formatPattern, type MessageValues } from "./format";
+import { pathOf, type Key } from "./key";
 
 /**
  * A loaded catalogue: flat `key → pattern`. Flat rather than nested because the
@@ -24,10 +25,10 @@ export type Messages = Readonly<Record<string, string>>;
  * site, `key` is what a translated catalogue files it under.
  *
  * ```ts
- * t("hero.title", "Invest in the China+1 narrative")
+ * t(hero.title, "Invest in the China+1 narrative")
  * ```
  */
-export type Translate = (key: string, en: string, values?: MessageValues) => string;
+export type Translate = (key: Key, en: string, values?: MessageValues) => string;
 
 /**
  * The structural slice of `Element` `localeOfElement` reads. Spelled out rather
@@ -269,8 +270,9 @@ export function createLocaleRegistry<const Locales extends LocaleList>(
     const source = locale === defaultLocale ? null : messages;
     return (key, en, values) => {
       if (source === null) return formatPattern(en, locale, values);
-      const pattern = source[key];
-      if (pattern === undefined) onMissing?.(key, locale);
+      const path = pathOf(key);
+      const pattern = Object.hasOwn(source, path) ? source[path] : undefined;
+      if (pattern === undefined) onMissing?.(path, locale);
       return formatPattern(pattern ?? en, locale, values);
     };
   };

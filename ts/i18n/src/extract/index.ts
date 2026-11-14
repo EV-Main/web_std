@@ -4,17 +4,15 @@
  * Reads every `t(key, en)` out of a source tree and writes the English
  * catalogue back out of it.
  *
- * English is authored where it is rendered — `t("hero.title", "We build …")` —
- * so `messages/en/common.json` is a build artefact, not a source. That inverts
- * the old failure mode: copy can no longer be edited in one place and read from
- * another, and a key nothing calls stops being carried (and retranslated)
- * forever. What it cannot do is notice a *deleted* call site, which is why
- * {@link writeCatalogues} prunes unconditionally rather than additively.
+ * English is authored where it is rendered — `t(hero.title, "We build …")`,
+ * `hero = scope("hero")` — so `messages/en/common.json` is a build artefact. Each
+ * other locale is `messages/<locale>/common.auto.json` (generated) under
+ * `messages/<locale>/common.json` (hand overrides), both `{ key: {en, t} }`.
  *
- * Syntactic only — `ts.createSourceFile`, no program, no type checker. Every
- * `t` in an app is the same `t`, so a name match is enough, and a full program
- * would cost seconds per run for nothing. `typescript` is an optional peer
- * dependency: it is needed to run the extractor, never to render a string.
+ * Syntactic only — `ts.createSourceFile`, no program, no type checker. A key is
+ * followed through `const` bindings and imports back to its `scope("<literal>")`
+ * (see `createKeys`). `typescript` is an optional peer dependency: it is needed
+ * to run the extractor, never to render a string.
  */
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -25,14 +23,20 @@ import {
   type LocaleRegistry,
   type Messages,
 } from "../index.js";
-import { auditCatalogues, createPolicy, type TranslatedCatalogue } from "../policy/index.js";
+import {
+  auditCatalogues,
+  createPolicy,
+  type TranslatedCatalogue,
+  type TranslatedEntry,
+} from "../policy/index.js";
+import { createResolver, readPaths } from "./resolve.js";
 import {
   callsIn,
+  createKeys,
   DEFAULT_EXCLUDE,
   dedupe,
   InputError,
   list,
-  parse,
   parseFlags,
   serialise,
   sourceFiles,
@@ -41,6 +45,7 @@ import {
 } from "./calls.js";
 
 export { DEFAULT_EXCLUDE, InputError, runCli } from "./calls.js";
+export { rekey, runRekey } from "./rekey.js";
 export type { Entry, Extraction } from "./calls.js";
 export {
   messageSlices,
@@ -65,24 +70,29 @@ export interface ExtractOptions {
    * names are always skipped; {@link DEFAULT_EXCLUDE} covers what every app has.
    */
   exclude?: readonly string[];
+  /** The tsconfig whose `paths` and `baseUrl` resolve imports. Defaults to `<root>/tsconfig.json` when present. */
+  tsconfig?: string;
 }
 
 /**
  * Every `t(key, en)` under `root`, plus the call sites that cannot be read.
  *
- * A call that cannot be read statically is an error, not a skip: the point of
- * inlining is that the copy is visible where it renders, and a key assembled at
- * runtime is neither visible nor greppable. Two call sites sharing a key with
+ * A call that cannot be read statically is an error, not a skip: a key that does
+ * not resolve to a member chain off a `scope("<literal>")` has no place in a
+ * catalogue. Two call sites sharing a key with
  * different English is the same class of error — the catalogue can only hold
  * one of them, so which one ships would be decided by file order.
  */
-export function collect({ root, exclude = DEFAULT_EXCLUDE }: ExtractOptions): Extraction {
+export function collect({ root, exclude = DEFAULT_EXCLUDE, tsconfig }: ExtractOptions): Extraction {
   const skip = new Set([...DEFAULT_EXCLUDE, ...exclude]);
+  const config = tsconfig ?? join(root, "tsconfig.json");
+  if (tsconfig !== undefined && !existsSync(config)) throw new InputError(`${config} does not exist`);
+  const keys = createKeys(root, createResolver(root, existsSync(config) ? readPaths(config) : null));
   const entries: Entry[] = [];
   const errors: string[] = [];
 
   for (const path of sourceFiles(root, skip, "")) {
-    const found = callsIn(path, parse(path, readFileSync(join(root, path), "utf8")));
+    const found = callsIn(path, keys);
     entries.push(...found.entries);
     errors.push(...found.errors);
   }
@@ -100,9 +110,13 @@ export function catalogue(entries: readonly Entry[]): Record<string, string> {
 
 export { serialise } from "./calls.js";
 
-/** `<messages>/<locale>/common.json`. One layout, shared by every EV surface. */
+/** `<messages>/<locale>/common.json`: English for the source locale, hand overrides for the rest. */
 export const cataloguePath = (messages: string, locale: string): string =>
   join(messages, locale, "common.json");
+
+/** `<messages>/<locale>/common.auto.json`: a non-source locale's generated layer. */
+export const autoCataloguePath = (messages: string, locale: string): string =>
+  join(messages, locale, "common.auto.json");
 
 /**
  * The slice of a locale registry the extractor reads: which catalogues exist,
@@ -115,7 +129,7 @@ export type CatalogueLocales<L extends string = string> = Pick<
   "locales" | "defaultLocale"
 >;
 
-/** The non-default locales that have an authored catalogue on disk. */
+/** The non-default locales that have a directory under `messages`. */
 export function translatedLocales(messages: string): Locale[];
 export function translatedLocales<L extends string>(
   messages: string,
@@ -133,11 +147,68 @@ export function translatedLocales(
   return registry.locales.filter(l => l !== registry.defaultLocale && present.has(l));
 }
 
+/** One layer of a locale, every entry checked to be `{en, t}`: it is written by hand. */
+export function readLayer(path: string): TranslatedCatalogue {
+  const raw: unknown = JSON.parse(readFileSync(path, "utf8"));
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw))
+    throw new InputError(`${path}: expected an object of { "key": { "en", "t" } }`);
+  for (const [key, entry] of Object.entries(raw)) {
+    const shaped =
+      typeof entry === "object" && entry !== null && Object.keys(entry).sort().join() === "en,t" &&
+      typeof (entry as TranslatedEntry).en === "string" && typeof (entry as TranslatedEntry).t === "string";
+    if (!shaped) throw new InputError(`${path}: "${key}" is not { "en": string, "t": string }`);
+  }
+  return raw as TranslatedCatalogue;
+}
+
 /**
- * Write the source catalogue, and prune every translated one down to the keys
- * the code still asks for.
+ * One layer cut to the keys English defines. An orphan moves to a new key only when its
+ * recorded `en` is the English of exactly one key this layer lacks, and no other orphan
+ * claims that key — what a renamed scope leaves. Every move and drop is a line.
+ */
+function reconcile(
+  en: Messages,
+  layer: TranslatedCatalogue,
+  label: string,
+): { kept: Record<string, TranslatedEntry>; lines: string[] } {
+  const kept: Record<string, TranslatedEntry> = {};
+  const orphans: [string, TranslatedEntry][] = [];
+  for (const [key, entry] of Object.entries(layer)) {
+    if (Object.hasOwn(en, key)) kept[key] = entry;
+    else orphans.push([key, entry]);
+  }
+  const lacking = new Map<string, string[]>();
+  for (const [key, text] of Object.entries(en)) {
+    if (Object.hasOwn(kept, key)) continue;
+    lacking.set(text, [...(lacking.get(text) ?? []), key]);
+  }
+  const targetOf = (entry: TranslatedEntry) => {
+    const candidates = lacking.get(entry.en) ?? [];
+    return candidates.length === 1 ? candidates[0] : undefined;
+  };
+  const claims = new Map<string, number>();
+  for (const [, entry] of orphans) {
+    const target = targetOf(entry);
+    if (target !== undefined) claims.set(target, (claims.get(target) ?? 0) + 1);
+  }
+  const lines: string[] = [];
+  for (const [key, entry] of orphans) {
+    const target = targetOf(entry);
+    if (target !== undefined && claims.get(target) === 1) {
+      kept[target] = entry;
+      lines.push(`  ${label}: moved ${key} → ${target}`);
+    } else {
+      lines.push(`  ${label}: dropped ${key} (${JSON.stringify(entry.en)})`);
+    }
+  }
+  const sorted = Object.fromEntries(Object.entries(kept).sort(([a], [b]) => (a < b ? -1 : 1)));
+  return { kept: sorted, lines };
+}
+
+/**
+ * Write the source catalogue, and reconcile both layers of every other locale with it.
  *
- * @returns A line per catalogue, for the caller to print.
+ * @returns A line per catalogue and per moved or dropped entry, for the caller to print.
  */
 export function writeCatalogues(
   messages: string,
@@ -151,14 +222,12 @@ export function writeCatalogues(
   ];
 
   for (const locale of translatedLocales(messages, registry)) {
-    const path = cataloguePath(messages, locale);
-    const authored = JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown>;
-    const kept = Object.fromEntries(Object.entries(authored).filter(([key]) => key in en));
-    const dropped = Object.keys(authored).length - Object.keys(kept).length;
-    writeFileSync(path, serialise(kept));
-    lines.push(
-      `${locale}: ${Object.keys(kept).length} kept, ${dropped} orphan${dropped === 1 ? "" : "s"} dropped`,
-    );
+    for (const path of [cataloguePath(messages, locale), autoCataloguePath(messages, locale)]) {
+      const label = `${locale}/${path.slice(path.lastIndexOf("/") + 1)}`;
+      const { kept, lines: changes } = reconcile(en, readLayer(path), label);
+      writeFileSync(path, serialise(kept));
+      lines.push(`${label}: ${Object.keys(kept).length} entries`, ...changes);
+    }
   }
   return lines;
 }
@@ -177,6 +246,7 @@ ${does}
   --root <dir>       the app to scan (default: the working directory)
   --messages <dir>   where the catalogues live (default: <root>/messages)
   --exclude <a,b>    directory and file names that are not source, at any depth
+  --tsconfig <file>  whose paths resolve imports (default: <root>/tsconfig.json when present)
   -h, --help         print this and exit`;
 
 /**
@@ -187,16 +257,18 @@ function parseArgs(
   argv: readonly string[],
   help: string,
 ): (ExtractOptions & { messages: string }) | null {
-  const flags = parseFlags(argv, ["root", "messages", "exclude"]);
+  const flags = parseFlags(argv, ["root", "messages", "exclude", "tsconfig"]);
   if (flags.help) {
     console.log(help);
     return null;
   }
   const root = flags.value("root") ?? process.cwd();
+  const tsconfig = flags.value("tsconfig");
   return {
     root,
     messages: flags.value("messages") ?? join(root, "messages"),
     exclude: list(flags.value("exclude")),
+    ...(tsconfig === undefined ? {} : { tsconfig }),
   };
 }
 
@@ -214,14 +286,14 @@ function read(
   console.error(`${errors.length} t() call site${errors.length === 1 ? "" : "s"} the extractor cannot read:\n`);
   for (const error of errors) console.error(`  ${error}`);
   console.error(
-    "\nEvery t() takes a literal key and a literal English string. Restructure the" +
-      " call — a runtime-assembled key has nowhere to put its copy.",
+    "\nEvery t() takes a key off a scope(\"<literal>\") and a literal English string." +
+      " Data-picked copy is a closed table: { draft: t => t(state.draft, \"Draft\"), … }.",
   );
   process.exit(1);
 }
 
 /**
- * `evinvest-i18n-extract` — regenerate English from the code, prune the rest to match.
+ * `evinvest-i18n-extract` — regenerate English from the code, reconcile the rest with it.
  *
  * @param registry - Whose locales to write. The bin uses the generated registry;
  *   a surface with its own set calls this from a launcher of its own.
@@ -234,7 +306,7 @@ export function runExtract(
     argv,
     usage(
       "evinvest-i18n-extract",
-      "Regenerate the English catalogue from the code's t() calls and prune every\ntranslated catalogue to the keys the code still asks for.",
+      "Regenerate the English catalogue from the code's t() calls; move or drop every\nother locale's entries whose keys the code no longer asks for.",
     ),
   );
   if (found === null) return;
@@ -243,20 +315,11 @@ export function runExtract(
 }
 
 /**
- * `evinvest-i18n-check` — the CI gate for the policy, and for the generation
- * half above it.
+ * `evinvest-i18n-check` — the build gate.
  *
- * The runtime already degrades safely: a drifted entry falls back to canonical
- * English and the page is fine. That safety is exactly why this exists. A silent
- * fallback is indistinguishable from a surface that was never translated, so
- * without a noisy second channel a locale can rot to zero coverage and nobody
- * finds out until a reader mentions it.
- *
- * Fatal: a committed English catalogue that no longer matches the code (it would
- * hand `resolveCatalogue` a stale source to compare every translation against),
- * and drift. Reported but not fatal: untranslated keys — a locale is filled in
- * over time, and blocking CI on an unfinished translation would just get the
- * check disabled.
+ * Fatal: a committed English catalogue that no longer matches the code, and, per
+ * non-source locale, any key served in English (missing, or every entry for it
+ * refused), any refused entry in either layer (stale, structurally unequal, orphan).
  *
  * @param registry - Whose locales to check; see {@link runExtract}.
  */
@@ -268,7 +331,7 @@ export function runCheck(
     argv,
     usage(
       "evinvest-i18n-check",
-      "Fail when the English catalogue is out of date with the code or a translation\nhas drifted from its English; report untranslated keys.",
+      "Fail when the English catalogue is out of date with the code, or any other\nlocale serves English for a key or carries a refused entry.",
     ),
   );
   if (found === null) return;
@@ -287,21 +350,19 @@ export function runCheck(
     resolveCatalogue(
       locale,
       en,
-      JSON.parse(readFileSync(cataloguePath(messages, locale), "utf8")) as TranslatedCatalogue,
+      readLayer(autoCataloguePath(messages, locale)),
+      readLayer(cataloguePath(messages, locale)),
     ),
   );
-  console.log(auditCatalogues(resolved, 0).report);
-
-  const drifted = resolved.flatMap(c => c.rejected.map(r => `${c.locale}/${r.key}: ${r.reason} — ${r.detail}`));
-  if (drifted.length > 0) {
-    console.error(`\n${drifted.length} entr${drifted.length === 1 ? "y" : "ies"} rejected by policy:`);
-    for (const line of drifted) console.error(`  ${line}`);
+  const { ok, report } = auditCatalogues(resolved, 1);
+  if (!ok) {
+    console.error(report);
     console.error(
-      "\nEnglish is being served for these. Retranslate and update the `en` field," +
-        " or revert the English change.",
+      "\nA refused override: update its `en` to today's English, or delete it." +
+        "\nAn orphan: `evinvest-i18n-extract` moves or drops it." +
+        "\nUntranslated: translate it into common.auto.json, or override it in common.json.",
     );
     process.exit(1);
   }
-
-  console.log("\ni18n: no drift — every translation matches its English source");
+  console.log(report);
 }

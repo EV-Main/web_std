@@ -257,7 +257,7 @@ export const useLocale: () => Locale = bound.useLocale;
  * @example
  * ```tsx
  * const t = useT();
- * return <button>{t("wallet.deposit.cta", "Deposit")}</button>;
+ * return <button>{t(wallet.deposit.cta, "Deposit")}</button>;
  * ```
  */
 export const useT: () => Translate = bound.useT;

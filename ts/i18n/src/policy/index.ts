@@ -8,11 +8,9 @@
  * *derivation* of it, and nothing else may introduce a key.
  *
  * **1.2 — A translation that no longer matches its English source is not used.**
- * The English string is served instead. This is the rule that keeps a stale
- * translation from quietly contradicting the site: when English copy changes and
- * the translation does not, the translation is no longer a translation of
- * anything — it is last quarter's claim, in another language, presented as
- * current.
+ * A locale has two layers: generated (`common.auto.json`) and hand overrides
+ * (`common.json`), both `{en, t}`. A valid override wins, else a valid auto
+ * entry, else the call site's English renders and the key is reported missing.
  *
  * **1.3 — Compiled content with no translation for the current locale is
  * hidden, not silently served in English.** See {@link availableIn}.
@@ -49,10 +47,7 @@ const CLDR_ORDER: readonly Intl.LDMLPluralRule[] = ["zero", "one", "two", "few",
 /**
  * One translated entry: the text, plus the English it was translated from.
  *
- * `en` is stored as the source *text* rather than a hash on purpose. A hash
- * would be shorter and equally correct, but a reviewer reading a pull request
- * could not see what the translator was looking at. With the text inline, a
- * drifted entry is self-evident in the diff.
+ * `en` is the source *text* rather than a hash, so a stale entry is self-evident in the diff.
  */
 export interface TranslatedEntry {
   /** The English source this was translated from. */
@@ -61,59 +56,59 @@ export interface TranslatedEntry {
   t: string;
 }
 
-/** A non-English catalogue as authored on disk. */
+/**
+ * One layer of a non-English locale as it sits on disk: `messages/<locale>/common.auto.json`
+ * (generated) or `messages/<locale>/common.json` (overrides, written by hand).
+ */
 export type TranslatedCatalogue = Readonly<Record<string, TranslatedEntry>>;
+
+/** Which file of a locale an entry was read from; an override wins over the generated layer. */
+export type Layer = "override" | "auto";
 
 /** One refusal, with enough detail to fix it without opening the catalogue. */
 export interface Rejection {
   key: string;
+  layer: Layer;
   reason: RejectionReason;
   detail: string;
 }
 
-/** The outcome of applying the policy to one locale's catalogue. */
+/** The outcome of applying the policy to one locale. */
 export interface ResolvedCatalogue<L extends string = Locale> {
   locale: L;
-  /** Ready for `translator()`: accepted translations, English everywhere else. */
+  /** Ready for `translator()`: only the keys a valid entry translates. */
   messages: Messages;
-  /** Entries refused by rule 1.2, each falling back to English. */
+  /** Every refused entry, in either layer. */
   rejected: Rejection[];
-  /** Keys English defines that this locale has not translated at all. */
+  /** Keys English defines that no valid entry translates: served in English. */
   missing: string[];
-  /** Share of English keys actually served in this locale, 0–1. */
+  /** Share of English keys served in this locale, 0–1. */
   coverage: number;
 }
 
 /**
- * Apply rules 1.1 and 1.2 to one locale's catalogue.
+ * Apply rules 1.1 and 1.2 to one locale's two layers.
  *
- * Never throws and never returns a hole: every key English defines is present in
- * `messages`, served in the target locale when the translation passes and in
- * English when it does not. A page therefore cannot break because a translation
- * went stale — it degrades to canonical English, which is rule 1.2's entire
- * point.
- *
- * @param locale     - The locale being resolved. `en` returns `source` unchanged.
- * @param source     - The English catalogue. Canonical: it defines the key set.
- * @param translated - The locale's authored catalogue.
- * @returns The resolved catalogue plus a full account of what was refused.
+ * Per key: a valid override, else a valid auto entry, else the key is `missing`. Valid means
+ * written against today's English and structurally equal to it. A key with no valid entry is
+ * absent from `messages`, so the call site's English renders and `onMissing` hears of it.
  *
  * Bound to the generated registry, whose source is `en`. For a registry of your
- * own use {@link createPolicy} — this function would treat `en` as the source.
+ * own use {@link createPolicy}.
  *
  * @example
  * ```ts
- * const { messages, rejected } = resolveCatalogue("ru", en, ru);
- * const t = translator(messages, "ru");
- * // rejected: [{ key: "hero.title", reason: "source-drift", detail: … }]
+ * const { messages, rejected } = resolveCatalogue("ru", en, ruAuto, ruOverrides);
+ * // rejected: [{ key: "hero.title", layer: "override", reason: "stale", detail: … }]
  * ```
  */
 export function resolveCatalogue(
   locale: Locale,
   source: Messages,
-  translated: TranslatedCatalogue,
+  auto: TranslatedCatalogue,
+  overrides: TranslatedCatalogue,
 ): ResolvedCatalogue {
-  return resolveAgainst(DEFAULT_LOCALE, locale, source, translated);
+  return resolveAgainst(DEFAULT_LOCALE, locale, source, auto, overrides);
 }
 
 /**
@@ -126,7 +121,8 @@ export interface Policy<L extends string> {
   readonly resolveCatalogue: (
     locale: L,
     source: Messages,
-    translated: TranslatedCatalogue,
+    auto: TranslatedCatalogue,
+    overrides: TranslatedCatalogue,
   ) => ResolvedCatalogue<L>;
   /** {@link availableIn} with this registry's source locale seeing everything. */
   readonly availableIn: <T>(
@@ -143,7 +139,7 @@ export interface Policy<L extends string> {
  * @example
  * ```ts
  * const policy = createPolicy(i18n);            // i18n.defaultLocale === "fr"
- * policy.resolveCatalogue("en", fr, enCatalogue);
+ * policy.resolveCatalogue("en", fr, enAuto, enOverrides);
  * ```
  */
 export function createPolicy<L extends string>(
@@ -151,8 +147,8 @@ export function createPolicy<L extends string>(
 ): Policy<L> {
   const canonical = registry.defaultLocale;
   return {
-    resolveCatalogue: (locale, source, translated) =>
-      resolveAgainst(canonical, locale, source, translated),
+    resolveCatalogue: (locale, source, auto, overrides) =>
+      resolveAgainst(canonical, locale, source, auto, overrides),
     availableIn: (locale, items, localesOf, policy = "hide") =>
       availableAgainst(canonical, locale, items, localesOf, policy),
   };
@@ -162,47 +158,45 @@ function resolveAgainst<L extends string>(
   canonical: string,
   locale: L,
   source: Messages,
-  translated: TranslatedCatalogue,
+  auto: TranslatedCatalogue,
+  overrides: TranslatedCatalogue,
 ): ResolvedCatalogue<L> {
   if (locale === canonical) {
     return { locale, messages: source, rejected: [], missing: [], coverage: 1 };
   }
 
+  const layers = [
+    ["override", overrides],
+    ["auto", auto],
+  ] as const;
   const messages: Record<string, string> = {};
   const rejected: Rejection[] = [];
   const missing: string[] = [];
-  let accepted = 0;
 
-  // Rule 1.1 — English defines the key set, so a key only this locale has is a
-  // key nothing renders. Reported rather than ignored: it is usually a rename
-  // that left the translation behind.
-  for (const key of Object.keys(translated)) {
-    if (!(key in source)) {
-      rejected.push({
-        key,
-        reason: "orphan-key",
-        detail: `not defined in ${canonical} — only the canonical locale introduces keys`,
-      });
+  for (const [layer, entries] of layers) {
+    for (const key of Object.keys(entries).sort(byteOrder)) {
+      if (!Object.hasOwn(source, key)) {
+        rejected.push({
+          key,
+          layer,
+          reason: "orphan-key",
+          detail: `not defined in ${canonical} — only the canonical locale introduces keys`,
+        });
+      }
     }
   }
 
   for (const [key, en] of Object.entries(source)) {
-    const entry = translated[key];
-    if (entry === undefined) {
-      missing.push(key);
-      messages[key] = en;
-      continue;
+    let served: string | undefined;
+    for (const [layer, entries] of layers) {
+      const entry = Object.hasOwn(entries, key) ? entries[key] : undefined;
+      if (entry === undefined) continue;
+      const problem = check(entry, en, locale, canonical);
+      if (problem !== null) rejected.push({ key, layer, ...problem });
+      else served ??= entry.t;
     }
-
-    const problem = check(entry, en, locale, canonical);
-    if (problem !== null) {
-      rejected.push({ key, ...problem });
-      messages[key] = en;
-      continue;
-    }
-
-    messages[key] = entry.t;
-    accepted += 1;
+    if (served === undefined) missing.push(key);
+    else messages[key] = served;
   }
 
   const total = Object.keys(source).length;
@@ -211,9 +205,11 @@ function resolveAgainst<L extends string>(
     messages,
     rejected,
     missing,
-    coverage: total === 0 ? 1 : accepted / total,
+    coverage: total === 0 ? 1 : Object.keys(messages).length / total,
   };
 }
+
+const byteOrder = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
 /** The whole of rule 1.2 for a single entry. `null` means accepted. */
 function check(
@@ -221,16 +217,14 @@ function check(
   en: string,
   locale: string,
   canonical: string,
-): Omit<Rejection, "key"> | null {
+): Omit<Rejection, "key" | "layer"> | null {
   if (entry.t.trim() === "") {
     return { reason: "empty", detail: "translation is blank" };
   }
 
-  // Provenance. The one check that catches ordinary drift: English moved, the
-  // translation did not.
   if (entry.en !== en) {
     return {
-      reason: "source-drift",
+      reason: "stale",
       detail: `translated from ${JSON.stringify(entry.en)}, source is now ${JSON.stringify(en)}`,
     };
   }
@@ -443,7 +437,7 @@ export function auditCatalogues(
     lines.push(`${healthy ? "ok  " : "FAIL"} ${cat.locale}  ${pct}% coverage`);
 
     for (const r of cat.rejected) {
-      lines.push(`       ${r.key}  [${r.reason}] ${r.detail}`);
+      lines.push(`       ${r.key}  [${r.layer} ${r.reason}] ${r.detail}`);
     }
     // Missing keys are listed but capped: a locale that has translated nothing
     // yet would otherwise bury the drift that actually needs fixing.

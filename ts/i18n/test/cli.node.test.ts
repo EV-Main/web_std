@@ -172,10 +172,14 @@ describe("runExtract and runCheck arguments", () => {
 
   beforeEach(() => {
     root = mkdtempSync(join(tmpdir(), "i18n-cli-"));
-    writeFileSync(join(root, "page.tsx"), 'export const P = () => t("hero.title", "From the code");\n');
+    writeFileSync(
+      join(root, "page.tsx"),
+      'import { scope } from "@evinvest/i18n";\nconst hero = scope("hero");\nexport const P = () => t(hero.title, "From the code");\n',
+    );
     for (const locale of ["en", "ru"]) mkdirSync(join(root, "messages", locale), { recursive: true });
     writeFileSync(join(root, "messages", "en", "common.json"), EN);
     writeFileSync(join(root, "messages", "ru", "common.json"), RU);
+    writeFileSync(join(root, "messages", "ru", "common.auto.json"), "{}\n");
   });
 
   afterEach(() => {

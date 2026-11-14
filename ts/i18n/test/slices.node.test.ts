@@ -35,6 +35,10 @@ afterEach(() => {
 
 const write = (path: string, text: string) => writeFileSync(join(root, path), text);
 
+/** A computed key on line 4, `nav.home` with other English on line 5. */
+const BAD = 'import { scope } from "@evinvest/i18n";\nconst nav = scope("nav");\nconst s = "x";\nt(nav[s], "X");\nt(nav.home, "Start");\n';
+const COMPUTED = "uses computed access; a key is a member chain — use a closed table";
+
 describe("messageSlices on a clean app", () => {
   it("puts the keys of layouts and boundary files in the shell", () => {
     const { slices, errors } = messageSlices({ root, tables: [TIPS] });
@@ -92,7 +96,7 @@ describe("messageSlices on a clean app", () => {
   it("does not treat a \"use client\" after an import as a boundary", () => {
     write(
       "shell/nav.tsx",
-      'import { useT } from "@evinvest/i18n/react";\n"use client";\nexport function Nav() {\n  const t = useT();\n  return t("nav.home", "Home");\n}\n',
+      'import { useT } from "@evinvest/i18n/react";\n"use client";\nimport { scope } from "@evinvest/i18n";\nconst nav = scope("nav");\nexport function Nav() {\n  const t = useT();\n  return t(nav.home, "Home");\n}\n',
     );
 
     const { slices } = messageSlices({ root, tables: [TIPS] });
@@ -153,25 +157,25 @@ describe("collect", () => {
     expect(entries.find(e => e.key === "nav.home")).toEqual({
       key: "nav.home",
       en: "Home",
-      where: "shell/nav.tsx:7",
+      where: "shell/nav.tsx:10",
     });
   });
 
   it("reports a computed key and a key defined twice with different English", () => {
-    write("scripts/bad.ts", 'const k = "x";\nt(k, "X");\nt("nav.home", "Start");\n');
+    write("scripts/bad.ts", BAD);
 
     const { errors } = collect({ root });
 
     // Which of the two sites is "first" follows directory order, which the
     // filesystem decides; the message names both either way.
     expect(errors).toHaveLength(2);
-    expect(errors).toContain("scripts/bad.ts:2: t() key is not a string literal");
+    expect(errors).toContain(`scripts/bad.ts:4: t() key ${COMPUTED}`);
     expect(errors).toContainEqual(expect.stringMatching(/"nav\.home" is also defined at .* with different English/));
-    expect(errors.join("\n")).toMatch(/shell\/nav\.tsx:7[\s\S]*scripts\/bad\.ts:3|scripts\/bad\.ts:3[\s\S]*shell\/nav\.tsx:7/);
+    expect(errors.join("\n")).toMatch(/shell\/nav\.tsx:10[\s\S]*scripts\/bad\.ts:5|scripts\/bad\.ts:5[\s\S]*shell\/nav\.tsx:10/);
   });
 
   it("reports the same unreadable call sites as the slice generator", () => {
-    write("scripts/bad.ts", 'const k = "x";\nt(k, "X");\nt("no.english");\n');
+    write("scripts/bad.ts", 'import { scope } from "@evinvest/i18n";\nconst no = scope("no");\nconst k = "x";\nt(k, "X");\nt(no.english);\n');
 
     expect(messageSlices({ root, tables: [TIPS] }).errors).toEqual(collect({ root }).errors);
   });
@@ -314,24 +318,24 @@ describe("messageSlices on a file no entry reaches", () => {
     expect(errors).toEqual([]);
   });
 
-  it("still reports a t() whose key is not a string literal", () => {
-    write(UNREACHED, 'const k = "x";\nt(k, "X");\n');
+  it("still reports a t() whose key cannot be read", () => {
+    write(UNREACHED, 'import { scope } from "@evinvest/i18n";\nconst nav = scope("nav");\nconst s = "x";\nt(nav[s], "X");\n');
 
     const { errors } = messageSlices({ root, tables: [TIPS] });
 
-    expect(errors).toEqual([`${UNREACHED}:2: t() key is not a string literal`]);
+    expect(errors).toEqual([`${UNREACHED}:4: t() key ${COMPUTED}`]);
   });
 
   it("still reports a key it defines with different English", () => {
-    write(UNREACHED, 't("nav.home", "Start");\n');
+    write(UNREACHED, 'import { scope } from "@evinvest/i18n";\nconst nav = scope("nav");\nt(nav.home, "Start");\n');
 
     const { errors } = messageSlices({ root, tables: [TIPS] });
 
     // Which site is named first follows directory order; both are named either way.
     expect(errors).toHaveLength(1);
     expect(errors[0]).toMatch(/"nav\.home" is also defined at .* with different English/);
-    expect(errors[0]).toContain(`${UNREACHED}:1`);
-    expect(errors[0]).toContain("shell/nav.tsx:7");
+    expect(errors[0]).toContain(`${UNREACHED}:3`);
+    expect(errors[0]).toContain("shell/nav.tsx:10");
   });
 });
 
@@ -340,9 +344,9 @@ describe("messageSlices on a file only the shell reaches", () => {
     write("shell/loader.ts", 'const spec = "./nav";\nexport const loadNav = () => import(spec);\n');
     write(
       "app/[locale]/error.tsx",
-      '"use client";\nimport { useT } from "@evinvest/i18n/react";\nimport { loadNav } from "@/shell/loader";\n\n' +
-        'export default function ErrorBoundary() {\n  const t = useT();\n  void loadNav;\n' +
-        '  return <p>{t("err.title", "Something went wrong")}</p>;\n}\n',
+      '"use client";\nimport { useT } from "@evinvest/i18n/react";\nimport { scope } from "@evinvest/i18n";\nimport { loadNav } from "@/shell/loader";\n\n' +
+        'const err = scope("err");\nexport default function ErrorBoundary() {\n  const t = useT();\n  void loadNav;\n' +
+        '  return <p>{t(err.title, "Something went wrong")}</p>;\n}\n',
     );
 
     const { errors } = messageSlices({ root, tables: [TIPS] });
@@ -384,7 +388,7 @@ describe("runSlices", () => {
 
   it("fails --check when the code has drifted from the file", () => {
     runSlices(["--root", root, "--config", CONFIG()]);
-    write("components/lazy.tsx", 'export default () => t("lazy.renamed", "Lazy");\n');
+    write("components/lazy.tsx", 'import { scope } from "@evinvest/i18n";\nconst lazy = scope("lazy");\nexport default () => t(lazy.renamed, "Lazy");\n');
     const exit = exits();
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
 

@@ -3,6 +3,8 @@ import { join } from "node:path";
 
 import { describe, expect, it, vi } from "vitest";
 
+import { keyAt } from "./key";
+
 import {
   DEFAULT_LOCALE,
   LOCALES,
@@ -65,7 +67,7 @@ describe("shared vectors", () => {
   });
 
   it.each(VECTORS.translate)("translates in %s from %j: %s", (locale, messages, key, en, values, expected) => {
-    expect(translator(messages, locale)(key, en, values)).toBe(expected);
+    expect(translator(messages, locale)(keyAt(key), en, values)).toBe(expected);
   });
 });
 
@@ -74,19 +76,19 @@ describe("translator — onMissing", () => {
 
   it("reports a key the catalogue lacks", () => {
     const onMissing = vi.fn();
-    translator(messages, "ru", onMissing)("hero.subtitle", "Five hundred years of compounding");
+    translator(messages, "ru", onMissing)(keyAt("hero.subtitle"), "Five hundred years of compounding");
     expect(onMissing).toHaveBeenCalledWith("hero.subtitle", "ru");
   });
 
   it("does not report a key that exists", () => {
     const onMissing = vi.fn();
-    translator(messages, "ru", onMissing)("hero.title", "Invest in the China+1 narrative");
+    translator(messages, "ru", onMissing)(keyAt("hero.title"), "Invest in the China+1 narrative");
     expect(onMissing).not.toHaveBeenCalled();
   });
 
   it("never reports for the default locale, which has no catalogue to miss", () => {
     const onMissing = vi.fn();
-    translator({}, "en", onMissing)("anything", "Anything");
+    translator({}, "en", onMissing)(keyAt("anything"), "Anything");
     expect(onMissing).not.toHaveBeenCalled();
   });
 });

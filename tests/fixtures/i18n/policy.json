@@ -1,169 +1,248 @@
 {
-  "_": "The translation-policy contract both @evinvest/i18n/policy and ev_lib::i18n::policy run. Catalogue keys are in byte order: Rust keeps catalogues sorted, TS in insertion order. resolve: one resolveCatalogue call, rejected as [key, reason, detail]; audit: [locale, source, translated] per resolved catalogue → the CI report; available: [locale, [name, locales][], policy, names shown].",
+  "_": "The translation-policy contract both @evinvest/i18n/policy and ev_lib::i18n::policy run. Catalogue keys are in byte order: Rust keeps catalogues sorted, TS in insertion order. resolve: one resolveCatalogue call over the auto and override layers, rejected as [key, layer, reason, detail]; audit: [locale, source, auto, overrides] per resolved catalogue → the CI report; available: [locale, [name, locales][], policy, names shown].",
   "resolve": [
     {
       "locale": "en",
-      "source": { "a": "A" },
-      "translated": {},
-      "messages": { "a": "A" },
+      "source": {"a": "A"},
+      "auto": {},
+      "overrides": {},
+      "messages": {"a": "A"},
       "rejected": [],
       "missing": [],
       "coverage": 1
     },
     {
       "locale": "ru",
-      "source": { "hero": "Coastal Vietnam" },
-      "translated": { "hero": { "en": "Coastal Vietnam", "t": "Прибрежный Вьетнам" } },
-      "messages": { "hero": "Прибрежный Вьетнам" },
+      "source": {"hero": "Coastal Vietnam"},
+      "auto": {"hero": {"en": "Coastal Vietnam", "t": "Прибрежный Вьетнам"}},
+      "overrides": {},
+      "messages": {"hero": "Прибрежный Вьетнам"},
       "rejected": [],
       "missing": [],
       "coverage": 1
     },
     {
       "locale": "ru",
-      "source": { "hero": "Coastal Vietnam, today" },
-      "translated": { "hero": { "en": "Coastal Vietnam", "t": "Прибрежный Вьетнам" } },
-      "messages": { "hero": "Coastal Vietnam, today" },
-      "rejected": [["hero", "source-drift", "translated from \"Coastal Vietnam\", source is now \"Coastal Vietnam, today\""]],
-      "missing": [],
+      "source": {"hero": "Coastal Vietnam, today"},
+      "auto": {"hero": {"en": "Coastal Vietnam", "t": "Прибрежный Вьетнам"}},
+      "overrides": {},
+      "messages": {},
+      "rejected": [["hero", "auto", "stale", "translated from \"Coastal Vietnam\", source is now \"Coastal Vietnam, today\""]],
+      "missing": ["hero"],
       "coverage": 0
     },
     {
       "locale": "ru",
-      "source": { "a": "A" },
-      "translated": { "a": { "en": "A", "t": "А" }, "stray": { "en": "Gone", "t": "Ушло" } },
-      "messages": { "a": "А" },
-      "rejected": [["stray", "orphan-key", "not defined in en — only the canonical locale introduces keys"]],
+      "source": {"a": "A"},
+      "auto": {"a": {"en": "A", "t": "А"}, "stray": {"en": "Gone", "t": "Ушло"}},
+      "overrides": {},
+      "messages": {"a": "А"},
+      "rejected": [["stray", "auto", "orphan-key", "not defined in en — only the canonical locale introduces keys"]],
       "missing": [],
       "coverage": 1
     },
     {
       "locale": "ru",
-      "source": { "a": "A", "b": "B" },
-      "translated": { "a": { "en": "A", "t": "А" } },
-      "messages": { "a": "А", "b": "B" },
+      "source": {"a": "A", "b": "B"},
+      "auto": {"a": {"en": "A", "t": "А"}},
+      "overrides": {},
+      "messages": {"a": "А"},
       "rejected": [],
       "missing": ["b"],
       "coverage": 0.5
     },
     {
       "locale": "ru",
-      "source": { "a": "A" },
-      "translated": { "a": { "en": "A", "t": "   " } },
-      "messages": { "a": "A" },
-      "rejected": [["a", "empty", "translation is blank"]],
-      "missing": [],
+      "source": {"a": "A"},
+      "auto": {"a": {"en": "A", "t": "   "}},
+      "overrides": {},
+      "messages": {},
+      "rejected": [["a", "auto", "empty", "translation is blank"]],
+      "missing": ["a"],
       "coverage": 0
     },
     {
       "locale": "ru",
-      "source": { "greet": "Hello, {name}" },
-      "translated": { "greet": { "en": "Hello, {name}", "t": "Здравствуйте" } },
-      "messages": { "greet": "Hello, {name}" },
-      "rejected": [["greet", "placeholder-mismatch", "source interpolates {name}, translation does not"]],
-      "missing": [],
+      "source": {"greet": "Hello, {name}"},
+      "auto": {"greet": {"en": "Hello, {name}", "t": "Здравствуйте"}},
+      "overrides": {},
+      "messages": {},
+      "rejected": [["greet", "auto", "placeholder-mismatch", "source interpolates {name}, translation does not"]],
+      "missing": ["greet"],
       "coverage": 0
     },
     {
       "locale": "ru",
-      "source": { "greet": "Hello, {name}" },
-      "translated": { "greet": { "en": "Hello, {name}", "t": "Здравствуйте, {name} {имя}" } },
-      "messages": { "greet": "Hello, {name}" },
-      "rejected": [["greet", "placeholder-mismatch", "translation interpolates {имя}, which the source does not provide"]],
-      "missing": [],
+      "source": {"greet": "Hello, {name}"},
+      "auto": {"greet": {"en": "Hello, {name}", "t": "Здравствуйте, {name} {имя}"}},
+      "overrides": {},
+      "messages": {},
+      "rejected": [["greet", "auto", "placeholder-mismatch", "translation interpolates {имя}, which the source does not provide"]],
+      "missing": ["greet"],
       "coverage": 0
     },
     {
       "locale": "ru",
-      "source": { "n": "{n, plural, one {# lot} other {# lots}}" },
-      "translated": { "n": { "en": "{n, plural, one {# lot} other {# lots}}", "t": "{n} участков" } },
-      "messages": { "n": "{n, plural, one {# lot} other {# lots}}" },
-      "rejected": [["n", "argument-type-mismatch", "{n} is a plural in en and a value here"]],
-      "missing": [],
+      "source": {"n": "{n, plural, one {# lot} other {# lots}}"},
+      "auto": {"n": {"en": "{n, plural, one {# lot} other {# lots}}", "t": "{n} участков"}},
+      "overrides": {},
+      "messages": {},
+      "rejected": [["n", "auto", "argument-type-mismatch", "{n} is a plural in en and a value here"]],
+      "missing": ["n"],
       "coverage": 0
     },
     {
       "locale": "ru",
-      "source": { "n": "{n, plural, one {# lot} other {# lots}}" },
-      "translated": { "n": { "en": "{n, plural, one {# lot} other {# lots}}", "t": "{n, plural, one {# участок} other {# участка}}" } },
-      "messages": { "n": "{n, plural, one {# lot} other {# lots}}" },
-      "rejected": [["n", "plural-category-missing", "{n} needs few, many in ru"]],
-      "missing": [],
+      "source": {"n": "{n, plural, one {# lot} other {# lots}}"},
+      "auto": {"n": {"en": "{n, plural, one {# lot} other {# lots}}", "t": "{n, plural, one {# участок} other {# участка}}"}},
+      "overrides": {},
+      "messages": {},
+      "rejected": [["n", "auto", "plural-category-missing", "{n} needs few, many in ru"]],
+      "missing": ["n"],
       "coverage": 0
     },
     {
       "locale": "ru",
-      "source": { "n": "{n, plural, one {# lot} other {# lots}}" },
-      "translated": { "n": { "en": "{n, plural, one {# lot} other {# lots}}", "t": "{n, plural, one {# участок} few {# участка}}" } },
-      "messages": { "n": "{n, plural, one {# lot} other {# lots}}" },
-      "rejected": [["n", "plural-category-missing", "{n} needs many, other in ru"]],
-      "missing": [],
+      "source": {"n": "{n, plural, one {# lot} other {# lots}}"},
+      "auto": {"n": {"en": "{n, plural, one {# lot} other {# lots}}", "t": "{n, plural, one {# участок} few {# участка}}"}},
+      "overrides": {},
+      "messages": {},
+      "rejected": [["n", "auto", "plural-category-missing", "{n} needs many, other in ru"]],
+      "missing": ["n"],
       "coverage": 0
     },
     {
       "locale": "ru",
-      "source": { "n": "{n, plural, one {# lot} other {# lots}}" },
-      "translated": { "n": { "en": "{n, plural, one {# lot} other {# lots}}", "t": "{n, plural, other {# участков}}" } },
-      "messages": { "n": "{n, plural, one {# lot} other {# lots}}" },
-      "rejected": [["n", "plural-category-missing", "{n} needs one, few, many in ru"]],
-      "missing": [],
+      "source": {"n": "{n, plural, one {# lot} other {# lots}}"},
+      "auto": {"n": {"en": "{n, plural, one {# lot} other {# lots}}", "t": "{n, plural, other {# участков}}"}},
+      "overrides": {},
+      "messages": {},
+      "rejected": [["n", "auto", "plural-category-missing", "{n} needs one, few, many in ru"]],
+      "missing": ["n"],
       "coverage": 0
     },
     {
       "locale": "ru",
-      "source": { "n": "{n, plural, one {# lot} other {# lots}}" },
-      "translated": { "n": { "en": "{n, plural, one {# lot} other {# lots}}", "t": "{n, plural, one {# участок} few {# участка} many {# участков} other {# участка}}" } },
-      "messages": { "n": "{n, plural, one {# участок} few {# участка} many {# участков} other {# участка}}" },
+      "source": {"n": "{n, plural, one {# lot} other {# lots}}"},
+      "auto": {"n": {"en": "{n, plural, one {# lot} other {# lots}}", "t": "{n, plural, one {# участок} few {# участка} many {# участков} other {# участка}}"}},
+      "overrides": {},
+      "messages": {"n": "{n, plural, one {# участок} few {# участка} many {# участков} other {# участка}}"},
       "rejected": [],
       "missing": [],
       "coverage": 1
     },
     {
       "locale": "vi",
-      "source": { "n": "{n, plural, one {# lot} other {# lots}}" },
-      "translated": { "n": { "en": "{n, plural, one {# lot} other {# lots}}", "t": "{n, plural, other {# lô đất}}" } },
-      "messages": { "n": "{n, plural, other {# lô đất}}" },
+      "source": {"n": "{n, plural, one {# lot} other {# lots}}"},
+      "auto": {"n": {"en": "{n, plural, one {# lot} other {# lots}}", "t": "{n, plural, other {# lô đất}}"}},
+      "overrides": {},
+      "messages": {"n": "{n, plural, other {# lô đất}}"},
       "rejected": [],
       "missing": [],
       "coverage": 1
     },
     {
       "locale": "ru",
-      "source": { "a": "use '{braces}' literally", "b": "a '{' brace" },
-      "translated": { "a": { "en": "use '{braces}' literally", "t": "используйте '{braces}' буквально" }, "b": { "en": "a '{' brace", "t": "скобка '{'" } },
-      "messages": { "a": "используйте '{braces}' буквально", "b": "скобка '{'" },
+      "source": {"a": "use '{braces}' literally", "b": "a '{' brace"},
+      "auto": {"a": {"en": "use '{braces}' literally", "t": "используйте '{braces}' буквально"}, "b": {"en": "a '{' brace", "t": "скобка '{'"}},
+      "overrides": {},
+      "messages": {"a": "используйте '{braces}' буквально", "b": "скобка '{'"},
       "rejected": [],
+      "missing": [],
+      "coverage": 1
+    },
+    {
+      "locale": "ru",
+      "source": {"hero": "Coastal Vietnam"},
+      "auto": {"hero": {"en": "Coastal Vietnam", "t": "Прибрежный Вьетнам"}},
+      "overrides": {"hero": {"en": "Coastal Vietnam", "t": "Побережье Вьетнама"}},
+      "messages": {"hero": "Побережье Вьетнама"},
+      "rejected": [],
+      "missing": [],
+      "coverage": 1
+    },
+    {
+      "locale": "ru",
+      "source": {"hero": "Coastal Vietnam"},
+      "auto": {"hero": {"en": "Coastal Vietnam", "t": "Прибрежный Вьетнам"}},
+      "overrides": {"hero": {"en": "Old", "t": "Старое"}},
+      "messages": {"hero": "Прибрежный Вьетнам"},
+      "rejected": [["hero", "override", "stale", "translated from \"Old\", source is now \"Coastal Vietnam\""]],
+      "missing": [],
+      "coverage": 1
+    },
+    {
+      "locale": "ru",
+      "source": {"hero": "Coastal Vietnam"},
+      "auto": {"hero": {"en": "Old", "t": "Старое авто"}},
+      "overrides": {"hero": {"en": "Old", "t": "Старое"}},
+      "messages": {},
+      "rejected": [["hero", "override", "stale", "translated from \"Old\", source is now \"Coastal Vietnam\""], ["hero", "auto", "stale", "translated from \"Old\", source is now \"Coastal Vietnam\""]],
+      "missing": ["hero"],
+      "coverage": 0
+    },
+    {
+      "locale": "ru",
+      "source": {"hero": "Coastal Vietnam"},
+      "auto": {},
+      "overrides": {"hero": {"en": "Coastal Vietnam", "t": "Побережье Вьетнама"}},
+      "messages": {"hero": "Побережье Вьетнама"},
+      "rejected": [],
+      "missing": [],
+      "coverage": 1
+    },
+    {
+      "locale": "ru",
+      "source": {"a": "A"},
+      "auto": {"a": {"en": "A", "t": "А"}, "gone": {"en": "Gone", "t": "Ушло"}},
+      "overrides": {"old": {"en": "Old", "t": "Старое"}},
+      "messages": {"a": "А"},
+      "rejected": [["old", "override", "orphan-key", "not defined in en — only the canonical locale introduces keys"], ["gone", "auto", "orphan-key", "not defined in en — only the canonical locale introduces keys"]],
       "missing": [],
       "coverage": 1
     }
   ],
   "audit": [
     {
-      "catalogues": [["ru", { "hero": "New" }, { "hero": { "en": "Old", "t": "Старое" } }]],
+      "catalogues": [
+        ["ru", {"hero": "New"}, {"hero": {"en": "Old", "t": "Старое"}}, {}]
+      ],
       "floor": 1,
       "ok": false,
-      "report": "FAIL ru  0% coverage\n       hero  [source-drift] translated from \"Old\", source is now \"New\""
+      "report": "FAIL ru  0% coverage\n       hero  [auto stale] translated from \"Old\", source is now \"New\"\n       untranslated (1): hero"
     },
     {
-      "catalogues": [["ru", { "hero": "New" }, { "hero": { "en": "New", "t": "Новое" } }]],
+      "catalogues": [
+        ["ru", {"hero": "New"}, {"hero": {"en": "New", "t": "Новое"}}, {}]
+      ],
       "floor": 1,
       "ok": true,
       "report": "ok   ru  100% coverage"
     },
     {
-      "catalogues": [["ru", { "a": "A", "b": "B" }, { "a": { "en": "A", "t": "А" } }]],
+      "catalogues": [
+        ["ru", {"a": "A", "b": "B"}, {"a": {"en": "A", "t": "А"}}, {}]
+      ],
       "floor": 0.5,
       "ok": true,
       "report": "ok   ru  50% coverage\n       untranslated (1): b"
     },
     {
       "catalogues": [
-        ["ru", { "a": "x", "b": "x", "c": "x", "d": "x", "e": "x", "f": "x", "g": "x", "h": "x", "i": "x", "j": "x", "k": "x", "l": "x" }, {}],
-        ["vi", { "a": "x" }, { "a": { "en": "x", "t": "y" } }]
+        ["ru", {"a": "x", "b": "x", "c": "x", "d": "x", "e": "x", "f": "x", "g": "x", "h": "x", "i": "x", "j": "x", "k": "x", "l": "x"}, {}, {}],
+        ["vi", {"a": "x"}, {"a": {"en": "x", "t": "y"}}, {}]
       ],
       "floor": 1,
       "ok": false,
       "report": "FAIL ru  0% coverage\n       untranslated (12): a, b, c, d, e, f, g, h, i, j\n       …and 2 more\nok   vi  100% coverage"
+    },
+    {
+      "catalogues": [
+        ["ru", {"hero": "Coastal Vietnam"}, {"hero": {"en": "Coastal Vietnam", "t": "Прибрежный Вьетнам"}}, {"hero": {"en": "Old", "t": "Старое"}}]
+      ],
+      "floor": 1,
+      "ok": false,
+      "report": "FAIL ru  100% coverage\n       hero  [override stale] translated from \"Old\", source is now \"Coastal Vietnam\""
     }
   ],
   "available": [

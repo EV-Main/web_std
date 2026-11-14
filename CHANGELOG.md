@@ -23,6 +23,20 @@ Rust crate and its TypeScript mirror at once.
 
 ### Breaking
 
+- **Keys are values off a scope; every non-English locale has a generated layer**
+  (`@evinvest/i18n` 0.14, `ev_lib::i18n::policy`). `scope("gmbs")` is a root
+  `Key` and property access nests (`gmbs.add.hint`); `t`/`translator`/`useT` take
+  a `Key`, string keys are gone. The extractor follows a key through `const`
+  bindings and imports back to its `scope("<literal>")` and refuses anything
+  else. A locale is `common.auto.json` (generated) under `common.json` (hand
+  overrides), both `{en, t}`: `resolveCatalogue(locale, source, auto, overrides)`
+  serves a valid override, else a valid auto entry, else nothing (the call
+  site's English renders). `messages` no longer carries English for untranslated
+  keys. `RejectionReason` `source-drift` is `stale`, and a `Rejection` names its
+  `layer`. `evinvest-i18n-extract` moves an orphan to a renamed key by its
+  recorded English when the match is unique, and prints every move and drop;
+  `evinvest-i18n-check` fails on any untranslated key too. `evinvest-i18n-rekey`
+  migrates a 0.13 app.
 - **Every keymap leaf has a required, stable `id`** (`ev_lib::keymap`,
   `@evinvest/keymap`, `@evinvest/uikit`, `@evinvest/mfe`): a leaf is
   `{ on, id, run }` (`Node::Run { id, command }`), `id` moved off the uikit

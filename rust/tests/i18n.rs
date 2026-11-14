@@ -104,14 +104,14 @@ fn translated(v: &Value) -> TranslatedCatalogue {
 }
 
 fn rejection(r: &Rejection) -> Value {
-	serde_json::json!([r.key, r.reason.as_str(), r.detail])
+	serde_json::json!([r.key, r.layer.as_str(), r.reason.as_str(), r.detail])
 }
 
 #[test]
 fn resolves_catalogues() {
 	let fixture = fixture("policy");
 	for case in cases(&fixture, "resolve") {
-		let resolved = resolve_catalogue(locale(&case["locale"]), &messages(&case["source"]), &translated(&case["translated"]));
+		let resolved = resolve_catalogue(locale(&case["locale"]), &messages(&case["source"]), &translated(&case["auto"]), &translated(&case["overrides"]));
 		assert_eq!(resolved.messages, messages(&case["messages"]), "{case}");
 		assert_eq!(Value::from(resolved.rejected.iter().map(rejection).collect::<Vec<_>>()), case["rejected"], "{case}");
 		assert_eq!(Value::from(resolved.missing), case["missing"], "{case}");
@@ -127,7 +127,7 @@ fn audits() {
 			.as_array()
 			.expect("catalogues")
 			.iter()
-			.map(|c| resolve_catalogue(locale(&c[0]), &messages(&c[1]), &translated(&c[2])))
+			.map(|c| resolve_catalogue(locale(&c[0]), &messages(&c[1]), &translated(&c[2]), &translated(&c[3])))
 			.collect();
 		let (ok, report) = audit(&resolved, case["floor"].as_f64().expect("floor"));
 		assert_eq!(report, str_of(&case["report"]), "{case}");

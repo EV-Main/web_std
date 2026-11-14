@@ -2,6 +2,8 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { keyAt } from "./key";
+
 import { createLocaleRegistry } from "../src/index";
 import { I18nProvider as DefaultProvider, createI18nReact } from "../src/react/index";
 
@@ -29,7 +31,7 @@ afterEach(() => {
 
 function Probe() {
   const locale = useLocale();
-  return <span>{`${locale}:${useT()("cta", "Appelez-nous")}`}</span>;
+  return <span>{`${locale}:${useT()(keyAt("cta"), "Appelez-nous")}`}</span>;
 }
 
 describe("createI18nReact", () => {

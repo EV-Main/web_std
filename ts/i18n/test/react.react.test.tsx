@@ -3,6 +3,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { I18nProvider, I18nScope, useLocale, useT } from "../src/react/index";
+import { keyAt } from "./key";
 
 let container: HTMLDivElement;
 let root: Root;
@@ -29,8 +30,8 @@ function Probe() {
   const locale = useLocale();
   return (
     <span data-testid="out">
-      {locale}:{t("hero.title", "Invest in the China+1 narrative")}:
-      {t("roles.count", "{n, plural, one {# role} other {# roles}}", { n: 3 })}
+      {locale}:{t(keyAt("hero.title"), "Invest in the China+1 narrative")}:
+      {t(keyAt("roles.count"), "{n, plural, one {# role} other {# roles}}", { n: 3 })}
     </span>
   );
 }
@@ -52,7 +53,7 @@ describe("I18nProvider", () => {
   it("reports an unknown key through onMissing and renders the inline English", () => {
     const onMissing = vi.fn();
     function Missing() {
-      return <span>{useT()("nope.key", "Five hundred years of compounding")}</span>;
+      return <span>{useT()(keyAt("nope.key"), "Five hundred years of compounding")}</span>;
     }
     act(() => {
       root.render(
@@ -86,7 +87,7 @@ function Key({ k }: { k: string }) {
   const t = useT();
   return (
     <i>
-      {useLocale()}|{t(k, `EN:${k}`)};
+      {useLocale()}|{t(keyAt(k), `EN:${k}`)};
     </i>
   );
 }
