@@ -9,6 +9,7 @@ import { Checkbox } from "../atomic/checkbox";
 import { Kbd } from "../atomic/kbd";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "../atomic/hover-card";
 import { Popover, PopoverContent, PopoverTrigger } from "../atomic/popover";
+import { FloatingPanel } from "./floating-panel";
 import { useKeymap } from "./keymap";
 import { TriangleAlertIcon } from "./shell-icons";
 
@@ -26,7 +27,7 @@ interface HotbarActionBase {
   preview?: React.ReactNode;
 }
 
-/** Either runs on a press, or opens its `panel` above the bar, whose footer unpins it. */
+/** Either runs on a press, or opens its `panel` above the bar, whose footer pops it out into a `FloatingPanel` or unpins it. A panel sets its own width. */
 export type HotbarAction = HotbarActionBase &
   ({ onSelect: () => void; panel?: never } | { panel: React.ReactNode; onSelect?: never });
 
@@ -45,6 +46,10 @@ export interface HotbarLabels {
   done?: string;
   /** A panel's footer. Default `"Hide from hotbar"`. */
   hide?: string;
+  /** A panel's footer: into a window of its own. Default `"Pop out"`. */
+  popOut?: string;
+  /** A popped-out panel's close button. Default `"Close"`. */
+  close?: string;
 }
 
 export interface HotbarProps extends Omit<React.ComponentProps<"section">, "children"> {
@@ -117,6 +122,14 @@ export function Hotbar({ actions, status, takeover, labels = {}, className, ...p
   };
 
   const [customizing, setCustomizing] = React.useState(false);
+  /** The panels popped out, where each first sat. */
+  const [popped, setPopped] = React.useState<ReadonlyMap<string, { x: number; y: number }>>(new Map());
+  const popIn = (id: string) =>
+    setPopped(p => {
+      const next = new Map(p);
+      next.delete(id);
+      return next;
+    });
 
   return (
     <section
@@ -139,7 +152,16 @@ export function Hotbar({ actions, status, takeover, labels = {}, className, ...p
         ) : (
           <>
             {actions.filter(isPinned).map(action => (
-              <HotbarItem key={action.id} action={action} keys={keys(action)} hide={labels.hide ?? "Hide from hotbar"} onHide={() => setPinned(action, false)} />
+              <HotbarItem
+                key={action.id}
+                action={action}
+                keys={keys(action)}
+                labels={{ hide: labels.hide ?? "Hide from hotbar", popOut: labels.popOut ?? "Pop out" }}
+                popped={popped.has(action.id)}
+                onPopOut={at => setPopped(p => new Map(p).set(action.id, at))}
+                onPopIn={() => popIn(action.id)}
+                onHide={() => setPinned(action, false)}
+              />
             ))}
             <span aria-hidden className="hidden h-4 w-px shrink-0 bg-border @5xl:block" />
             <Popover open={customizing} onOpenChange={setCustomizing}>
@@ -186,11 +208,38 @@ export function Hotbar({ actions, status, takeover, labels = {}, className, ...p
           </div>
         )}
       </div>
+      {actions.map(action => {
+        const at = popped.get(action.id);
+        return (
+          at !== undefined &&
+          action.panel !== undefined && (
+            <FloatingPanel key={action.id} title={action.label} at={at} closeLabel={labels.close ?? "Close"} onClose={() => popIn(action.id)}>
+              {action.panel}
+            </FloatingPanel>
+          )
+        );
+      })}
     </section>
   );
 }
 
-function HotbarItem({ action, keys, hide, onHide }: { action: HotbarAction; keys: string | undefined; hide: string; onHide: () => void }) {
+function HotbarItem({
+  action,
+  keys,
+  labels,
+  popped,
+  onPopOut,
+  onPopIn,
+  onHide,
+}: {
+  action: HotbarAction;
+  keys: string | undefined;
+  labels: { hide: string; popOut: string };
+  popped: boolean;
+  onPopOut: (at: { x: number; y: number }) => void;
+  onPopIn: () => void;
+  onHide: () => void;
+}) {
   const [open, setOpen] = React.useState(false);
   const [hovered, setHovered] = React.useState(false);
   const face = (
@@ -201,8 +250,14 @@ function HotbarItem({ action, keys, hide, onHide }: { action: HotbarAction; keys
     </>
   );
   const button =
-    action.panel === undefined ? (
-      <button type="button" data-slot="hotbar-action" aria-pressed={action.pressed} onClick={action.onSelect} className={cn(ITEM, action.pressed && PRESSED)}>
+    action.panel === undefined || popped ? (
+      <button
+        type="button"
+        data-slot="hotbar-action"
+        aria-pressed={popped || action.pressed}
+        onClick={action.panel === undefined ? action.onSelect : onPopIn}
+        className={cn(ITEM, (popped || action.pressed) && PRESSED)}
+      >
         {face}
       </button>
     ) : (
@@ -224,28 +279,41 @@ function HotbarItem({ action, keys, hide, onHide }: { action: HotbarAction; keys
         </HoverCardContent>
       </HoverCard>
     );
-  if (action.panel === undefined) return previewed;
+  if (action.panel === undefined || popped) return previewed;
   return (
     <Popover open={open} onOpenChange={setOpen}>
       {previewed}
-      <PopoverContent side="top" align="start" data-slot="hotbar-panel" className="w-80 p-0">
+      <PopoverContent side="top" align="start" data-slot="hotbar-panel" className="w-auto p-0">
         {action.panel}
-        <div className="border-t border-border p-1">
+        <div className="flex border-t border-border p-1">
+          <button
+            type="button"
+            onClick={e => {
+              const box = e.currentTarget.closest('[data-slot="hotbar-panel"]')!.getBoundingClientRect();
+              setOpen(false);
+              onPopOut({ x: box.left, y: box.top });
+            }}
+            className={FOOTER}
+          >
+            {labels.popOut}
+          </button>
           <button
             type="button"
             onClick={() => {
               setOpen(false);
               onHide();
             }}
-            className="flex h-(--control-h-sm) w-full items-center rounded-control px-2 text-body-s text-ink-soft hover:bg-hover hover:text-ink"
+            className={FOOTER}
           >
-            {hide}
+            {labels.hide}
           </button>
         </div>
       </PopoverContent>
     </Popover>
   );
 }
+
+const FOOTER = "flex h-(--control-h-sm) flex-1 items-center rounded-control px-2 text-body-s text-ink-soft hover:bg-hover hover:text-ink";
 
 // A chip below the container breakpoint, a ghost row item from it up.
 const ITEM =

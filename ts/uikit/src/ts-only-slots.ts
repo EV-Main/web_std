@@ -20,6 +20,8 @@ export const TS_ONLY_SLOTS = [
   "chat-word",
   "command-overlay",
   "footer-lockup",
+  "floating-panel",
+  "floating-panel-title",
   "hotbar",
   "hotbar-action",
   "hotbar-customize",

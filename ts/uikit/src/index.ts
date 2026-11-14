@@ -703,6 +703,8 @@ export type { BottomTabBarLabels, BottomTabBarProps } from "./components/shell/b
 
 export { Hotbar } from "./components/shell/hotbar";
 export type { HotbarAction, HotbarLabels, HotbarProps } from "./components/shell/hotbar";
+export { FloatingPanel } from "./components/shell/floating-panel";
+export type { FloatingPanelProps } from "./components/shell/floating-panel";
 export { KeymapProvider, useBinding, useKeymap } from "./components/shell/keymap";
 export type { ElementScope, KeyBinding, KeymapProviderProps, Leaf, PageKeymap, Where } from "./components/shell/keymap";
 export { UndoProvider, useUndo } from "./components/shell/undo";
