@@ -29,14 +29,14 @@ afterEach(() => {
 
 function Probe() {
   const locale = useLocale();
-  return <span>{`${locale}:${useT()("cta", "Appelez-nous")}`}</span>;
+  return <span>{`${locale}:${useT()("Appelez-nous")}`}</span>;
 }
 
 describe("createI18nReact", () => {
   it("serves the call-site copy for the registry's default locale", () => {
     act(() => {
       root.render(
-        <I18nProvider locale="fr" messages={{ cta: "IGNORED" }}>
+        <I18nProvider missing="warn" locale="fr" messages={{ "Appelez-nous": "IGNORED" }}>
           <Probe />
         </I18nProvider>,
       );
@@ -47,7 +47,7 @@ describe("createI18nReact", () => {
   it("translates the other locales from the catalogue", () => {
     act(() => {
       root.render(
-        <I18nProvider locale="en" messages={{ cta: "Call us" }}>
+        <I18nProvider missing="warn" locale="en" messages={{ "Appelez-nous": "Call us" }}>
           <Probe />
         </I18nProvider>,
       );
@@ -59,7 +59,7 @@ describe("createI18nReact", () => {
     expect(() => {
       act(() => {
         root.render(
-          <DefaultProvider locale="en" messages={{}}>
+          <DefaultProvider missing="throw" locale="en" messages={{}}>
             <Probe />
           </DefaultProvider>,
         );

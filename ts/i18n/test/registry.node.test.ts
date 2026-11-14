@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -19,7 +19,7 @@ import {
   type LocaleRegistry,
   type LocaleRegistryConfig,
 } from "../src/index";
-import { translatedLocales, writeCatalogues } from "../src/extract/index";
+import { pruneCatalogues, serialiseAuto, translatedLocales } from "../src/extract/index";
 import { createNextI18n } from "../src/next/index";
 import { availableIn, createPolicy, resolveCatalogue } from "../src/policy/index";
 
@@ -147,10 +147,13 @@ describe("hreflang", () => {
 
 describe("translation follows the registry's default", () => {
   it("treats the default locale as the authored source", () => {
-    const t = fr.translator({ "cta": "IGNORED" }, "fr");
-    expect(t("cta", "Appelez-nous")).toBe("Appelez-nous");
-    const en = fr.translator({ "cta": "Call us" }, "en");
-    expect(en("cta", "Appelez-nous")).toBe("Call us");
+    const fail = (id: string) => {
+      throw new Error(id);
+    };
+    const t = fr.translator({ "Appelez-nous": "IGNORED" }, "fr", fail);
+    expect(t("Appelez-nous")).toBe("Appelez-nous");
+    const en = fr.translator({ "Appelez-nous": "Call us" }, "en", fail);
+    expect(en("Appelez-nous")).toBe("Call us");
   });
 
   it("reads lang inheritance against its own list", () => {
@@ -220,20 +223,20 @@ describe("policy and extract take the registry's source locale", () => {
   it("does not count English as covered when the source is French", () => {
     // The bug a default-registry policy would have: `en` is its source, so an
     // empty English catalogue over French copy reads as 100 % translated.
-    const source = { cta: "Appelez-nous" };
-    expect(resolveCatalogue("en", source, {}).coverage).toBe(1);
+    const source = ["Appelez-nous"];
+    expect(resolveCatalogue("en", source, {}, {}).coverage).toBe(1);
 
     const policy = createPolicy(fr);
-    const en = policy.resolveCatalogue("en", source, {});
+    const en = policy.resolveCatalogue("en", source, {}, {});
     expect(en.coverage).toBe(0);
-    expect(en.missing).toEqual(["cta"]);
-    expect(en.messages).toEqual(source);
-    expect(policy.resolveCatalogue("fr", source, {}).coverage).toBe(1);
+    expect(en.missing).toEqual(source);
+    expect(policy.resolveCatalogue("fr", source, {}, {}).coverage).toBe(1);
   });
 
   it("names the registry's source locale in rejections", () => {
-    const orphan = createPolicy(fr).resolveCatalogue("en", {}, { gone: { en: "x", t: "y" } });
-    expect(orphan.rejected[0]?.detail).toMatch(/not defined in fr/);
+    const n = "{n, plural, one {# appel} other {# appels}}";
+    const resolved = createPolicy(fr).resolveCatalogue("en", [n], { [n]: "{n} calls" }, {});
+    expect(resolved.rejected[0]?.detail).toMatch(/is a plural in fr/);
   });
 
   it("hides untranslated content from every locale but the registry's source", () => {
@@ -244,23 +247,17 @@ describe("policy and extract take the registry's source locale", () => {
     expect(availableIn("en", ["a"], () => [])).toEqual(["a"]);
   });
 
-  it("writes the default locale's catalogue and prunes the others", () => {
+  it("prunes every non-source locale's catalogues to what the code renders", () => {
     const messages = mkdtempSync(join(tmpdir(), "i18n-registry-"));
-    for (const dir of ["fr", "en", "ru"]) mkdirSync(join(messages, dir));
-    writeFileSync(
-      join(messages, "en", "common.json"),
-      JSON.stringify({ cta: { en: "Appelez-nous", t: "Call us" }, stale: { en: "x", t: "y" } }),
-    );
+    writeFileSync(join(messages, "en.auto.json"), serialiseAuto("en", { "Appelez-nous": "Call us", stale: "y" }));
+    writeFileSync(join(messages, "en.json"), JSON.stringify({ gone: "z" }));
 
     expect(translatedLocales(messages, fr)).toEqual(["en"]);
-    const lines = writeCatalogues(messages, [{ key: "cta", en: "Appelez-nous", where: "a.tsx:1" }], fr);
+    const lines = pruneCatalogues(messages, [{ id: "Appelez-nous", en: "Appelez-nous", where: "a.tsx:1" }], fr);
 
-    expect(lines[0]).toMatch(/^fr: 1 keys/);
-    expect(JSON.parse(readFileSync(join(messages, "fr", "common.json"), "utf8"))).toEqual({
-      cta: "Appelez-nous",
-    });
-    expect(Object.keys(JSON.parse(readFileSync(join(messages, "en", "common.json"), "utf8")))).toEqual([
-      "cta",
-    ]);
+    expect(lines[0]).toBe("fr: 1 strings in the code");
+    expect(readFileSync(join(messages, "en.auto.json"), "utf8")).toBe(serialiseAuto("en", { "Appelez-nous": "Call us" }));
+    expect(JSON.parse(readFileSync(join(messages, "en.json"), "utf8"))).toEqual({});
+    expect(lines.join("\n")).toMatch(/override dropped: "gone".*\n.*nearest now: "Appelez-nous" \(a\.tsx:1\)/);
   });
 });

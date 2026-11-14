@@ -47,7 +47,7 @@ const VECTORS = JSON.parse(readFileSync(join(import.meta.dirname, "../../../test
   format: [string, Locale, MessageValues, string][];
   plural: [Locale, number, string][];
   number: [Locale, number, string][];
-  translate: [Locale, Messages, string, string, MessageValues, string][];
+  translate: [Locale, Messages, string | null, string, MessageValues, string][];
 };
 
 describe("shared vectors", () => {
@@ -64,30 +64,42 @@ describe("shared vectors", () => {
     expect(formatMessage("{n, plural, other {#}}", locale, { n })).toBe(written);
   });
 
-  it.each(VECTORS.translate)("translates in %s from %j: %s", (locale, messages, key, en, values, expected) => {
-    expect(translator(messages, locale)(key, en, values)).toBe(expected);
+  it.each(VECTORS.translate)("translates in %s from %j: %s %s", (locale, messages, ctx, en, values, expected) => {
+    const t = translator(messages, locale, () => {});
+    expect(ctx === null ? t(en, values) : t.ctx(ctx, en, values)).toBe(expected);
   });
 });
 
 describe("translator — onMissing", () => {
-  const messages = { "hero.title": "Инвестируйте в нарратив «Китай+1»" };
+  const messages = { "Invest in the China+1 narrative": "Инвестируйте в нарратив «Китай+1»" };
 
-  it("reports a key the catalogue lacks", () => {
+  it("reports an id the catalogue lacks, ctx included", () => {
     const onMissing = vi.fn();
-    translator(messages, "ru", onMissing)("hero.subtitle", "Five hundred years of compounding");
-    expect(onMissing).toHaveBeenCalledWith("hero.subtitle", "ru");
+    const t = translator(messages, "ru", onMissing);
+    t("Five hundred years of compounding");
+    t.ctx("hero", "Invest in the China+1 narrative");
+    expect(onMissing.mock.calls).toEqual([
+      ["Five hundred years of compounding", "ru"],
+      ["hero\u0004Invest in the China+1 narrative", "ru"],
+    ]);
   });
 
-  it("does not report a key that exists", () => {
+  it("does not report one that exists", () => {
     const onMissing = vi.fn();
-    translator(messages, "ru", onMissing)("hero.title", "Invest in the China+1 narrative");
+    translator(messages, "ru", onMissing)("Invest in the China+1 narrative");
     expect(onMissing).not.toHaveBeenCalled();
   });
 
   it("never reports for the default locale, which has no catalogue to miss", () => {
     const onMissing = vi.fn();
-    translator({}, "en", onMissing)("anything", "Anything");
+    translator({}, "en", onMissing)("Anything");
     expect(onMissing).not.toHaveBeenCalled();
+  });
+
+  it("reads no id off the prototype", () => {
+    const onMissing = vi.fn();
+    expect(translator({}, "ru", onMissing)("toString")).toBe("toString");
+    expect(onMissing).toHaveBeenCalledWith("toString", "ru");
   });
 });
 

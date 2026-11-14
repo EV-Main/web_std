@@ -5,5 +5,5 @@ export type Only = string;
 
 export function TypeOnly() {
   const t = useT();
-  return t("typeonly.k", "Type only");
+  return t("Type only");
 }

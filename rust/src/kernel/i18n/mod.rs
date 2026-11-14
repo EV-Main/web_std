@@ -28,22 +28,22 @@
 //! exception is `#` inside a plural branch, which is the count itself — see
 //! [`Locale::format_number`].
 //!
-//! **English is written where it renders.** Every lookup carries the English
-//! sentence as authored at the call site, and `messages/en/common.json` is
-//! generated back out of the code — so copy cannot be edited in one place and
-//! read from another, and a key a translated catalogue lacks renders the
-//! sentence the component asked for. Use the [`t!`](crate::t) macro, which makes
-//! the compiler the literal-ness gate and registers the pair for extraction.
+//! **English lives only where it renders, and is the string's identity.** A
+//! catalogue is keyed by the English it translates (plus a `ctx` where one English
+//! string means two things), so there is no key to write, and a translation whose
+//! English changed no longer matches anything — see [`policy`].
 //!
 //! ```
 //! use ev_lib::{i18n::{Locale, Messages, Translator}, t};
 //!
+//! let en = "{n, plural, one {# item} other {# items}}";
 //! let mut messages = Messages::new();
-//! messages.insert("cart.items".into(), "{n, plural, one {# товар} few {# товара} many {# товаров}}".into());
+//! messages.insert(en.into(), "{n, plural, one {# товар} few {# товара} many {# товаров}}".into());
+//! messages.insert("cart\u{4}Added".into(), "Добавлен".into());
 //! let tr = Translator::new(messages, Locale::Ru);
 //!
-//! assert_eq!(t!(tr, "cart.items", "{n, plural, one {# item} other {# items}}", n = 3.0), "3 товара");
-//! assert_eq!(t!(tr, "nope", "Five hundred years of compounding"), "Five hundred years of compounding");
+//! assert_eq!(t!(tr, "{n, plural, one {# item} other {# items}}", n = 3.0), "3 товара");
+//! assert_eq!(t!(tr, ctx = "cart", "Added"), "Добавлен");
 //! ```
 
 use std::collections::BTreeMap;
@@ -67,14 +67,19 @@ pub const LOCALES: [Locale; 5] = [Locale::En, Locale::Ru, Locale::Vi, Locale::Fr
 /// Also the only locale whose URLs carry no prefix — see [`locale_path`].
 pub const DEFAULT_LOCALE: Locale = Locale::En;
 
-/// A loaded catalogue: flat `key → pattern`.
-///
-/// Flat rather than nested because the policy diffs and reports per
-/// fully-qualified key, and a nested shape would make every one of those
-/// operations a tree walk for no gain at the call site. `BTreeMap` rather than
-/// `HashMap` so a report's key order is deterministic — a CI diff that reorders
-/// itself between runs is not a diff.
+/// A loaded catalogue: message id → pattern. `BTreeMap` so a report's order is deterministic.
 pub type Messages = BTreeMap<String, String>;
+
+/// Between a message's `ctx` and its English in its id — gettext's.
+pub const CTX_SEPARATOR: char = '\u{4}';
+
+/// A message's identity: its English, prefixed by its `ctx` where it has one.
+pub fn message_id(ctx: Option<&str>, en: &str) -> String {
+	match ctx {
+		Some(ctx) => format!("{ctx}{CTX_SEPARATOR}{en}"),
+		None => en.to_owned(),
+	}
+}
 
 impl Locale {
 	/// The BCP 47 language subtag — what goes in `<html lang>` and a URL prefix.
@@ -163,38 +168,19 @@ impl Translator {
 		self.locale
 	}
 
-	/// Render `key`, falling back to `en`, with no interpolation.
-	pub fn t(&self, key: &str, en: &str) -> String {
-		self.render(key, en, &MessageValues::new())
-	}
-
-	/// Render `key`, falling back to `en`, interpolating `values`.
-	pub fn tv(&self, key: &str, en: &str, values: &MessageValues) -> String {
-		self.render(key, en, values)
-	}
-
-	/// Render `key` with a single numeric argument — the common plural case.
+	/// Render `en` (under `ctx`, if given); what [`t!`](crate::t) expands to.
 	///
-	/// ```
-	/// use ev_lib::i18n::{Locale, Messages, Translator};
-	/// let en = "{count, plural, one {# role} other {# roles}}";
-	/// let mut m = Messages::new();
-	/// m.insert("roles".into(), "{count, plural, one {# вакансия} few {# вакансии} many {# вакансий}}".into());
-	/// let t = Translator::new(m, Locale::Ru);
-	/// assert_eq!(t.count("roles", en, "count", 3.0), "3 вакансии");
-	/// assert_eq!(t.count("nope", en, "count", 2.0), "2 roles");
-	/// ```
-	pub fn count(&self, key: &str, en: &str, name: &str, n: f64) -> String {
-		let mut values = MessageValues::new();
-		values.insert(name.to_owned(), MessageValue::Num(n));
-		self.render(key, en, &values)
-	}
-
-	fn render(&self, key: &str, en: &str, values: &MessageValues) -> String {
-		let pattern = if self.locale == DEFAULT_LOCALE {
-			en
-		} else {
-			self.messages.get(key).map_or(en, String::as_str)
+	/// A translation the catalogue lacks renders `en` in a debug build and panics in a release one:
+	/// the policy's check refuses to build past one.
+	pub fn render(&self, ctx: Option<&str>, en: &str, values: &MessageValues) -> String {
+		if self.locale == DEFAULT_LOCALE {
+			return format_message(en, self.locale, values);
+		}
+		let id = message_id(ctx, en);
+		let pattern = match self.messages.get(&id) {
+			Some(pattern) => pattern.as_str(),
+			None if cfg!(debug_assertions) => en,
+			None => panic!("{id:?} has no {} translation; the i18n check lets no build past this", self.locale),
 		};
 		format_message(pattern, self.locale, values)
 	}
@@ -206,34 +192,29 @@ impl Translator {
 /// use ev_lib::{i18n::{Locale, Messages, Translator}, t};
 /// let tr = Translator::new(Messages::new(), Locale::En);
 ///
-/// t!(tr, "hero.title", "Invest in the China+1 narrative");
-/// t!(tr, "cart.items", "{n, plural, one {# item} other {# items}}", n = 2);
+/// t!(tr, "Invest in the China+1 narrative");
+/// t!(tr, "{n, plural, one {# item} other {# items}}", n = 2);
+/// t!(tr, ctx = "tokens", "Added");
 /// ```
 ///
-/// `$key` and `$en` are `literal` fragments, so **the compiler is the
-/// literal-ness gate** — the TypeScript extractor has to enforce that by hand,
-/// and a key assembled at runtime is neither visible where it renders nor
-/// greppable.
+/// `$en` and `$ctx` are `literal` fragments, so **the compiler is the literal-ness gate** — the
+/// TypeScript extractor has to enforce that by hand.
 ///
-/// Natively, each site also registers its pair with [`i18n::catalogue`](catalogue).
-/// Extraction is therefore *linking*, not parsing: a site that compiles is
-/// registered whether or not it ever renders, which is what a recording
-/// translator driven by one SSR pass could never promise — it would silently
-/// drop every string behind a branch that did not run. The corollary, and the
-/// ceiling: **copy must live in natively-compilable code.** For a microfrontend
-/// the component-MFE snapshot contract already requires exactly that.
+/// Natively, each site also registers itself with [`i18n::catalogue`](catalogue): extraction is
+/// *linking*, so a site that compiles is registered whether or not it ever renders. The ceiling:
+/// **copy must live in natively-compilable code.**
 #[cfg(feature = "i18n")]
 #[macro_export]
 macro_rules! t {
-	($tr:expr, $key:literal, $en:literal) => {{
-		$crate::__i18n_register!($key, $en);
-		$tr.t($key, $en)
+	($tr:expr, ctx = $ctx:literal, $en:literal $(, $name:ident = $value:expr)* $(,)?) => {{
+		$crate::__i18n_register!(::core::option::Option::Some($ctx), $en);
+		let values: $crate::i18n::MessageValues = [$((stringify!($name).to_owned(), $crate::i18n::MessageValue::from($value))),*].into_iter().collect();
+		$tr.render(::core::option::Option::Some($ctx), $en, &values)
 	}};
-	($tr:expr, $key:literal, $en:literal, $($name:ident = $value:expr),+ $(,)?) => {{
-		$crate::__i18n_register!($key, $en);
-		let mut values = $crate::i18n::MessageValues::new();
-		$(values.insert(stringify!($name).to_owned(), $crate::i18n::MessageValue::from($value));)+
-		$tr.tv($key, $en, &values)
+	($tr:expr, $en:literal $(, $name:ident = $value:expr)* $(,)?) => {{
+		$crate::__i18n_register!(::core::option::Option::None, $en);
+		let values: $crate::i18n::MessageValues = [$((stringify!($name).to_owned(), $crate::i18n::MessageValue::from($value))),*].into_iter().collect();
+		$tr.render(::core::option::Option::None, $en, &values)
 	}};
 }
 
@@ -243,8 +224,8 @@ macro_rules! t {
 #[doc(hidden)]
 #[macro_export]
 macro_rules! __i18n_register {
-	($key:literal, $en:literal) => {
-		$crate::i18n::inventory::submit! { $crate::i18n::Source { key: $key, en: $en } }
+	($ctx:expr, $en:literal) => {
+		$crate::i18n::inventory::submit! { $crate::i18n::Source { ctx: $ctx, en: $en } }
 	};
 }
 
@@ -252,7 +233,7 @@ macro_rules! __i18n_register {
 #[doc(hidden)]
 #[macro_export]
 macro_rules! __i18n_register {
-	($key:literal, $en:literal) => {};
+	($ctx:expr, $en:literal) => {};
 }
 
 // ── Extraction ───────────────────────────────────────────────────────────────
@@ -260,19 +241,9 @@ macro_rules! __i18n_register {
 #[cfg(not(target_arch = "wasm32"))]
 pub use inventory;
 
-/// A catalogue bound to one locale, ready to render.
+/// A catalogue bound to one locale, ready to render — through [`t!`](crate::t).
 ///
-/// `en` is the English as authored at the call site; `key` is what a translated
-/// catalogue files it under. A key the catalogue lacks renders `en` — the call
-/// site has the correct sentence in hand, so putting a dotted key on screen
-/// instead would be strictly worse. [`policy::audit`] is what *finds* missing
-/// keys; the runtime's job is only to degrade legibly.
-///
-/// For [`Locale::En`] the catalogue is never consulted: it is generated back out
-/// of these very strings, so there is nothing left to look up.
-///
-/// Prefer the [`t!`](crate::t) macro over calling these directly — it gates the
-/// literal-ness the extractor needs, at compile time.
+/// For [`Locale::En`] the catalogue is never consulted: its copy is the call site's.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Translator {
 	messages: Messages,
@@ -383,37 +354,13 @@ pub enum Locale {
 #[cfg(not(target_arch = "wasm32"))]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Source {
-	pub key: &'static str,
+	pub ctx: Option<&'static str>,
 	pub en: &'static str,
 }
-/// A key registered twice with different English. The catalogue can hold only
-/// one of them, so which one shipped would be decided by link order.
+/// The id of every [`t!`] site linked into this binary — what each locale's catalogue must cover.
 #[cfg(not(target_arch = "wasm32"))]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct KeyConflict {
-	pub key: String,
-	pub first: String,
-	pub second: String,
-}
-/// The English catalogue, read out of every [`t!`] site linked into this binary.
-///
-/// Write it to `messages/en/common.json` and compare the committed file against
-/// it in a test — that pair is the Rust half of `evinvest-i18n-{extract,check}`.
-#[cfg(not(target_arch = "wasm32"))]
-pub fn catalogue() -> Result<Messages, Vec<KeyConflict>> {
-	let mut messages = Messages::new();
-	let mut conflicts = Vec::new();
-	for source in inventory::iter::<Source> {
-		match messages.insert(source.key.to_owned(), source.en.to_owned()) {
-			Some(first) if first != source.en => conflicts.push(KeyConflict {
-				key: source.key.to_owned(),
-				first,
-				second: source.en.to_owned(),
-			}),
-			_ => {}
-		}
-	}
-	if conflicts.is_empty() { Ok(messages) } else { Err(conflicts) }
+pub fn catalogue() -> std::collections::BTreeSet<String> {
+	inventory::iter::<Source>.into_iter().map(|s| message_id(s.ctx, s.en)).collect()
 }
 /// The language tags of an `Accept-Language` header, lowercased, best first.
 /// Shared by [`negotiate`] and [`LocaleRegistry::negotiate`] so the two cannot
@@ -443,13 +390,3 @@ fn ranked_tags(header: &str) -> Vec<String> {
 
 #[cfg(not(target_arch = "wasm32"))]
 inventory::collect!(Source);
-
-#[cfg(not(target_arch = "wasm32"))]
-impl std::fmt::Display for KeyConflict {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		write!(f, "{:?} is registered as {:?} and as {:?}", self.key, self.first, self.second)
-	}
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-impl std::error::Error for KeyConflict {}

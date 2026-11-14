@@ -7,5 +7,5 @@ export function TipAnchor({ anchor }: { anchor: TipKey }) {
   const t = useT();
   void tips;
   const copy = TIP_COPY[anchor](t);
-  return <span aria-label={t("tips.a11y.about", "About")}>{copy.title}</span>;
+  return <span aria-label={t("About")}>{copy.title}</span>;
 }

@@ -42,7 +42,7 @@
 export { DEFAULT_LOCALE, LOCALES, LOCALE_LABELS } from "./generated/locales";
 export type { Locale } from "./generated/locales";
 
-export { createLocaleRegistry } from "./registry";
+export { CTX_SEPARATOR, createLocaleRegistry, messageId } from "./registry";
 export type {
   LangScope,
   LocaleList,
@@ -230,35 +230,22 @@ export function negotiate(
 // ── Messages ─────────────────────────────────────────────────────────────────
 
 /**
- * Build a {@link Translate} bound to one catalogue and locale.
+ * Build a {@link Translate} bound to one catalogue and locale. English is authored
+ * at the call site and is each string's identity, so for {@link DEFAULT_LOCALE} the
+ * catalogue is never consulted.
  *
- * English is authored at the call site and the catalogue is generated back out
- * of the code (`evinvest-i18n-extract`), so the catalogue is a build artefact
- * and `en` is the source. Two consequences the signature makes unavoidable:
- * copy cannot be edited in one place and read from another, and a key the
- * catalogue lacks renders the sentence the component asked for rather than a
- * dotted key.
- *
- * For {@link DEFAULT_LOCALE} the catalogue is never consulted — there is
- * nothing left to look up.
- *
- * @param messages - The catalogue for `locale`.
- * @param locale   - The locale, used for plural rules.
- * @param onMissing - Fired for a key the catalogue has never heard of, which
- *   means the extractor was not re-run. Wire it to Sentry in production.
- * @returns A translate function.
+ * @param onMissing - Hears of an id the catalogue lacks; returning renders its English.
  *
  * @example
  * ```ts
- * const t = translator({ "cart.items": "{n, plural, one {# товар} few {# товара} many {# товаров}}" }, "ru");
- * t("cart.items", "{n, plural, one {# item} other {# items}}", { n: 2 });  // "2 товара"
- * t("nope", "Fallback copy");                                             // "Fallback copy"
+ * const t = translator({ "{n, plural, one {# item} other {# items}}": "{n, plural, one {# товар} few {# товара} many {# товаров}}" }, "ru", fail);
+ * t("{n, plural, one {# item} other {# items}}", { n: 2 });  // "2 товара"
  * ```
  */
 export function translator(
   messages: Messages,
   locale: Locale,
-  onMissing?: (key: string, locale: Locale) => void,
+  onMissing: (id: string, locale: Locale) => void,
 ): Translate {
   return registry.translator(messages, locale, onMissing);
 }

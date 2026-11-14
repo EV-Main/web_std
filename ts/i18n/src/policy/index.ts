@@ -1,68 +1,35 @@
 /**
  * @module @evinvest/i18n/policy
  *
- * EV's translation policy, enforced in code rather than in review.
+ * EV's translation policy, enforced in code rather than in review. The Rust half
+ * (`ev_lib::i18n::policy`) is canonical; `tests/fixtures/i18n/policy.json` holds both to it.
  *
- * **1.1 — English is canonical.** `en` is the authored source. It defines the
- * key set, the placeholders, and the meaning. Every other locale is a
- * *derivation* of it, and nothing else may introduce a key.
+ * **1.1 — English is canonical.** It lives only at the call sites, and a message's
+ * identity is its English ({@link messageId}). Every other locale is a derivation:
+ * a generated catalogue (`<locale>.auto.json`) and the hand-written overrides laid
+ * over it (`<locale>.json`), both keyed by that identity.
  *
  * **1.2 — A translation that no longer matches its English source is not used.**
- * The English string is served instead. This is the rule that keeps a stale
- * translation from quietly contradicting the site: when English copy changes and
- * the translation does not, the translation is no longer a translation of
- * anything — it is last quarter's claim, in another language, presented as
- * current.
+ * Because the key *is* the English, an edited sentence leaves its old translation
+ * keyed by text nothing renders: an orphan, refused, while the new English is
+ * generated afresh.
  *
  * **1.3 — Compiled content with no translation for the current locale is
  * hidden, not silently served in English.** See {@link availableIn}.
  *
- * ## What "semantic comparison" can and cannot mean in code
- *
- * Nothing here compares *meaning* across languages — no program does that
- * reliably, and one that claimed to would fail silently, which is worse than not
- * trying. What is mechanically checkable is **provenance** and **structure**,
- * and together they catch the failure that actually happens in practice:
- *
- * - **Provenance.** Each translated entry records the English text it was
- *   written against. If today's English differs, the translation is stale by
- *   construction — no judgement required, and the diff shows a reviewer exactly
- *   what changed underneath it.
- * - **Structure.** The set of placeholders, their argument types, and the plural
- *   categories a locale requires must all match. A Russian string that handles
- *   only `one`/`other` is *provably* not equivalent to an English plural, because
- *   Russian needs `few` and `many` too — that one is caught arithmetically, not
- *   by opinion.
- *
- * A translation can still be a bad translation of the right source. That is a
- * job for a human reviewer, and this module deliberately does not pretend
- * otherwise.
+ * Nothing here compares *meaning* across languages. What is mechanically checkable
+ * is **provenance** (the key) and **structure**: the placeholders, their argument
+ * types, and the plural categories a locale requires — a Russian plural with only
+ * `one`/`other` is provably wrong.
  */
 
 import { DEFAULT_LOCALE, type Locale, type LocaleRegistry, type Messages } from "../index.js";
+import { english } from "../registry.js";
 import type { RejectionReason } from "../generated/policy.js";
 
 export type { RejectionReason } from "../generated/policy.js";
 
 const CLDR_ORDER: readonly Intl.LDMLPluralRule[] = ["zero", "one", "two", "few", "many", "other"];
-
-/**
- * One translated entry: the text, plus the English it was translated from.
- *
- * `en` is stored as the source *text* rather than a hash on purpose. A hash
- * would be shorter and equally correct, but a reviewer reading a pull request
- * could not see what the translator was looking at. With the text inline, a
- * drifted entry is self-evident in the diff.
- */
-export interface TranslatedEntry {
-  /** The English source this was translated from. */
-  en: string;
-  /** The translation. */
-  t: string;
-}
-
-/** A non-English catalogue as authored on disk. */
-export type TranslatedCatalogue = Readonly<Record<string, TranslatedEntry>>;
 
 /** One refusal, with enough detail to fix it without opening the catalogue. */
 export interface Rejection {
@@ -71,49 +38,35 @@ export interface Rejection {
   detail: string;
 }
 
-/** The outcome of applying the policy to one locale's catalogue. */
+/** The outcome of applying the policy to one locale. */
 export interface ResolvedCatalogue<L extends string = Locale> {
   locale: L;
-  /** Ready for `translator()`: accepted translations, English everywhere else. */
+  /** Ready for `translator()`: every accepted translation. */
   messages: Messages;
-  /** Entries refused by rule 1.2, each falling back to English. */
   rejected: Rejection[];
-  /** Keys English defines that this locale has not translated at all. */
+  /** Ids the code renders that this locale has no accepted translation for. */
   missing: string[];
-  /** Share of English keys actually served in this locale, 0–1. */
+  /** Share of ids served in this locale, 0–1. */
   coverage: number;
 }
 
 /**
- * Apply rules 1.1 and 1.2 to one locale's catalogue.
+ * Apply rules 1.1 and 1.2 to one locale: an override wins over the generated
+ * entry, a refused one gives way to it, and an id with neither accepted is missing.
  *
- * Never throws and never returns a hole: every key English defines is present in
- * `messages`, served in the target locale when the translation passes and in
- * English when it does not. A page therefore cannot break because a translation
- * went stale — it degrades to canonical English, which is rule 1.2's entire
- * point.
+ * @param source    - The id of every string the code renders.
+ * @param auto      - The locale's generated catalogue.
+ * @param overrides - The locale's hand-written overrides.
  *
- * @param locale     - The locale being resolved. `en` returns `source` unchanged.
- * @param source     - The English catalogue. Canonical: it defines the key set.
- * @param translated - The locale's authored catalogue.
- * @returns The resolved catalogue plus a full account of what was refused.
- *
- * Bound to the generated registry, whose source is `en`. For a registry of your
- * own use {@link createPolicy} — this function would treat `en` as the source.
- *
- * @example
- * ```ts
- * const { messages, rejected } = resolveCatalogue("ru", en, ru);
- * const t = translator(messages, "ru");
- * // rejected: [{ key: "hero.title", reason: "source-drift", detail: … }]
- * ```
+ * Bound to the generated registry, whose source is `en`; see {@link createPolicy}.
  */
 export function resolveCatalogue(
   locale: Locale,
-  source: Messages,
-  translated: TranslatedCatalogue,
+  source: Iterable<string>,
+  auto: Messages,
+  overrides: Messages,
 ): ResolvedCatalogue {
-  return resolveAgainst(DEFAULT_LOCALE, locale, source, translated);
+  return resolveAgainst(DEFAULT_LOCALE, locale, source, auto, overrides);
 }
 
 /**
@@ -125,8 +78,9 @@ export interface Policy<L extends string> {
   /** {@link resolveCatalogue} against this registry's source locale. */
   readonly resolveCatalogue: (
     locale: L,
-    source: Messages,
-    translated: TranslatedCatalogue,
+    source: Iterable<string>,
+    auto: Messages,
+    overrides: Messages,
   ) => ResolvedCatalogue<L>;
   /** {@link availableIn} with this registry's source locale seeing everything. */
   readonly availableIn: <T>(
@@ -137,22 +91,14 @@ export interface Policy<L extends string> {
   ) => T[];
 }
 
-/**
- * Bind the policy to a registry built with `createLocaleRegistry`.
- *
- * @example
- * ```ts
- * const policy = createPolicy(i18n);            // i18n.defaultLocale === "fr"
- * policy.resolveCatalogue("en", fr, enCatalogue);
- * ```
- */
+/** Bind the policy to a registry built with `createLocaleRegistry`. */
 export function createPolicy<L extends string>(
   registry: Pick<LocaleRegistry<L>, "defaultLocale">,
 ): Policy<L> {
   const canonical = registry.defaultLocale;
   return {
-    resolveCatalogue: (locale, source, translated) =>
-      resolveAgainst(canonical, locale, source, translated),
+    resolveCatalogue: (locale, source, auto, overrides) =>
+      resolveAgainst(canonical, locale, source, auto, overrides),
     availableIn: (locale, items, localesOf, policy = "hide") =>
       availableAgainst(canonical, locale, items, localesOf, policy),
   };
@@ -161,82 +107,75 @@ export function createPolicy<L extends string>(
 function resolveAgainst<L extends string>(
   canonical: string,
   locale: L,
-  source: Messages,
-  translated: TranslatedCatalogue,
+  ids: Iterable<string>,
+  auto: Messages,
+  overrides: Messages,
 ): ResolvedCatalogue<L> {
+  // Byte order, as Rust's BTreeSet keeps it, so both halves report alike.
+  const source = [...new Set(ids)].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
   if (locale === canonical) {
-    return { locale, messages: source, rejected: [], missing: [], coverage: 1 };
+    const messages = Object.fromEntries(source.map(id => [id, english(id)]));
+    return { locale, messages, rejected: [], missing: [], coverage: 1 };
   }
 
+  const rendered = new Set(source);
   const messages: Record<string, string> = {};
   const rejected: Rejection[] = [];
   const missing: string[] = [];
-  let accepted = 0;
 
-  // Rule 1.1 — English defines the key set, so a key only this locale has is a
-  // key nothing renders. Reported rather than ignored: it is usually a rename
-  // that left the translation behind.
-  for (const key of Object.keys(translated)) {
-    if (!(key in source)) {
-      rejected.push({
-        key,
-        reason: "orphan-key",
-        detail: `not defined in ${canonical} — only the canonical locale introduces keys`,
-      });
+  for (const [catalogue, reason] of [
+    [overrides, "orphan-override"],
+    [auto, "orphan-auto"],
+  ] as const) {
+    for (const key of Object.keys(catalogue).sort()) {
+      if (!rendered.has(key)) {
+        rejected.push({ key, reason, detail: `the code no longer renders ${JSON.stringify(english(key))}` });
+      }
     }
   }
 
-  for (const [key, en] of Object.entries(source)) {
-    const entry = translated[key];
-    if (entry === undefined) {
-      missing.push(key);
-      messages[key] = en;
-      continue;
+  for (const id of source) {
+    const en = english(id);
+    let served: string | undefined;
+    for (const [catalogue, from] of [
+      [overrides, "override"],
+      [auto, "generated"],
+    ] as const) {
+      if (!Object.hasOwn(catalogue, id)) continue;
+      const t = catalogue[id] as string;
+      const problem = check(t, en, locale, canonical);
+      if (problem === null) {
+        served = t;
+        break;
+      }
+      rejected.push({ key: id, reason: problem.reason, detail: `${from}: ${problem.detail}` });
     }
-
-    const problem = check(entry, en, locale, canonical);
-    if (problem !== null) {
-      rejected.push({ key, ...problem });
-      messages[key] = en;
-      continue;
-    }
-
-    messages[key] = entry.t;
-    accepted += 1;
+    if (served === undefined) missing.push(id);
+    else messages[id] = served;
   }
 
-  const total = Object.keys(source).length;
   return {
     locale,
     messages,
     rejected,
     missing,
-    coverage: total === 0 ? 1 : accepted / total,
+    coverage: source.length === 0 ? 1 : Object.keys(messages).length / source.length,
   };
 }
 
-/** The whole of rule 1.2 for a single entry. `null` means accepted. */
+/** The structural half of rule 1.2 for a single translation. `null` means accepted. */
 function check(
-  entry: TranslatedEntry,
+  t: string,
   en: string,
   locale: string,
   canonical: string,
 ): Omit<Rejection, "key"> | null {
-  if (entry.t.trim() === "") {
+  if (t.trim() === "") {
     return { reason: "empty", detail: "translation is blank" };
   }
 
-  // Provenance. The one check that catches ordinary drift: English moved, the
-  // translation did not.
-  if (entry.en !== en) {
-    return {
-      reason: "source-drift",
-      detail: `translated from ${JSON.stringify(entry.en)}, source is now ${JSON.stringify(en)}`,
-    };
-  }
-
   const sourceArgs = scanArguments(en);
-  const targetArgs = scanArguments(entry.t);
+  const targetArgs = scanArguments(t);
 
   for (const [name, kind] of sourceArgs) {
     const mirrored = targetArgs.get(name);
@@ -413,21 +352,8 @@ function branchesOf(body: string): [string, string][] {
 /**
  * Render resolved catalogues as a report for a CI check.
  *
- * The runtime already degrades safely — rule 1.2 serves English and the page is
- * fine. That safety is exactly why drift needs a *second*, noisy channel: a
- * silent fallback looks identical to a site that was never translated, so
- * without this a locale can rot to zero coverage without anyone noticing.
- *
  * @param resolved - One entry per non-default locale.
- * @param floor    - Minimum acceptable coverage, 0–1. Defaults to 1 (no drift).
- * @returns `ok` plus a human-readable report.
- *
- * @example
- * ```ts
- * const { ok, report } = auditCatalogues(locales.map(l => resolveCatalogue(l, en, load(l))));
- * console.log(report);
- * process.exit(ok ? 0 : 1);
- * ```
+ * @param floor    - Minimum acceptable coverage, 0–1. Defaults to 1.
  */
 export function auditCatalogues(
   resolved: readonly ResolvedCatalogue<string>[],

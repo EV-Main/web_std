@@ -9,7 +9,7 @@ export function Panel() {
   void Lazy;
   return (
     <div>
-      {t("panel.k", "Panel")}
+      {t("Panel")}
       {helper(t)}
     </div>
   );

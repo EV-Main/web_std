@@ -40,22 +40,17 @@ export interface I18nProviderProps<L extends string = Locale> {
   locale: L;
   /** The catalogue for `locale`, loaded on the server and serialised in. */
   messages: Messages;
-  /** Fired for a key the catalogue has never heard of — wire to Sentry in production. */
-  onMissing?: (key: string, locale: L) => void;
+  /** Also hears of every id the catalogue lacks — wire to Sentry in production. */
+  onMissing?: (id: string, locale: L) => void;
   /**
-   * What else to do about such a key, as plain data a Server Component layout
-   * can pass (it cannot pass `onMissing`). Unset, the call site's English
-   * renders and only `onMissing` hears of it.
+   * What an id the catalogue lacks does, as plain data a Server Component layout can pass:
    *
-   * - `"warn"` — `console.warn` once per key, then render the English.
-   * - `"throw"` — throw from the render, for a test or e2e run that must fail
-   *   on a key a sliced catalogue dropped.
+   * - `"warn"` — `console.warn` once per id, then render the English: pending, in development.
+   * - `"throw"` — throw from the render: a build the i18n check passed has none.
    *
-   * Never fires for the default locale, which reads no catalogue. A key the
-   * policy rejected or nobody translated is absent too, so `"throw"` also
-   * fails on those: use it against a fully translated catalogue.
+   * Never fires for the default locale, which reads no catalogue.
    */
-  missing?: MissingMode;
+  missing: MissingMode;
   children: ReactNode;
 }
 
@@ -68,23 +63,22 @@ export type MissingMode = "warn" | "throw";
  * a rebuilt reporter forgets which keys were already warned about.
  */
 function reporter<L extends string>(
-  mode: MissingMode | undefined,
-  onMissing: () => ((key: string, locale: L) => void) | undefined,
+  mode: MissingMode,
+  onMissing: () => ((id: string, locale: L) => void) | undefined,
   warned: Set<string>,
-): (key: string, locale: L) => void {
-  return (key, locale) => {
-    onMissing()?.(key, locale);
-    if (mode === undefined) return;
-    const message = `@evinvest/i18n: "${key}" is not in the ${locale} catalogue this tree was given`;
+): (id: string, locale: L) => void {
+  return (id, locale) => {
+    onMissing()?.(id, locale);
+    const message = `@evinvest/i18n: ${JSON.stringify(id)} has no ${locale} translation in the catalogue this tree was given`;
     if (mode === "throw") {
       throw new Error(
-        `${message}. If the catalogue is sliced, regenerate the slices (evinvest-i18n-slices) ` +
-          `or check that the page wraps its tree in <I18nScope>.`,
+        `${message}. Run evinvest-i18n-check; if the catalogue is sliced, regenerate the slices ` +
+          `(evinvest-i18n-slices) or check that the page wraps its tree in <I18nScope>.`,
       );
     }
-    const id = `${locale}:${key}`;
-    if (warned.has(id)) return;
-    warned.add(id);
+    const seen = `${locale}:${id}`;
+    if (warned.has(seen)) return;
+    warned.add(seen);
     console.warn(`${message}; rendering the English.`);
   };
 }
@@ -92,8 +86,8 @@ function reporter<L extends string>(
 /** Props for {@link I18nScope}. Plain data, so a Server Component can render it. */
 export interface I18nScopeProps {
   /**
-   * More keys for the subtree, laid over the enclosing catalogue — a route's
-   * slice of a catalogue whose shell the provider already carries. A key in
+   * More messages for the subtree, laid over the enclosing catalogue — a route's
+   * slice of a catalogue whose shell the provider already carries. An id in
    * both reads from this one.
    */
   messages: Messages;
@@ -121,7 +115,7 @@ export interface I18nReact<L extends string> {
  * ```
  */
 export function createI18nReact<L extends string>(registry: LocaleRegistry<L>): I18nReact<L> {
-  type Report = (key: string, locale: L) => void;
+  type Report = (id: string, locale: L) => void;
   // `messages` and `report` ride along so a nested scope can rebuild `t` over a
   // wider catalogue without being handed either again.
   type Value = { locale: L; messages: Messages; report: Report; t: Translate };
@@ -134,7 +128,7 @@ export function createI18nReact<L extends string>(registry: LocaleRegistry<L>): 
     // handler already reports to it.
     const latest = useRef(onMissing);
     latest.current = onMissing;
-    // Per provider rather than per module: a key warned about under one tree is
+    // Per provider rather than per module: an id warned about under one tree is
     // still news under another, and a re-render must not repeat it.
     const warned = useRef<Set<string>>(new Set());
     const report = useMemo(
@@ -168,7 +162,7 @@ export function createI18nReact<L extends string>(registry: LocaleRegistry<L>): 
       throw new Error(
         `<I18nScope> requires an <I18nProvider> above it from the same registry ` +
           `(locales [${registry.locales.join(", ")}], default "${registry.defaultLocale}"). ` +
-          `It adds keys to the provider's catalogue and takes the locale from it.`,
+          `It adds messages to the provider's catalogue and takes the locale from it.`,
       );
     }
     return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
@@ -211,7 +205,7 @@ const bound: I18nReact<Locale> = createI18nReact(defaultLocaleRegistry);
  * @example
  * ```tsx
  * // app/[locale]/layout.tsx  (Server Component)
- * <I18nProvider locale={locale} messages={await load(locale, "wallet")}>
+ * <I18nProvider locale={locale} messages={await load(locale)} missing="throw">
  *   <WalletIsland />
  * </I18nProvider>
  * ```
@@ -223,10 +217,10 @@ export const I18nProvider: (props: I18nProviderProps) => ReactElement = bound.I1
  * `messages` are laid over the provider's (`{ ...parent, ...own }`), and the
  * locale and the missing-key handling are inherited.
  *
- * This is what lets a layout ship only the keys its own chrome renders and each
+ * This is what lets a layout ship only the messages its own chrome renders and each
  * page add its own: the provider carries the shell, the page's scope carries the
  * route (see `pickMessages` and `evinvest-i18n-slices`). Scopes nest; the
- * nearest one wins a key both carry.
+ * nearest one wins an id both carry.
  *
  * @throws If no {@link I18nProvider} is mounted above.
  *
@@ -257,7 +251,7 @@ export const useLocale: () => Locale = bound.useLocale;
  * @example
  * ```tsx
  * const t = useT();
- * return <button>{t("wallet.deposit.cta", "Deposit")}</button>;
+ * return <button>{t("Deposit")}</button>;
  * ```
  */
 export const useT: () => Translate = bound.useT;
