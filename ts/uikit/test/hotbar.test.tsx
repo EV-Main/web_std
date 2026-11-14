@@ -34,7 +34,7 @@ describe("Hotbar", () => {
         <Hotbar actions={full} />
       </KeymapProvider>,
     );
-    expect(screen.getByRole("button", { name: /Next lead/ })).toHaveTextContent("Alt+S N");
+    expect(screen.getByRole("button", { name: /Next lead/ })).toHaveTextContent("Alt+s n");
     view.rerender(
       <KeymapProvider leader={{ key: "s", alt: true }}>
         <Bound run={null} />

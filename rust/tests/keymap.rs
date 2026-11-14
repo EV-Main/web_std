@@ -216,5 +216,5 @@ fn platforms() {
 		other: Chord { key: "k", ctrl: true, .. },
 		mac: Chord { key: "k", meta: true, .. },
 	};
-	assert_eq!((palette.render(Platform::Mac), palette.render(Platform::Other)), ("⌘K".into(), "Ctrl+K".into()));
+	assert_eq!((palette.render(Platform::Mac), palette.render(Platform::Other)), ("⌘k".into(), "Ctrl+k".into()));
 }

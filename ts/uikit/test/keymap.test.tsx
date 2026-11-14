@@ -39,7 +39,7 @@ describe("KeymapProvider", () => {
       </KeymapProvider>,
     );
     expect(leader().defaultPrevented).toBe(true);
-    expect(hint()).toHaveTextContent("Alt+S");
+    expect(hint()).toHaveTextContent("Alt+s");
     expect(hint()).toHaveTextContent("Assistant");
     expect(press({ key: "a", code: "KeyA" }).defaultPrevented).toBe(true);
     expect(run).toHaveBeenCalledTimes(1);
@@ -57,7 +57,7 @@ describe("KeymapProvider", () => {
     );
     press({ key: "ы", code: "KeyS", altKey: true });
     press({ key: "п", code: "KeyG" });
-    expect(hint()).toHaveTextContent("Alt+S G");
+    expect(hint()).toHaveTextContent("Alt+s g");
     press({ key: "р", code: "KeyH" });
     expect(home).toHaveBeenCalledTimes(1);
   });
@@ -92,7 +92,7 @@ describe("KeymapProvider", () => {
     leader();
     press({ key: "?", code: "Slash", shiftKey: true });
     const rows = [...document.querySelectorAll('[data-slot="key-help-row"]')].map(r => r.textContent);
-    expect(rows).toEqual(["AssistantAlt+S A", "KeybindsAlt+S ?", "RedoY"]);
+    expect(rows).toEqual(["AssistantAlt+s a", "KeybindsAlt+s ?", "Redoy"]);
     fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
     expect(document.querySelector('[data-slot="key-help"]')).toBeNull();
   });
@@ -212,7 +212,7 @@ describe("KeymapProvider", () => {
     leader();
     expect(hint()).toHaveTextContent("Sites");
     press({ key: "x", code: "KeyX" });
-    expect(hint()).toHaveTextContent("Alt+S X");
+    expect(hint()).toHaveTextContent("Alt+s x");
     press({ key: "l", code: "KeyL" });
     expect(leads).toHaveBeenCalledTimes(1);
 
@@ -292,9 +292,9 @@ describe("KeymapProvider", () => {
     const element = document.body.appendChild(document.createElement("mfe-sites"));
     act(() => dispatchKeymap(element, { on: { key: "l" }, id: "leads", run: { label: "Leads", run: leads } }, new AbortController().signal));
     expect([...keymap!.bound.values()]).toEqual([
-      { id: "Assistant", sequence: "Alt+S A", label: "Assistant" },
-      { id: "mfe-sites/leads", sequence: "Alt+S X L", label: "Leads" },
-      { id: "key-help", sequence: "Alt+S ?", label: "Keybinds" },
+      { id: "Assistant", sequence: "Alt+s a", label: "Assistant" },
+      { id: "mfe-sites/leads", sequence: "Alt+s x l", label: "Leads" },
+      { id: "key-help", sequence: "Alt+s ?", label: "Keybinds" },
     ]);
     leader();
     act(() => keymap!.run("mfe-sites/leads"));

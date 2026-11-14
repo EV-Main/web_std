@@ -79,7 +79,7 @@ describe("HeaderSearch", () => {
     const onClick = vi.fn();
     render(<HeaderSearch onClick={onClick} />);
     const btn = screen.getByRole("button", { name: /Search or jump to…/ });
-    expect(btn).toHaveTextContent("Ctrl+K");
+    expect(btn).toHaveTextContent("Ctrl+k");
     fireEvent.click(btn);
     expect(onClick).toHaveBeenCalledTimes(1);
   });
@@ -87,7 +87,7 @@ describe("HeaderSearch", () => {
   it("shows the Command key on Apple platforms", () => {
     vi.stubGlobal("navigator", { platform: "MacIntel" });
     render(<HeaderSearch />);
-    expect(screen.getByRole("button")).toHaveTextContent("⌘K");
+    expect(screen.getByRole("button")).toHaveTextContent("⌘k");
     vi.unstubAllGlobals();
   });
 

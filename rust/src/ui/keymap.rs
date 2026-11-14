@@ -21,7 +21,7 @@ pub struct Trigger {
 }
 
 impl Trigger {
-	/// As its keycaps read: `Ctrl+Shift+K` elsewhere, `⇧⌘K` on macOS.
+	/// As its keycaps read: `Ctrl+Shift+k` elsewhere, `⇧⌘k` on macOS; a letter lowercase, Shift spelled out.
 	pub fn render(&self, platform: Platform) -> String {
 		render(
 			&match platform {
@@ -413,7 +413,7 @@ fn label<C>(item: &Item<C>) -> &str {
 fn render(c: &Chord, platform: Platform) -> String {
 	let mut chars = c.key.chars();
 	let (shift, key) = match (chars.next(), chars.next()) {
-		(Some(ch), None) if ch.is_ascii_alphabetic() => (ch.is_ascii_uppercase(), ch.to_ascii_uppercase().to_string()),
+		(Some(ch), None) if ch.is_ascii_alphabetic() => (ch.is_ascii_uppercase(), ch.to_ascii_lowercase().to_string()),
 		(Some(' '), None) => (false, "Space".to_owned()),
 		_ => (false, c.key.to_owned()),
 	};

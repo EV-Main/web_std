@@ -90,5 +90,5 @@ it('platforms', () => {
   for (const [p, want] of [['MacIntel', 'mac'], ['iPhone', 'mac'], ['iPad', 'mac'], ['Win32', 'other'], ['Linux x86_64', 'other'], ['', 'other']] as const)
     expect(platformOf(p)).toBe(want);
   const palette = { other: { key: 'k', ctrl: true }, mac: { key: 'k', meta: true } };
-  expect([render(palette, 'mac'), render(palette, 'other')]).toEqual(['⌘K', 'Ctrl+K']);
+  expect([render(palette, 'mac'), render(palette, 'other')]).toEqual(['⌘k', 'Ctrl+k']);
 });

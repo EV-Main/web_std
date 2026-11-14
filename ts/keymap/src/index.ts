@@ -112,7 +112,7 @@ function pick(on: Chord | Trigger, platform: Platform): Chord {
 function renderChord(c: Chord, platform: Platform): string {
   const letter = /^[A-Za-z]$/.test(c.key);
   const shift = letter && c.key === c.key.toUpperCase();
-  const key = letter ? c.key.toUpperCase() : c.key === " " ? "Space" : c.key;
+  const key = letter ? c.key.toLowerCase() : c.key === " " ? "Space" : c.key;
   const mods: [boolean | undefined, string, string][] = [
     [c.ctrl, "Ctrl+", "⌃"],
     [c.alt, "Alt+", "⌥"],
@@ -122,7 +122,7 @@ function renderChord(c: Chord, platform: Platform): string {
   return mods.map(([on, other, mac]) => (on ? (platform === "mac" ? mac : other) : "")).join("") + key;
 }
 
-/** As its keycaps read: `Ctrl+Shift+K` elsewhere, `⇧⌘K` on macOS. */
+/** As its keycaps read: `Ctrl+Shift+k` elsewhere, `⇧⌘k` on macOS; a letter lowercase, Shift spelled out. */
 export function render(on: Chord | Trigger, platform: Platform): string {
   return renderChord(pick(on, platform), platform);
 }
