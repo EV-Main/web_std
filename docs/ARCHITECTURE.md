@@ -47,7 +47,7 @@ ev_lib = { version = "0.31", default-features = false, features = ["architecture
  ┌───────────────────────────┐      │     ┌─────────────────────────────────────┐
  │ product                   │      │     │ ops                                 │
  │  analytics · experiments  │      │     │  settings(+drift) · error_monitoring │
- └─────────────┬─────────────┘      │     │  otel · alerts                      │
+ └─────────────┬─────────────┘      │     │  otel · alerts · api                │
                │                    │     └─────────────────┬───────────────────┘
                ▼                    ▼                       ▼     ts: analytics, experiments,
                                                                       settings, error-monitoring
@@ -406,6 +406,13 @@ the element.
 - **An element claims no root chord.** Its bindings sit under the scope its host assigns its tag;
   an element with none assigned is refused, so two elements never collide. They are bound while the
   element is connected (a Dioxus one keeps running detached) and until its signal aborts.
+
+## The `api` library
+
+A service's operations as one table of routes (`ev_lib::api`, `rust/src/ops/api/README.md`): its
+router and its OpenAPI document both derive from it — a route's schemas from its handler's
+signature, its description from the handler's `///` (`api_docs`, a `build.rs` step), its id from the
+handler's name. No TS twin: a client is generated from the document by the consuming repo.
 
 ## Generated TypeScript — `ts_gen`
 

@@ -17,6 +17,7 @@ if_not_else = "warn"
 integer_division = "warn"
 
 [workspace.dependencies]
+aide = "0.16.0-alpha.4"
 async-trait = "0.1.89"
 axum = "0.8"
 derive_more = { version = "2.1", features = ["display"] }
@@ -29,10 +30,12 @@ jiff = "0.2"
 leptos = { version = "0.8", default-features = false }
 leptos_meta = "0.8"
 reactive_graph = "0.2.14"
+schemars = "1"
 scraper = "0.24"
 serde = "1"
 serde_json = "1"
 strum = { version = "0.28", features = ["derive"] }
+syn = "2"
 tailwind_fuse = "0.3"
 tempfile = "3"
 tokio = "1"

@@ -137,6 +137,11 @@ settings_drift = ["settings", "dep:tokio", "tokio?/time", "dep:tracing"]
 # what lets gen walk a zero-dep kernel enum without the kernel depending on it.
 ts_gen = ["dep:serde_json", "dep:ts-rs", "dep:strum", "dep:serde"]
 
+# A service's operations as one table: the router and the OpenAPI document both derive from it
+# (`ops/api/README.md`). `api_docs` is its build-time half: the handlers' `///` from `build.rs`.
+api = ["dep:aide", "dep:axum", "dep:schemars", "dep:serde", "dep:serde_json"]
+api_docs = ["dep:syn"]
+
 # Shared domain TypeObjects — PhoneNumber, Email, … — with validation.
 # Zero runtime deps, wasm-safe.
 types = []
@@ -171,16 +176,20 @@ mfe = [
 wasm = ["uuid?/js", "dioxus?/web", "dep:web-sys"]
 
 [dependencies]
+aide = { workspace = true, features = ["axum", "axum-json", "axum-query"], optional = true }
 async-trait = { workspace = true, optional = true }
+axum = { workspace = true, features = ["json", "query"], optional = true }
 dioxus = { workspace = true, features = ["macro", "html", "signals", "hooks"], optional = true }
 ev_lib_classes = { workspace = true, optional = true }
 jiff = { workspace = true, features = ["serde"], optional = true }
 leptos = { workspace = true, optional = true }
 leptos_meta = { workspace = true, optional = true }
 reactive_graph = { workspace = true, optional = true }
+schemars = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive"], optional = true }
 serde_json = { workspace = true, optional = true }
 strum = { workspace = true, optional = true }
+syn = { workspace = true, features = ["full"], optional = true }
 tailwind_fuse = { workspace = true, optional = true }
 ts-rs = { workspace = true, optional = true }
 uuid = { workspace = true, features = ["serde", "v4"], optional = true }
@@ -229,7 +238,7 @@ wasm-bindgen-futures = { version = "0.4", optional = true }
 web-sys = { version = "0.3", optional = true, features = ["Document", "Window", "HtmlDocument", "Storage", "Navigator", "Element", "HtmlElement", "TransitionEvent", "Location", "Clipboard", "HtmlTextAreaElement", "Event", "EventTarget", "KeyboardEvent", "Node", "MutationObserver", "MutationObserverInit", "ScrollIntoViewOptions", "ScrollLogicalPosition", "ScrollBehavior", "DomRect", "AbortController", "AbortSignal", "CustomEvent", "CustomEventInit"] }
 
 [dev-dependencies]
-ev_lib = { path = ".", features = ["alerts", "architecture", "keymap", "uikit_dioxus", "uikit_leptos", "analytics", "error_monitoring", "experiments", "settings", "settings_drift", "types", "i18n", "ts_gen"] }
+ev_lib = { path = ".", features = ["alerts", "architecture", "keymap", "uikit_dioxus", "uikit_leptos", "analytics", "error_monitoring", "experiments", "settings", "settings_drift", "types", "i18n", "ts_gen", "api", "api_docs"] }
 
 async-trait.workspace = true
 axum = { workspace = true, features = ["ws", "multipart"] }

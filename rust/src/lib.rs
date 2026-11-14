@@ -33,6 +33,10 @@
 //!   `settings!` macro reads env vars into a validated struct with aggregate
 //!   error reporting and secret redaction. Zero deps; sops stays at the shell/CI
 //!   boundary. See [`settings`](mod@settings).
+//! - **`api`** — a service's operations as one table of routes: the router and its
+//!   OpenAPI document both derive from it, a route's schemas from its handler's
+//!   signature, its description from the handler's `///` (`api_docs`, build-time).
+//!   See [`api`].
 //! - **`types`** — shared domain TypeObjects:
 //!   [`PhoneNumber`](types::PhoneNumber) with E.164 validation and formatting, plus
 //!   the generic [`Branded<T, B>`](types::Branded) newtype for future types (Email,
@@ -79,6 +83,8 @@ pub use kernel::i18n;
 pub use kernel::types;
 #[cfg(all(feature = "alerts", not(target_arch = "wasm32")))]
 pub use ops::alerts;
+#[cfg(any(feature = "api", feature = "api_docs"))]
+pub use ops::api;
 #[cfg(feature = "error_monitoring")]
 pub use ops::error_monitoring;
 #[cfg(feature = "otel")]
