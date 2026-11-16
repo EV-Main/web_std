@@ -48,7 +48,7 @@ type Json<S> = S extends { readonly properties: unknown; readonly required: read
     : unknown;
 
 /** What a value of schema `S` is in TS: an integer is a `number`. */
-export type Value<S> = [Words<S>] extends [never]
+type Value<S> = [Words<S>] extends [never]
   ? Base<S> extends "string"
     ? string
     : Base<S> extends "integer" | "number"
@@ -67,7 +67,7 @@ export type Value<S> = [Words<S>] extends [never]
   : Words<S>;
 
 /** An object schema's fields: what may be absent is optional. */
-export type Fields<O> = O extends { readonly properties: infer P; readonly required: readonly (infer R)[] }
+type Fields<O> = O extends { readonly properties: infer P; readonly required: readonly (infer R)[] }
   ? Simplify<{ -readonly [K in keyof P & R]: Value<P[K]> } & { -readonly [K in Exclude<keyof P, R>]?: Value<P[K]> }>
   : never;
 
