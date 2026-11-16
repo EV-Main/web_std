@@ -1,6 +1,6 @@
 [package]
 name = "ev_lib_classes"
-version = "0.19.0"
+version = "0.20.0"
 edition = "2024"
 description = "The uikit's renderer-neutral data (class tables, word sets, Labels defaults, copy, icons) shared by both Rust ports and the TS codegen — no framework."
 license = "BlueOak-1.0.0"
