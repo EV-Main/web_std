@@ -213,7 +213,7 @@ opentelemetry-semantic-conventions = { version = "0.31", optional = true }
 # build before the tokio runtime exists (backends init tracing pre-runtime for Sentry).
 opentelemetry_sdk = { version = "0.31", optional = true, features = ["trace", "logs"] }
 reqwest = { version = "0.13", optional = true, default-features = false, features = ["rustls", "json"] }
-sentry = { version = "0.48.2", optional = true, features = ["tower-axum-matched-path", "tracing"] }
+sentry = { version = "0.48.2", optional = true, default-features = false, features = ["backtrace", "contexts", "panic", "reqwest", "rustls", "tower-axum-matched-path", "tracing"] }
 tokio = { workspace = true, optional = true, features = ["sync", "macros", "fs"] }
 tonic = { version = "0.13", optional = true, default-features = false }
 tracing = { version = "0.1", optional = true }
