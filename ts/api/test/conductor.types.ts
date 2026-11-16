@@ -25,6 +25,10 @@ export async function calls() {
   const trade = await api.POST("/trades", { body: { name: "x" } });
   if (!trade.error) is<Equal<typeof trade.data, components["schemas"]["Trade"]>>(true);
 
+  is<Equal<ReturnType<typeof api.mayCall>, boolean>>(true);
+  api.mayCall("post", "/trades", []);
+  // @ts-expect-error no POST at this path
+  api.mayCall("post", "/gmbs/{id}/kit", []);
   await api.upload("put", "/gmails/{id}/browser/film", { params: { path: { id: 1 } }, body: new Blob(), onProgress: () => undefined });
   // @ts-expect-error no GET at this path
   api.url("/gmails/{id}/browser/film", { path: { id: 1 } });

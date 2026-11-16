@@ -21,6 +21,7 @@ interface Operation {
   requestBody?: { content: Record<string, unknown> };
   "x-errors": Record<string, number>;
   "x-socket"?: unknown;
+  "x-permission"?: unknown;
 }
 
 const NETWORK = "network";
@@ -135,6 +136,12 @@ export function createApi<Paths extends {}>(options: ApiOptions): Api<Paths> {
     PUT: method("PUT"),
     PATCH: method("PATCH"),
     DELETE: method("DELETE"),
+    mayCall(method: string, path: string, permissions: readonly string[]) {
+      const needs = operation(method.toUpperCase(), path)["x-permission"];
+      if (needs === undefined) return true;
+      if (typeof needs !== "string") throw new Error(`api: ${method.toUpperCase()} ${path}: x-permission is not a permission`);
+      return permissions.includes(needs);
+    },
     url(path: string, params?: object) {
       const url = resolve(path, params);
       if (operation("GET", path)["x-socket"] !== undefined) url.protocol = url.protocol === "https:" ? "wss:" : "ws:";

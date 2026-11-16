@@ -42,5 +42,7 @@ export interface Api<Paths extends {}> {
   ): Promise<Answer<Paths[P][M & keyof Paths[P]] & Record<string | number, unknown>, object>>;
   /** Where a GET operation is, absolute; `ws:`/`wss:` for one the document marks `x-socket`. */
   url<P extends PathsWithMethod<Paths, "get">>(path: P, ...params: ParamsParam<Paths[P]["get" & keyof Paths[P]]>): URL;
+  /** Whether a caller holding `permissions` passes the operation's gate: its `x-permission`, or any signed-in caller where it names none. */
+  mayCall<M extends HttpMethod, P extends PathsWithMethod<Paths, M>>(method: M, path: P, permissions: readonly string[]): boolean;
 }
 

@@ -86,3 +86,12 @@ describe("url", () => {
     expect(api.url("/live").href).toBe("ws://service.test/api/v1/live");
   });
 });
+
+describe("mayCall", () => {
+  it("is the operation's x-permission, and any signed-in caller where it names none", () => {
+    const { api } = notes(() => json(200, {}));
+    expect(api.mayCall("put", "/notes/{id}", ["notes:edit"])).toBe(true);
+    expect(api.mayCall("put", "/notes/{id}", ["notes:read"])).toBe(false);
+    expect(api.mayCall("get", "/notes/{id}", [])).toBe(true);
+  });
+});

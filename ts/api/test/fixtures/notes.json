@@ -17,6 +17,7 @@
         "parameters": [{ "in": "path", "name": "id", "required": true, "schema": { "type": "integer" } }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Note" } } } },
         "x-errors": { "conflict": 409 },
+        "x-permission": "notes:edit",
         "responses": {
           "204": { "description": "" },
           "default": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
