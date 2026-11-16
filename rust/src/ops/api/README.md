@@ -14,5 +14,6 @@ and the generated TS client are all clients of that document.
   `api_docs!()`; a route whose handler has none, or is a closure, fails the document.
 - **The handler's name is the operation's id**, unique in the table; its module the tag.
 - **What only the service knows** rides on the route: its gate (`G`, the permission it names
-  becomes `x-permission`) and whether it [`spends`](Route::spends) (`x-spends`). Read-only,
-  idempotent and destructive follow from the method and are not stored.
+  becomes `x-permission`). Anything else an operation is (what it spends, say) is an extractor of
+  the service's whose `OperationInput` writes its extension. Read-only, idempotent and destructive
+  follow from the method and are not stored.

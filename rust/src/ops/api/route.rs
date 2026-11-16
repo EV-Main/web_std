@@ -44,8 +44,6 @@ pub struct Route<S, G> {
 	pub method: Method,
 	pub path: &'static str,
 	pub guard: G,
-	/// Answering it costs money the caller is charged for.
-	pub spends: bool,
 	handler: MethodRouter<S>,
 	/// `<crate>::<module>::<fn>`.
 	handler_path: &'static str,
@@ -66,15 +64,10 @@ impl<S: Clone + Send + Sync + 'static, G> Route<S, G> {
 			method,
 			path,
 			guard,
-			spends: false,
 			handler: on(filter, handler),
 			handler_path,
 			describe: describe::<I, O>,
 		}
-	}
-
-	pub fn spends(self) -> Self {
-		Self { spends: true, ..self }
 	}
 
 	/// Layers the handler (a body limit, say): the document stays its signature's.
@@ -127,9 +120,6 @@ pub fn document<S: Clone + Send + Sync + 'static, G: Guard>(title: &str, version
 			);
 			if let Some(permission) = route.guard.permission() {
 				op.extensions.insert("x-permission".into(), Value::String(permission));
-			}
-			if route.spends {
-				op.extensions.insert("x-spends".into(), Value::Bool(true));
 			}
 			let named: BTreeSet<&str> = route.path.split('/').filter_map(|s| s.strip_prefix('{')?.strip_suffix('}')).collect();
 			assert!(named.iter().all(|n| !n.starts_with('*')), "{}: a wildcard is not an operation's path", route.path);
