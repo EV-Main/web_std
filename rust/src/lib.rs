@@ -83,7 +83,7 @@ pub use kernel::i18n;
 pub use kernel::types;
 #[cfg(all(feature = "alerts", not(target_arch = "wasm32")))]
 pub use ops::alerts;
-#[cfg(any(feature = "api", feature = "api_docs"))]
+#[cfg(any(feature = "api", feature = "api_docs", feature = "api_gen"))]
 pub use ops::api;
 #[cfg(feature = "error_monitoring")]
 pub use ops::error_monitoring;

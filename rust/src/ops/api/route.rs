@@ -1,4 +1,4 @@
-use std::{any::type_name, collections::BTreeSet};
+use std::{any::type_name, collections::BTreeSet, pin::Pin};
 
 pub use aide::{
 	OperationInput, OperationOutput,
@@ -22,6 +22,8 @@ pub use schemars::{self, JsonSchema};
 use serde::Serialize;
 use serde_json::Value;
 
+use super::{ErrorCode, Refusal};
+
 /// The handlers' `///`, keyed by their paths: what `api_docs!()` includes, `docs::write` writes.
 pub type Docs = &'static [(&'static str, &'static str)];
 
@@ -33,9 +35,17 @@ macro_rules! api_docs {
 	};
 }
 
-/// What a service gates a route on, as far as the document says it: the permission that opens it.
-pub trait Guard {
-	fn permission(&self) -> Option<String>;
+/// What a service gates a route on: the permission that opens it, as the document says, and the
+/// check every request passes before its handler, so a route is never mounted without it.
+pub trait Guard<S>: Clone + Send + Sync + 'static {
+	type Refusal: ErrorCode;
+
+	fn permission(&self) -> Option<&'static str>;
+
+	/// Every code [`Self::admit`] may refuse this route with: its `x-errors`.
+	fn refusals(&self) -> Vec<Self::Refusal>;
+
+	fn admit(&self, parts: &mut http::request::Parts, state: &S) -> impl Future<Output = Result<(), Refusal<Self::Refusal>>> + Send;
 }
 
 /// One operation: its method and path, the service's gate, and its handler, whose signature is
@@ -53,18 +63,18 @@ pub struct Route<S, G> {
 impl<S: Clone + Send + Sync + 'static, G> Route<S, G> {
 	pub fn new<H, T, I, O>(method: Method, path: &'static str, guard: G, handler: H) -> Self
 	where
+		G: Guard<S>,
 		H: Handler<T, S> + OperationHandler<I, O>,
 		I: OperationInput,
 		O: OperationOutput,
 		T: 'static, {
 		let filter = MethodFilter::try_from(method.clone()).expect("routes name standard methods");
-		let handler_path = type_name::<H>();
-		assert!(!handler_path.contains('{'), "{path}: a route's handler is a named fn, its name the operation's id");
+		let handler_path = named::<H>();
 		Self {
 			method,
 			path,
+			handler: on(filter, Gated { guard: guard.clone(), handler }),
 			guard,
-			handler: on(filter, handler),
 			handler_path,
 			describe: describe::<I, O>,
 		}
@@ -81,15 +91,30 @@ impl<S: Clone + Send + Sync + 'static, G> Route<S, G> {
 
 	/// The handler's name: unique in a service's table.
 	pub fn id(&self) -> &'static str {
-		self.handler_path.rsplit("::").next().expect("rsplit yields at least one item")
+		id(self.handler_path)
 	}
+}
+
+/// The id of `handler`'s operation, as its route's [`Route::id`].
+pub fn op_id<H>(_: H) -> &'static str {
+	id(named::<H>())
+}
+
+fn named<H>() -> &'static str {
+	let path = type_name::<H>();
+	assert!(!path.contains('{'), "{path}: an operation's handler is a named fn, its name the operation's id");
+	path
+}
+
+fn id(handler_path: &'static str) -> &'static str {
+	handler_path.rsplit("::").next().expect("rsplit yields at least one item")
 }
 
 /// The OpenAPI document of `routes`, served under `base`; `docs` from `api_docs!()`.
 ///
 /// Every route's handler must have a `///`, its first line the summary; ids are unique, and the
 /// path's parameters are the ones its extractors take.
-pub fn document<S: Clone + Send + Sync + 'static, G: Guard>(title: &str, version: &str, base: &str, routes: &[Route<S, G>], docs: Docs) -> OpenApi {
+pub fn document<S: Clone + Send + Sync + 'static, G: Guard<S>>(title: &str, version: &str, base: &str, routes: &[Route<S, G>], docs: Docs) -> OpenApi {
 	let mut paths = Paths::default();
 	let mut ids = BTreeSet::new();
 	let (asked, answered) = in_context(|ctx| {
@@ -110,16 +135,24 @@ pub fn document<S: Clone + Send + Sync + 'static, G: Guard>(title: &str, version
 				tags: route.handler_path.split("::").nth(1).filter(|m| *m != id).map(str::to_owned).into_iter().collect(),
 				..Operation::default()
 			};
+			op.extensions.insert("x-errors".into(), Value::Object(Default::default()));
 			(route.describe)(ctx, &mut answered, &mut op);
 			let answers = op.responses.as_ref().map(|r| r.responses.keys().collect::<Vec<_>>()).unwrap_or_default();
+			// aide's `WebSocketUpgrade` answers 101
+			let socket = answers.contains(&&StatusCode::Code(101));
 			assert!(
-				answers.iter().any(|s| matches!(s, StatusCode::Code(200..=299))),
+				socket || answers.iter().any(|s| matches!(s, StatusCode::Code(200..=299))),
 				"{} {}: the handler's answer is a typed one (Json, Created, NoContent…), not a bare Response or a tuple",
 				route.method,
 				route.path
 			);
+			if socket {
+				assert_eq!(route.method, Method::GET, "{}: a socket is opened by a GET", route.path);
+				op.extensions.insert("x-socket".into(), Value::Bool(true));
+			}
+			super::refusal::document(ctx, &mut op, &route.guard.refusals());
 			if let Some(permission) = route.guard.permission() {
-				op.extensions.insert("x-permission".into(), Value::String(permission));
+				op.extensions.insert("x-permission".into(), permission.into());
 			}
 			let named: BTreeSet<&str> = route.path.split('/').filter_map(|s| s.strip_prefix('{')?.strip_suffix('}')).collect();
 			assert!(named.iter().all(|n| !n.starts_with('*')), "{}: a wildcard is not an operation's path", route.path);
@@ -147,7 +180,14 @@ pub fn document<S: Clone + Send + Sync + 'static, G: Guard>(title: &str, version
 		(ctx.schema.take_definitions(true), answered.take_definitions(true))
 	});
 	generate::reset_context();
-	let (paths, schemas) = contracts(paths, asked, answered);
+	let words = error_codes(&paths);
+	let (paths, mut schemas) = contracts(paths, asked, answered);
+	if !words.is_empty() {
+		schemas.insert(
+			"ErrorCode".into(),
+			serde_json::json!({ "type": "string", "description": "Which refusal, for a client to act on: its status follows from it.", "enum": words }),
+		);
+	}
 	let mut schemas = referenced(&paths, schemas);
 	schemas.values_mut().for_each(flat_enums);
 	OpenApi {
@@ -182,6 +222,27 @@ pub fn document<S: Clone + Send + Sync + 'static, G: Guard>(title: &str, version
 	}
 }
 
+/// A route's handler behind its guard.
+#[derive(Clone)]
+pub(crate) struct Gated<H, G> {
+	pub(crate) guard: G,
+	pub(crate) handler: H,
+}
+
+impl<H: Handler<T, S>, T: 'static, S: Clone + Send + Sync + 'static, G: Guard<S>> Handler<T, S> for Gated<H, G> {
+	type Future = Pin<Box<dyn Future<Output = axum::response::Response> + Send>>;
+
+	fn call(self, req: axum::extract::Request, state: S) -> Self::Future {
+		Box::pin(async move {
+			let (mut parts, body) = req.into_parts();
+			if let Err(refused) = self.guard.admit(&mut parts, &state).await {
+				return refused.into_response();
+			}
+			self.handler.call(axum::extract::Request::from_parts(parts, body), state).await
+		})
+	}
+}
+
 /// `201` and the created resource.
 pub struct Created<T>(pub T);
 
@@ -189,6 +250,23 @@ pub struct Created<T>(pub T);
 pub enum Upserted<T> {
 	Created(T),
 	Existed(T),
+}
+
+/// Every word any operation refuses with, each answered with one status across the document.
+fn error_codes(paths: &Paths) -> Vec<String> {
+	let mut words = std::collections::BTreeMap::new();
+	for (path, item) in &paths.paths {
+		let ReferenceOr::Item(item) = item else { unreachable!("only items are inserted") };
+		for (method, op) in item.iter() {
+			let errors = op.extensions["x-errors"].as_object().expect("document() writes x-errors as an object");
+			for (word, status) in errors {
+				if let Some(held) = words.insert(word.clone(), status) {
+					assert_eq!(held, status, "{method} {path}: {word} is answered with one status in a document");
+				}
+			}
+		}
+	}
+	words.into_keys().collect()
 }
 
 /// One set of definitions from a request's and an answer's: a type whose schema differs between

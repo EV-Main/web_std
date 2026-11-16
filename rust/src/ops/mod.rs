@@ -1,6 +1,6 @@
 //! Running a service: settings, error monitoring, telemetry, alerts (docs/ARCHITECTURE.md, "Scopes").
 
-#[cfg(any(feature = "api", feature = "api_docs"))]
+#[cfg(any(feature = "api", feature = "api_docs", feature = "api_gen"))]
 pub mod api;
 
 #[cfg(all(feature = "alerts", not(target_arch = "wasm32")))]

@@ -419,7 +419,8 @@ the element.
 A service's operations as one table of routes (`ev_lib::api`, `rust/src/ops/api/README.md`): its
 router and its OpenAPI document both derive from it — a route's schemas from its handler's
 signature, its description from the handler's `///` (`api_docs`, a `build.rs` step), its id from the
-handler's name.
+handler's name. A refusal (`{code, error}`), the codes an operation answers (`x-errors`), its socket
+(`x-socket`) and a Rust client of it (`rust_client`, `api_gen`) follow from the same signatures.
 
 Its TS side is `@evinvest/api` ([`ts/api/README.md`](../ts/api/README.md)), generic over the `paths`
 the consuming repo generates from the same document: answers checked against the document, refusals
