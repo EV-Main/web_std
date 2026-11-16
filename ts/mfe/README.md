@@ -19,7 +19,7 @@ CSP — paths, not the bare origin, so nothing else served by evinvest.ltd can
 run as a script on the host:
 
 ```
-script-src 'self' https://evinvest.ltd/api/auth/mfe/ https://evinvest.ltd/wallet/mfe/
+script-src 'self' https://evinvest.ltd/api/auth/mfe/ https://evinvest.ltd/api/wallet/mfe/
 ```
 
 and loads whatever the manifest names; a script from there has exactly the
