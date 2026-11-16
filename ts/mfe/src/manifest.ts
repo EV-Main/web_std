@@ -141,7 +141,7 @@ export function entryFor(entries: readonly MfeEntry[], known: { name: string; ta
 
 /**
  * Resolve every root-relative `scriptUrl` against `base` — the URL the registry
- * was fetched from. A producer publishes `/auth/mfe/x.js` meaning *its* origin;
+ * was fetched from. A producer publishes `/mfe/concierge/x.js` meaning *its* origin;
  * left relative, a host on another origin would load it from itself.
  */
 export function resolveEntries(entries: readonly MfeEntry[], base: string | URL): MfeEntry[] {
@@ -151,7 +151,7 @@ export function resolveEntries(entries: readonly MfeEntry[], base: string | URL)
 export interface FetchRegistryOptions {
   /**
    * The directory every bundle must live in, as an absolute URL ending in `/`
-   * (`https://evinvest.ltd/api/auth/mfe/`). Required: the host's CSP names the
+   * (`https://evinvest.ltd/mfe/concierge/`). Required: the host's CSP names the
    * same directory, and a registry entry pointing elsewhere on the producer's
    * origin — an upload, a user page — must not become a script on the host.
    */
@@ -163,6 +163,8 @@ export interface FetchRegistryOptions {
 // Encoded slashes survive URL normalisation, so a server that decodes them
 // could still serve `/mfe/..%2f..%2fx.js` from outside the directory.
 const ENCODED_SEPARATOR = /%2f|%5c/i;
+
+const MFE_DIRECTORY = /^\/mfe\/[a-z0-9_-]+\/$/;
 
 function prefixError(prefix: string): string | null {
   let parsed: URL;
@@ -176,9 +178,9 @@ function prefixError(prefix: string): string | null {
   if (!prefix.endsWith('/') || parsed.href !== prefix || parsed.search !== '' || parsed.hash !== '') {
     return `allowedPrefix ${prefix} is not a canonical directory URL ending in /`;
   }
-  // The origin root admits every path on it, so the check would shrink to an
-  // origin comparison and an upload or a user page would pass as a bundle.
-  if (parsed.pathname === '/') return `allowedPrefix ${prefix} is the origin root, not a bundle directory`;
+  // A bundle directory is `/mfe/<producer>/` on every host (devops docs/ARCHITECTURE.md,
+  // Paths on a host); any wider directory would admit a page, an upload or an API as a bundle.
+  if (!MFE_DIRECTORY.test(parsed.pathname)) return `allowedPrefix ${prefix} is not a /mfe/<producer>/ directory`;
   return isSecureTransport(parsed) ? null : `allowedPrefix ${prefix} is not https`;
 }
 

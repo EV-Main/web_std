@@ -10,10 +10,10 @@ const CHIP = {
   name: 'concierge.account-chip',
   tag: 'ev-account-chip',
   kind: 'component',
-  scriptUrl: '/auth/mfe/account-chip.js',
+  scriptUrl: '/mfe/concierge/account-chip.js',
 } as const;
 
-const REGISTRY_URL = 'https://evinvest.ltd/auth/mfe/registry.json';
+const REGISTRY_URL = 'https://evinvest.ltd/mfe/concierge/registry.json';
 
 describe('parseRegistry: what passes', () => {
   it('should_accept_a_valid_entry_as_written', () => {
@@ -121,7 +121,7 @@ describe('parseRegistry: what fails the whole registry', () => {
 });
 
 describe('entryFor', () => {
-  const SIGN_IN: MfeEntry = { name: 'concierge.sign-in', tag: 'mfe-concierge-sign-in', kind: 'component', scriptUrl: '/auth/mfe/sign-in.js' };
+  const SIGN_IN: MfeEntry = { name: 'concierge.sign-in', tag: 'mfe-concierge-sign-in', kind: 'component', scriptUrl: '/mfe/concierge/sign-in.js' };
 
   it('should_return_the_entry_whose_name_and_tag_match', () => {
     expect(entryFor([CHIP, SIGN_IN], { name: 'concierge.sign-in', tag: 'mfe-concierge-sign-in' })).toEqual({ ok: true, value: SIGN_IN });
@@ -151,7 +151,7 @@ describe('resolveEntries', () => {
 
   it('should_resolve_a_root_relative_url_against_the_registry_url', () => {
     const [resolved] = resolveEntries([entry], REGISTRY_URL);
-    expect(resolved?.scriptUrl).toBe('https://evinvest.ltd/auth/mfe/account-chip.js');
+    expect(resolved?.scriptUrl).toBe('https://evinvest.ltd/mfe/concierge/account-chip.js');
   });
 
   it('should_leave_an_absolute_url_unchanged', () => {
@@ -162,13 +162,13 @@ describe('resolveEntries', () => {
 
   it('should_keep_every_other_field_of_the_entry', () => {
     const [resolved] = resolveEntries([entry], REGISTRY_URL);
-    expect(resolved).toEqual({ ...entry, scriptUrl: 'https://evinvest.ltd/auth/mfe/account-chip.js' });
+    expect(resolved).toEqual({ ...entry, scriptUrl: 'https://evinvest.ltd/mfe/concierge/account-chip.js' });
   });
 });
 
 describe('fetchRegistry', () => {
   // The directory the host's CSP names; every resolved bundle must sit under it.
-  const PREFIX = 'https://evinvest.ltd/auth/mfe/';
+  const PREFIX = 'https://evinvest.ltd/mfe/concierge/';
   const OPTIONS = { allowedPrefix: PREFIX };
 
   afterEach(() => {
@@ -182,7 +182,7 @@ describe('fetchRegistry', () => {
 
     expect(result).toEqual({
       ok: true,
-      value: [{ ...CHIP, scriptUrl: 'https://evinvest.ltd/auth/mfe/account-chip.js' }],
+      value: [{ ...CHIP, scriptUrl: 'https://evinvest.ltd/mfe/concierge/account-chip.js' }],
     });
   });
 
@@ -226,7 +226,7 @@ describe('fetchRegistry', () => {
   it('should_return_a_failure_for_a_relative_registry_url_without_rejecting', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => Response.json([CHIP])));
 
-    const result = await fetchRegistry('/auth/mfe/registry.json', OPTIONS);
+    const result = await fetchRegistry('/mfe/concierge/registry.json', OPTIONS);
 
     expect(result.ok).toBe(false);
   });
@@ -265,14 +265,14 @@ describe('fetchRegistry', () => {
 
   it('should_return_a_failure_when_the_response_was_served_from_another_origin', async () => {
     const moved = Response.json([CHIP]);
-    Object.defineProperty(moved, 'url', { value: 'https://evil.example/auth/mfe/registry.json' });
+    Object.defineProperty(moved, 'url', { value: 'https://evil.example/mfe/concierge/registry.json' });
     vi.stubGlobal('fetch', vi.fn(async () => moved));
 
     const result = await fetchRegistry(REGISTRY_URL, OPTIONS);
 
     expect(result).toEqual({
       ok: false,
-      error: `registry ${REGISTRY_URL}: served from another origin, https://evil.example/auth/mfe/registry.json`,
+      error: `registry ${REGISTRY_URL}: served from another origin, https://evil.example/mfe/concierge/registry.json`,
     });
   });
 
@@ -285,7 +285,7 @@ describe('fetchRegistry', () => {
 
     expect(result).toEqual({
       ok: true,
-      value: [{ ...CHIP, scriptUrl: 'https://evinvest.ltd/auth/mfe/account-chip.js' }],
+      value: [{ ...CHIP, scriptUrl: 'https://evinvest.ltd/mfe/concierge/account-chip.js' }],
     });
   });
 
@@ -302,7 +302,7 @@ describe('fetchRegistry', () => {
   });
 
   it('should_refuse_a_sibling_directory_that_only_shares_the_prefix_text', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => Response.json([{ ...CHIP, scriptUrl: '/auth/mfe-uploads/x.js' }])));
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json([{ ...CHIP, scriptUrl: '/mfe/concierge-uploads/x.js' }])));
 
     const result = await fetchRegistry(REGISTRY_URL, OPTIONS);
 
@@ -310,7 +310,7 @@ describe('fetchRegistry', () => {
   });
 
   it('should_refuse_a_dot_dot_path_that_resolves_outside_the_prefix', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => Response.json([{ ...CHIP, scriptUrl: '/auth/mfe/../uploads/x.js' }])));
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json([{ ...CHIP, scriptUrl: '/mfe/concierge/../uploads/x.js' }])));
 
     const result = await fetchRegistry(REGISTRY_URL, OPTIONS);
 
@@ -318,7 +318,7 @@ describe('fetchRegistry', () => {
   });
 
   it('should_refuse_an_encoded_slash_that_a_server_could_decode_into_a_traversal', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => Response.json([{ ...CHIP, scriptUrl: '/auth/mfe/..%2F..%2Fuploads/x.js' }])));
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json([{ ...CHIP, scriptUrl: '/mfe/concierge/..%2F..%2Fuploads/x.js' }])));
 
     const result = await fetchRegistry(REGISTRY_URL, OPTIONS);
 
@@ -326,7 +326,7 @@ describe('fetchRegistry', () => {
   });
 
   it('should_refuse_an_absolute_bundle_on_another_origin', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => Response.json([{ ...CHIP, scriptUrl: 'https://cdn.example/auth/mfe/x.js' }])));
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json([{ ...CHIP, scriptUrl: 'https://cdn.example/mfe/concierge/x.js' }])));
 
     const result = await fetchRegistry(REGISTRY_URL, OPTIONS);
 
@@ -337,11 +337,11 @@ describe('fetchRegistry', () => {
     const fetchMock = vi.fn(async () => Response.json([CHIP]));
     vi.stubGlobal('fetch', fetchMock);
 
-    const result = await fetchRegistry(REGISTRY_URL, { allowedPrefix: 'https://evinvest.ltd/auth/mfe' });
+    const result = await fetchRegistry(REGISTRY_URL, { allowedPrefix: 'https://evinvest.ltd/mfe/concierge' });
 
     expect(result).toEqual({
       ok: false,
-      error: `registry ${REGISTRY_URL}: allowedPrefix https://evinvest.ltd/auth/mfe is not a canonical directory URL ending in /`,
+      error: `registry ${REGISTRY_URL}: allowedPrefix https://evinvest.ltd/mfe/concierge is not a canonical directory URL ending in /`,
     });
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -375,23 +375,35 @@ describe('fetchRegistry', () => {
 
     expect(result).toEqual({
       ok: false,
-      error: `registry ${REGISTRY_URL}: allowedPrefix https://evinvest.ltd/ is the origin root, not a bundle directory`,
+      error: `registry ${REGISTRY_URL}: allowedPrefix https://evinvest.ltd/ is not a /mfe/<producer>/ directory`,
     });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('should_refuse_a_directory_outside_the_mfe_layout_before_fetching', async () => {
+    const fetchMock = vi.fn(async () => Response.json([CHIP]));
+    vi.stubGlobal('fetch', fetchMock);
+
+    for (const prefix of ['https://evinvest.ltd/api/auth/mfe/', 'https://evinvest.ltd/mfe/', 'https://evinvest.ltd/mfe/a/b/']) {
+      const result = await fetchRegistry(REGISTRY_URL, { allowedPrefix: prefix });
+
+      expect(result).toEqual({ ok: false, error: `registry ${REGISTRY_URL}: allowedPrefix ${prefix} is not a /mfe/<producer>/ directory` });
+    }
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('should_refuse_a_relative_allowed_prefix', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => Response.json([CHIP])));
 
-    const result = await fetchRegistry(REGISTRY_URL, { allowedPrefix: '/auth/mfe/' });
+    const result = await fetchRegistry(REGISTRY_URL, { allowedPrefix: '/mfe/concierge/' });
 
-    expect(result).toEqual({ ok: false, error: `registry ${REGISTRY_URL}: allowedPrefix /auth/mfe/ is not an absolute URL` });
+    expect(result).toEqual({ ok: false, error: `registry ${REGISTRY_URL}: allowedPrefix /mfe/concierge/ is not an absolute URL` });
   });
 
   it('should_refuse_a_non_canonical_allowed_prefix', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => Response.json([CHIP])));
 
-    const result = await fetchRegistry(REGISTRY_URL, { allowedPrefix: 'https://EVINVEST.ltd/auth/mfe/' });
+    const result = await fetchRegistry(REGISTRY_URL, { allowedPrefix: 'https://EVINVEST.ltd/mfe/concierge/' });
 
     expect(result.ok).toBe(false);
   });
@@ -399,24 +411,24 @@ describe('fetchRegistry', () => {
   it('should_refuse_a_plain_http_allowed_prefix_on_a_real_host', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => Response.json([CHIP])));
 
-    const result = await fetchRegistry('http://evinvest.ltd/auth/mfe/registry.json', { allowedPrefix: 'http://evinvest.ltd/auth/mfe/' });
+    const result = await fetchRegistry('http://evinvest.ltd/mfe/concierge/registry.json', { allowedPrefix: 'http://evinvest.ltd/mfe/concierge/' });
 
     expect(result).toEqual({
       ok: false,
-      error: 'registry http://evinvest.ltd/auth/mfe/registry.json: allowedPrefix http://evinvest.ltd/auth/mfe/ is not https',
+      error: 'registry http://evinvest.ltd/mfe/concierge/registry.json: allowedPrefix http://evinvest.ltd/mfe/concierge/ is not https',
     });
   });
 
   it('should_accept_a_plain_http_allowed_prefix_on_loopback_for_a_dev_stand', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => Response.json([CHIP])));
 
-    const result = await fetchRegistry('http://localhost:8080/auth/mfe/registry.json', {
-      allowedPrefix: 'http://localhost:8080/auth/mfe/',
+    const result = await fetchRegistry('http://localhost:8080/mfe/concierge/registry.json', {
+      allowedPrefix: 'http://localhost:8080/mfe/concierge/',
     });
 
     expect(result).toEqual({
       ok: true,
-      value: [{ ...CHIP, scriptUrl: 'http://localhost:8080/auth/mfe/account-chip.js' }],
+      value: [{ ...CHIP, scriptUrl: 'http://localhost:8080/mfe/concierge/account-chip.js' }],
     });
   });
 });

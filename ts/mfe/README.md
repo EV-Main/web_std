@@ -14,12 +14,14 @@ talk to it. The producer side is the `mfe` module of the `ev_lib` Rust crate
 
 ## Trust
 
-No hash pins (D20). A host allows the producer's **bundle directories** in its
-CSP — paths, not the bare origin, so nothing else served by evinvest.ltd can
-run as a script on the host:
+No hash pins (D20). A producer's bundles live at `/mfe/<producer>/` on its host,
+one producer per directory, beside its pages and its `/api/<fn>/` (devops
+docs/ARCHITECTURE.md, Paths on a host). A host allows each producer's **bundle
+directory** in its CSP — a path, not the bare origin, so nothing else served by
+evinvest.ltd can run as a script on the host:
 
 ```
-script-src 'self' https://evinvest.ltd/api/auth/mfe/ https://evinvest.ltd/api/wallet/mfe/
+script-src 'self' https://evinvest.ltd/mfe/concierge/ https://evinvest.ltd/mfe/banking/
 ```
 
 and loads whatever the manifest names; a script from there has exactly the
@@ -28,9 +30,9 @@ trust of the service that serves it. The registry backs the CSP up:
 - `fetchRegistry(url, { allowedPrefix })` refuses the whole registry when a
   resolved `scriptUrl` is outside `allowedPrefix` (the same directory the CSP
   names), and refuses redirects (`redirect: 'error'`, and a `response.url` on
-  another origin). `allowedPrefix` is required and must be a directory below
-  the origin root: without it, or with `https://host/`, the call returns
-  `{ ok: false }` — the check would otherwise shrink to comparing origins;
+  another origin). `allowedPrefix` is required and must be a `/mfe/<producer>/`
+  directory: without it, or with any other path (`https://host/`,
+  `https://host/api/auth/mfe/`), the call returns `{ ok: false }`;
 - `isBundleUrl` and `safeHref` accept absolute
   URLs only over `https:` — `http:` only to `localhost`, `127.x.x.x` or `[::1]`
   for a dev stand (`isSecureTransport`);
@@ -44,8 +46,8 @@ import { fetchRegistry, findEntry, parseRegistry } from '@evinvest/mfe';
 
 // A producer's published registry; relative scriptUrls resolve against it,
 // and every one must land under allowedPrefix.
-const result = await fetchRegistry('https://evinvest.ltd/api/auth/mfe/registry.json', {
-  allowedPrefix: 'https://evinvest.ltd/api/auth/mfe/',
+const result = await fetchRegistry('https://evinvest.ltd/mfe/concierge/registry.json', {
+  allowedPrefix: 'https://evinvest.ltd/mfe/concierge/',
 });
 if (!result.ok) return fallback; // expected failure, not a throw
 const chip = findEntry(result.value, 'concierge.account-chip');
