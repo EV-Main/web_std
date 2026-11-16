@@ -78,9 +78,9 @@ impl Builder {
 		assert!(self.table.views.insert(name.into(), entry).is_none(), "{name} is a view already");
 	}
 
-	pub fn nest(&mut self, name: &str, path: &str, params: Vec<(&str, Result<Value, String>)>, inner: &Table) {
+	pub fn nest(&mut self, name: &str, path: &str, needs: Option<&str>, params: Vec<(&str, Result<Value, String>)>, inner: &Table) {
 		let outer = props(&fields(name, params)).clone();
-		self.table.merge(name, path, outer, inner.clone(), true).unwrap_or_else(|e| panic!("{e}"));
+		self.table.merge(name, path, outer, needs, inner.clone(), true).unwrap_or_else(|e| panic!("{e}"));
 	}
 
 	#[expect(clippy::too_many_arguments, reason = "one per attribute of a view, the derive's call")]

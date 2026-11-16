@@ -417,6 +417,7 @@
       },
       "review_archive.pick": {
         "description": "The pick of a member to open a tab for.",
+        "needs": "sa:review_archive:members:act_as",
         "params": {
           "properties": {},
           "required": [],
@@ -431,6 +432,7 @@
       },
       "review_archive.theirs.gmail": {
         "description": "A gmail's GMBs.",
+        "needs": "sa:review_archive:members:act_as",
         "params": {
           "properties": {
             "gmail": {
@@ -457,6 +459,7 @@
       },
       "review_archive.theirs.gmb": {
         "description": "A GMB's board.",
+        "needs": "sa:review_archive:members:act_as",
         "params": {
           "properties": {
             "gmb": {
@@ -483,6 +486,7 @@
       },
       "review_archive.theirs.home": {
         "description": "Every GMB of the member's.",
+        "needs": "sa:review_archive:members:act_as",
         "params": {
           "properties": {
             "member": {
@@ -504,6 +508,7 @@
       },
       "review_archive.theirs.settings": {
         "description": "Telegram and the archive's settings.",
+        "needs": "sa:review_archive:members:act_as",
         "params": {
           "properties": {
             "member": {

@@ -214,12 +214,14 @@ impl Table {
 		let entry = &self.views[&marker];
 		let (path, mut outer) = (entry.path.clone(), props(&entry.params).clone());
 		outer.remove("below");
-		self.merge(&marker, &path, outer, theirs, false).map_err(Error)?;
+		// The marker's needs open the host's page; the nested views keep the needs their service gave them.
+		self.merge(&marker, &path, outer, None, theirs, false).map_err(Error)?;
 		self.check().map_err(Error)
 	}
 
-	/// `theirs` under `path`, its views named `<name>.<theirs>`, `outer` the path's params.
-	pub(super) fn merge(&mut self, name: &str, path: &str, outer: Map<String, Value>, theirs: Table, keep_keys: bool) -> Result<(), String> {
+	/// `theirs` under `path`, its views named `<name>.<theirs>`, `outer` the path's params, `needs` what
+	/// opens every one of them: a view opens on one permission, so one of theirs naming its own is refused.
+	pub(super) fn merge(&mut self, name: &str, path: &str, outer: Map<String, Value>, needs: Option<&str>, theirs: Table, keep_keys: bool) -> Result<(), String> {
 		for (n, e) in theirs.views {
 			let full = format!("{name}.{n}");
 			let mut params = outer.clone();
@@ -229,13 +231,17 @@ impl Table {
 				}
 			}
 			let params = object(params)?;
+			let needs = match (needs, e.needs) {
+				(Some(n), Some(m)) => return Err(format!("{full}: a view opens on one permission, and its nest names {n}, it {m}")),
+				(n, m) => n.map(str::to_owned).or(m),
+			};
 			let entry = Entry {
 				path: joined(path, &e.path),
 				key: e.key.filter(|_| keep_keys && fills_nothing(&params, &e.query)),
 				description: e.description,
 				params,
 				query: e.query,
-				needs: e.needs,
+				needs,
 				nest: e.nest,
 				scope: e.scope,
 			};

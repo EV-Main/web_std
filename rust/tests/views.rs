@@ -23,6 +23,19 @@ impl Sources {
 	}
 }
 
+#[derive(Clone, Copy)]
+enum Members {
+	ActAs,
+}
+
+impl Members {
+	const fn as_str(self) -> &'static str {
+		match self {
+			Self::ActAs => "sa:review_archive:members:act_as",
+		}
+	}
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 enum Tab {
@@ -130,9 +143,9 @@ enum Board {
 #[derive(Debug, PartialEq, Views)]
 enum Archive {
 	/// The pick of a member to open a tab for.
-	#[view("/act-as")]
+	#[view("/act-as", needs = Members::ActAs)]
 	Pick,
-	#[view("/members/{member}", nest)]
+	#[view("/members/{member}", nest, needs = Members::ActAs)]
 	Theirs { member: i64, view: Board },
 	#[view("", nest)]
 	Mine { view: Board },
@@ -246,6 +259,23 @@ fn two_views_of_one_path_are_refused() {
 		Other { y: String },
 	}
 	Clash::table();
+}
+
+#[test]
+#[should_panic(expected = "a view opens on one permission")]
+fn a_nest_and_its_view_do_not_both_name_a_permission() {
+	#[derive(Views)]
+	enum Inner {
+		/// Its own.
+		#[view("/settings", needs = Sources::Manage)]
+		Settings,
+	}
+	#[derive(Views)]
+	enum Outer {
+		#[view("/members/{member}", nest, needs = Members::ActAs)]
+		Theirs { member: i64, view: Inner },
+	}
+	Outer::table();
 }
 
 #[cfg(feature = "views_dioxus")]

@@ -229,7 +229,6 @@ fn derive(input: DeriveInput) -> Result<Tokens> {
 		}
 		let path = a.path.value();
 		let needs = match &a.needs {
-			Some(e) if matches!(a.kind, Kind::Nest) => return Err(Error::new_spanned(e, "a nest's views keep their own needs")),
 			Some(e) => quote!(::core::option::Option::Some((#e).as_str())),
 			None => quote!(::core::option::Option::None),
 		};
@@ -295,7 +294,7 @@ fn derive(input: DeriveInput) -> Result<Tokens> {
 				let (inner_ident, inner_ty) = (&inner.ident, &inner.ty);
 				entries.push(quote! {{
 					let params = ::std::vec![#(#path_schemas),*];
-					b.nest(#name, #path, params, <#inner_ty as #views::Views>::table());
+					b.nest(#name, #path, #needs, params, <#inner_ty as #views::Views>::table());
 				}});
 				let pairs = pairs(&path_fields);
 				ats.push(quote!(#pattern => #p::nested(#name, #views::Views::at(#inner_ident), ::std::vec![#(#pairs),*])));

@@ -45,7 +45,8 @@ enum View {
   key, a type with no URL form, and every view hrefs a sampled value and parses back to it. What
   one enum shows is a compile error instead.
 - A typed nest takes another enum's views under its path (their keys kept where nothing must be
-  filled); a foreign one (`nest = "<service>"`) is a mark the host fills with that service's table
+  filled, its `needs` theirs, refused where one of them names its own: a view opens on one
+  permission); a foreign one (`nest = "<service>"`) is a mark the host fills with that service's table
   (`Table::nest`), everything under it the nested views' or `below`'s.
 - With `views_dioxus`, a `Routable` routes through `#[route("/:..at")] At { at: Routed<View> }`:
   its paths are the views'.
