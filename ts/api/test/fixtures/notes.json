@@ -1,0 +1,45 @@
+{
+  "openapi": "3.1.0",
+  "info": { "title": "notes", "version": "0" },
+  "paths": {
+    "/notes/{id}": {
+      "get": {
+        "operationId": "note",
+        "parameters": [{ "in": "path", "name": "id", "required": true, "schema": { "type": "integer" } }],
+        "x-errors": { "not_found": 404, "unauthenticated": 401 },
+        "responses": {
+          "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Note" } } } },
+          "default": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      },
+      "put": {
+        "operationId": "set_note",
+        "parameters": [{ "in": "path", "name": "id", "required": true, "schema": { "type": "integer" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Note" } } } },
+        "x-errors": { "conflict": 409 },
+        "responses": {
+          "204": { "description": "" },
+          "default": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/live": {
+      "get": {
+        "operationId": "live",
+        "x-socket": {},
+        "x-errors": {},
+        "responses": { "101": { "description": "" } }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Note": { "type": "object", "required": ["text"], "properties": { "text": { "type": "string" } }, "additionalProperties": false },
+      "Error": {
+        "type": "object",
+        "required": ["code", "error"],
+        "properties": { "code": { "type": "string", "enum": ["not_found", "unauthenticated", "conflict"] }, "error": { "type": "string" } }
+      }
+    }
+  }
+}

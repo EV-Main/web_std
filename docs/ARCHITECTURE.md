@@ -50,7 +50,7 @@ ev_lib = { version = "0.31", default-features = false, features = ["architecture
  └─────────────┬─────────────┘      │     │  otel · alerts · api                │
                │                    │     └─────────────────┬───────────────────┘
                ▼                    ▼                       ▼     ts: analytics, experiments,
-                                                                      settings, error-monitoring
+                                                                      settings, error-monitoring, api
            ┌──────────────────────────────────────────────────┐
            │ kernel   architecture · i18n · types   (I/O-free)│   ts: architecture, i18n
            └──────────────────────────────────────────────────┘
@@ -419,7 +419,14 @@ the element.
 A service's operations as one table of routes (`ev_lib::api`, `rust/src/ops/api/README.md`): its
 router and its OpenAPI document both derive from it — a route's schemas from its handler's
 signature, its description from the handler's `///` (`api_docs`, a `build.rs` step), its id from the
-handler's name. No TS twin: a client is generated from the document by the consuming repo.
+handler's name.
+
+Its TS side is `@evinvest/api` ([`ts/api/README.md`](../ts/api/README.md)), generic over the `paths`
+the consuming repo generates from the same document: answers checked against the document, refusals
+typed by their code and held to the operation's `x-errors`, URLs from its paths (`x-socket` gives the
+scheme), and reads that follow the live socket on exactly the tables their answer names (`x-sa-reads`).
+It also owns both ends of the page's live relay on `window` (`ev:live*`), so a host page and the
+microfrontends in it read one socket.
 
 ## Generated TypeScript — `ts_gen`
 

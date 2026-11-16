@@ -1,0 +1,66 @@
+{
+  "name": "@evinvest/api",
+  "version": "0.1.0",
+  "description": "A service's OpenAPI document as its client: answers checked against it, refusals typed by their code, URLs from its paths, and reads that follow the tables they read over the live socket.",
+  "license": "BlueOak-1.0.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/EV-Main/web_std.git",
+    "directory": "ts/api"
+  },
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "import": "./dist/react.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "main": "./dist/index.js",
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build:core": "TSUP_ONLY=core tsup",
+    "build:react": "TSUP_ONLY=react tsup",
+    "build": "npm run build:core && npm run build:react",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "prepare": "npm run build"
+  },
+  "dependencies": {
+    "ajv": "^8.20.0",
+    "openapi-fetch": "^0.17.0",
+    "openapi-typescript-helpers": "^0.1.0"
+  },
+  "peerDependencies": {
+    "react": "^18 || ^19"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "jsdom": "^25.0.1",
+    "react": "^19.2.1",
+    "react-dom": "^19.2.1",
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

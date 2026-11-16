@@ -14,6 +14,7 @@ ts/
 ├── settings/          port of the `settings` Cargo feature (typed env settings)
 ├── marketing/         landing-page layer over uikit: motion, form harness, click-to-load
 ├── figma-render/      a Playwright suite's pages into Figma frames (the `@figma` suite + its bin)
+├── api/               client side of the `api` Cargo feature (a service's document as its client, live reads)
 ├── i18n/              five-locale i18n: registry, URL contract, ICU-subset formatter
 └── keymap/            port of the `keymap` Cargo feature (scoped keybinds, which key a keydown is)
 ```
@@ -70,6 +71,8 @@ The rest is hand-written for one of four reasons:
                      sink / consent                                         A
                      posthog, react, next                                   B
  error-monitoring 0.6k  Sentry / React / Next wiring                        B
+ api           0.6k  document-checked client, url/upload, live socket + relay A  test: conductor schema
+                     useResource / useLive / useLiveSocket                 B
  keymap        0.2k  trie, normalization, rendering                         D  fixtures/keymap
                      Chord/Trigger/Binding (optional modifiers, TS-idiomatic) A
  marketing     1.8k  motion, form harness, react                            C
