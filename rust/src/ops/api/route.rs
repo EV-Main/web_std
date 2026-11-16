@@ -247,6 +247,10 @@ impl<H: Handler<T, S>, T: 'static, S: Clone + Send + Sync + 'static, G: Guard<S>
 			if let Err(refused) = self.guard.admit(&mut parts, &state).await {
 				return refused.into_response();
 			}
+			#[cfg(all(feature = "sqlite", not(target_arch = "wasm32")))]
+			if parts.method == Method::GET {
+				return crate::ops::sqlite::stamped(self.handler.call(axum::extract::Request::from_parts(parts, body), state)).await;
+			}
 			self.handler.call(axum::extract::Request::from_parts(parts, body), state).await
 		})
 	}

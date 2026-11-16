@@ -15,5 +15,8 @@ pub mod otel;
 #[cfg(feature = "settings")]
 pub mod settings;
 
+#[cfg(all(feature = "sqlite", not(target_arch = "wasm32")))]
+pub mod sqlite;
+
 #[cfg(feature = "views")]
 pub mod views;

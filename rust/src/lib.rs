@@ -37,6 +37,9 @@
 //!   OpenAPI document both derive from it, a route's schemas from its handler's
 //!   signature, its description from the handler's `///` (`api_docs`, build-time).
 //!   See [`api`].
+//! - **`sqlite`** — a service's SQLite pool whose committed writes are told as live topics
+//!   (`<service>.<table>`) and whose GET operations' reads are stamped as `x-sa-reads`, from
+//!   SQLite's authorizer. Native-only. See [`sqlite`].
 //! - **`views`** — a service's views as one enum (`#[derive(Views)]`): each view's href and its
 //!   parse, and the table (`x-views`) the document carries and `@evinvest/views` reads; with
 //!   `views_dioxus`, a Dioxus `Routable`'s catch-all over it. See [`views`].
@@ -94,6 +97,8 @@ pub use ops::error_monitoring;
 pub use ops::otel;
 #[cfg(feature = "settings")]
 pub use ops::settings;
+#[cfg(all(feature = "sqlite", not(target_arch = "wasm32")))]
+pub use ops::sqlite;
 #[cfg(feature = "views")]
 pub use ops::views;
 #[cfg(feature = "analytics")]

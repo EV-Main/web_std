@@ -47,7 +47,7 @@ ev_lib = { version = "0.31", default-features = false, features = ["architecture
  ┌───────────────────────────┐      │     ┌─────────────────────────────────────┐
  │ product                   │      │     │ ops                                 │
  │  analytics · experiments  │      │     │  settings(+drift) · error_monitoring │
- └─────────────┬─────────────┘      │     │  otel · alerts · api                │
+ └─────────────┬─────────────┘      │     │  otel · alerts · api · sqlite       │
                │                    │     │  views                              │
                │                    │     └─────────────────┬───────────────────┘
                ▼                    ▼                       ▼     ts: analytics, experiments,
@@ -459,6 +459,29 @@ does. With `views_dioxus`, a `Routable` routes through one catch-all, `Routed<Vi
   `tests/fixtures/views/` hold them to it.
 - **Nothing is guessed.** A key no view or carried state has, a value of the wrong form, two views of
   one path: each is refused, not routed somewhere close.
+
+## The `sqlite` library
+
+Which tables a service's statements read and write, as SQLite reports them, so no live topic is
+written by hand (`ev_lib::sqlite`, native-only). `sqlite::pool` gives the service's pool. Each
+connection has an SQLite authorizer, set while it is held and with the statement cache off, so every
+statement is authorized. Writes go through the commit and rollback hooks.
+
+- A committed write is told to the service's sink as `<service>.<table>` when the connection that
+  made it goes back to the pool or closes. A request, a background task and a migration are told
+  alike, and a rolled-back write is not told.
+- A GET operation's answer carries `x-sa-reads`: the topics its handler read, empty when it read
+  none. The stamping begins where the gate (`api`'s `Gated`) hands over to the handler, so the
+  gate's reads are never among them.
+- A table a client can follow is a `main` table that is not SQLite's (`sqlite_*`) and not sqlx's
+  `_sqlx_migrations`. A view is told by its tables. A temp table and a table-valued function
+  (`json_each`) are not told.
+
+### Invariants
+
+- **No statement goes unrecorded.** A pooled connection is bound to the task that takes it, before
+  it is handed over and after its queue has run. An unbound connection's statement on a table is
+  refused.
 
 ## Generated TypeScript — `ts_gen`
 
