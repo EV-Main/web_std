@@ -26,7 +26,7 @@
     "/live": {
       "get": {
         "operationId": "live",
-        "x-socket": {},
+        "x-socket": true,
         "x-errors": {},
         "responses": { "101": { "description": "" } }
       }
