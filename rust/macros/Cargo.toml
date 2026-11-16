@@ -1,0 +1,18 @@
+[package]
+name = "ev_lib_macros"
+version = "0.1.0"
+edition = "2024"
+description = "ev_lib's derives: `Views` (a service's views, their hrefs and their table)"
+license = "BlueOak-1.0.0"
+repository = "https://github.com/EV-Main/web_std"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2 = "1"
+quote = "1"
+syn = { workspace = true, features = ["full"] }
+
+[lints]
+workspace = true

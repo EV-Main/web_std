@@ -14,3 +14,6 @@ pub mod otel;
 
 #[cfg(feature = "settings")]
 pub mod settings;
+
+#[cfg(feature = "views")]
+pub mod views;

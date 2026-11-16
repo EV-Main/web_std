@@ -110,11 +110,19 @@ fn id(handler_path: &'static str) -> &'static str {
 	handler_path.rsplit("::").next().expect("rsplit yields at least one item")
 }
 
-/// The OpenAPI document of `routes`, served under `base`; `docs` from `api_docs!()`.
+/// The OpenAPI document of `routes`, served under `base`; `docs` from `api_docs!()`; `views` its
+/// `x-views` (`Views::table()`), `None` for a service with no page.
 ///
 /// Every route's handler must have a `///`, its first line the summary; ids are unique, and the
 /// path's parameters are the ones its extractors take.
-pub fn document<S: Clone + Send + Sync + 'static, G: Guard<S>>(title: &str, version: &str, base: &str, routes: &[Route<S, G>], docs: Docs) -> OpenApi {
+pub fn document<S: Clone + Send + Sync + 'static, G: Guard<S>>(
+	title: &str,
+	version: &str,
+	base: &str,
+	routes: &[Route<S, G>],
+	docs: Docs,
+	views: Option<&crate::ops::views::Table>,
+) -> OpenApi {
 	let mut paths = Paths::default();
 	let mut ids = BTreeSet::new();
 	let (asked, answered) = in_context(|ctx| {
@@ -218,6 +226,7 @@ pub fn document<S: Clone + Send + Sync + 'static, G: Guard<S>>(title: &str, vers
 				.collect(),
 			..openapi::Components::default()
 		}),
+		extensions: views.into_iter().map(|t| ("x-views".to_owned(), serde_json::to_value(t).expect("a table serializes"))).collect(),
 		..OpenApi::default()
 	}
 }

@@ -3,7 +3,7 @@
 # anchors the crate here. See docs/ARCHITECTURE.md.
 [workspace]
 resolver = "3"
-members = ["rust", "rust/classes", "rust/gen", "rust/uikit-viewer"]
+members = ["rust", "rust/classes", "rust/gen", "rust/macros", "rust/uikit-viewer"]
 
 [workspace.lints.rust]
 stable_features = "allow"
@@ -26,6 +26,7 @@ dioxus-liveview = "0.7"
 dioxus-ssr = "0.7"
 ev_lib = { path = "rust", version = "0.33.0" }
 ev_lib_classes = { path = "rust/classes", version = "0.20.0" }
+ev_lib_macros = { path = "rust/macros", version = "0.1.0" }
 jiff = "0.2"
 leptos = { version = "0.8", default-features = false }
 leptos_meta = "0.8"

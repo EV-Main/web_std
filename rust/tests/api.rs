@@ -148,7 +148,7 @@ fn routes() -> Vec<Route<(), Open>> {
 }
 
 fn doc() -> Value {
-	serde_json::to_value(document("notes", "1", "/", &routes(), DOCS)).unwrap()
+	serde_json::to_value(document("notes", "1", "/", &routes(), DOCS, None)).unwrap()
 }
 
 fn router() -> Router {
@@ -218,7 +218,14 @@ async fn ticket(Ids(NoteId { id }): Ids<NoteId>) -> Result<Json<i64>, Refusal<Go
 #[test]
 #[should_panic(expected = "not_found is answered with one status")]
 fn a_word_is_one_status() {
-	document("tickets", "1", "/", &[Route::new(Method::GET, "/tickets/{id}", Open, ticket)], &[("api::ticket", "A ticket.")]);
+	document(
+		"tickets",
+		"1",
+		"/",
+		&[Route::new(Method::GET, "/tickets/{id}", Open, ticket)],
+		&[("api::ticket", "A ticket.")],
+		None,
+	);
 }
 
 #[tokio::test]

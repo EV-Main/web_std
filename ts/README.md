@@ -15,6 +15,7 @@ ts/
 ├── marketing/         landing-page layer over uikit: motion, form harness, click-to-load
 ├── figma-render/      a Playwright suite's pages into Figma frames (the `@figma` suite + its bin)
 ├── api/               client side of the `api` Cargo feature (a service's document as its client, live reads)
+├── views/             TS side of the `views` Cargo feature (a service's views by its generated table)
 ├── i18n/              five-locale i18n: registry, URL contract, ICU-subset formatter
 └── keymap/            port of the `keymap` Cargo feature (scoped keybinds, which key a keydown is)
 ```

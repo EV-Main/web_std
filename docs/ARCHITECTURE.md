@@ -48,9 +48,10 @@ ev_lib = { version = "0.31", default-features = false, features = ["architecture
  │ product                   │      │     │ ops                                 │
  │  analytics · experiments  │      │     │  settings(+drift) · error_monitoring │
  └─────────────┬─────────────┘      │     │  otel · alerts · api                │
+               │                    │     │  views                              │
                │                    │     └─────────────────┬───────────────────┘
                ▼                    ▼                       ▼     ts: analytics, experiments,
-                                                                      settings, error-monitoring, api
+                                                                      settings, error-monitoring, api, views
            ┌──────────────────────────────────────────────────┐
            │ kernel   architecture · i18n · types   (I/O-free)│   ts: architecture, i18n
            └──────────────────────────────────────────────────┘
@@ -428,6 +429,36 @@ typed by their code and held to the operation's `x-errors`, URLs from its paths 
 scheme), and reads that follow the live socket on exactly the tables their answer names (`x-sa-reads`).
 It also owns both ends of the page's live relay on `window` (`ev:live*`), so a host page and the
 microfrontends in it read one socket.
+
+## The `views` library
+
+A service's views (where a person can be on its pages) as one enum, a variant per view
+(`ev_lib::views`, `#[derive(Views)]`, `rust/src/ops/views/README.md`): a path's `{param}` is a
+field, every other field a query key, the variant's `///` its description, `needs` the permission
+that opens it, `key` its nav letter. The derive gives each view's href and its parse, and the table
+the document carries as `x-views` (`api::document(…, Some(View::table()))`), which the service's
+gen writes out as `VIEWS` for `@evinvest/views` ([`ts/views/README.md`](../ts/views/README.md)).
+
+```
+#[derive(Views)] enum View ── table() ──▶ Table = x-views ─┬─ document(…, Some(table))
+       │ at() / from_at()                                  ├─ Ts::Value { "VIEWS" } ─▶ @evinvest/views
+       ▼                                                   └─ Table::nest(service, theirs): a host's
+At { view, params } ◀── href / parse, one codec read off the table's schemas, in both languages
+```
+
+State beside every view (`#[views(carried = T)]`) is the page's: links carry none of it, the page
+keeps it across moves. A typed nest takes another enum's views under its path; a foreign one
+(`nest = "<service>"`) is filled by the host with that service's table, as the conductor's catalog
+does. With `views_dioxus`, a `Routable` routes through one catch-all, `Routed<View>`.
+
+### Invariants
+
+- **A view parses its own href.** Every table is checked when first built, on a sampled value of
+  every view: a service's document test gets it by building its table.
+- **One codec, both languages.** Rust and TS read the same table the same way; the vectors in
+  `tests/fixtures/views/` hold them to it.
+- **Nothing is guessed.** A key no view or carried state has, a value of the wrong form, two views of
+  one path: each is refused, not routed somewhere close.
 
 ## Generated TypeScript — `ts_gen`
 

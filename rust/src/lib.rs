@@ -37,6 +37,9 @@
 //!   OpenAPI document both derive from it, a route's schemas from its handler's
 //!   signature, its description from the handler's `///` (`api_docs`, build-time).
 //!   See [`api`].
+//! - **`views`** — a service's views as one enum (`#[derive(Views)]`): each view's href and its
+//!   parse, and the table (`x-views`) the document carries and `@evinvest/views` reads; with
+//!   `views_dioxus`, a Dioxus `Routable`'s catch-all over it. See [`views`].
 //! - **`types`** — shared domain TypeObjects:
 //!   [`PhoneNumber`](types::PhoneNumber) with E.164 validation and formatting, plus
 //!   the generic [`Branded<T, B>`](types::Branded) newtype for future types (Email,
@@ -91,6 +94,8 @@ pub use ops::error_monitoring;
 pub use ops::otel;
 #[cfg(feature = "settings")]
 pub use ops::settings;
+#[cfg(feature = "views")]
+pub use ops::views;
 #[cfg(feature = "analytics")]
 pub use product::analytics;
 #[cfg(feature = "experiments")]
