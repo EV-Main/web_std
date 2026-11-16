@@ -106,6 +106,14 @@ enum Conductor {
 	ReviewArchive { below: String },
 }
 
+/// `GET /leads`' query: the Leads view's filter keys are its fields.
+#[derive(Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+struct LeadsQuery {
+	stage: Option<Stage>,
+	overdue: bool,
+	created_from: Option<String>,
+}
+
 #[derive(Debug, PartialEq, Views)]
 enum Sites {
 	/// Where the base leads: the leads for who works them, else the funnel.
@@ -114,9 +122,8 @@ enum Sites {
 	/// The leads, filtered.
 	#[view("/leads", key = 'l')]
 	Leads {
-		stage: Option<Stage>,
-		overdue: bool,
-		created_from: Option<String>,
+		#[view(flatten)]
+		filter: LeadsQuery,
 		lead: Option<String>,
 	},
 	/// A brand's places.
@@ -238,10 +245,20 @@ fn a_view_parses_its_own_href() {
 	check(&[
 		Sites::Start,
 		Sites::Leads {
-			stage: Some(Stage::Created),
-			overdue: true,
-			created_from: Some("2026-11-01".into()),
+			filter: LeadsQuery {
+				stage: Some(Stage::Created),
+				overdue: true,
+				created_from: Some("2026-11-01".into()),
+			},
 			lead: None,
+		},
+		Sites::Leads {
+			filter: LeadsQuery {
+				stage: None,
+				overdue: false,
+				created_from: None,
+			},
+			lead: Some("l 1".into()),
 		},
 	]);
 }
@@ -257,6 +274,22 @@ fn two_views_of_one_path_are_refused() {
 		/// Another.
 		#[view("/a/{y}")]
 		Other { y: String },
+	}
+	Clash::table();
+}
+
+#[test]
+#[should_panic(expected = "two fields' key")]
+fn a_flattened_key_is_no_other_fields() {
+	#[derive(Views)]
+	enum Clash {
+		/// The leads, filtered twice over.
+		#[view("/leads")]
+		Leads {
+			#[view(flatten)]
+			filter: LeadsQuery,
+			stage: Option<Stage>,
+		},
 	}
 	Clash::table();
 }

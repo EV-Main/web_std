@@ -22,7 +22,8 @@ enum View {
 }
 ```
 
-- **A field named in the path is a path param; every other field is a query key.** The view's name
+- **A field named in the path is a path param; every other field is a query key**, or, marked
+  `#[view(flatten)]`, a struct whose fields are (an operation's query type: the keys have one source). The view's name
   is its variant's, snake_case; its `///` is its description, which an agent picks it by.
 - `needs` names the permission that opens it (anything with an `.as_str()`, as concierge_iam's
   permissions are); `key` is its letter in the page's nav, on a view with nothing to fill.

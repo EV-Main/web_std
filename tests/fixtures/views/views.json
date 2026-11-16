@@ -129,6 +129,44 @@
       "href": "/review_archive/act-as"
     }
   ],
+  "may": [
+    {
+      "may": true,
+      "permissions": [],
+      "view": "home"
+    },
+    {
+      "may": false,
+      "permissions": [],
+      "view": "sources"
+    },
+    {
+      "may": true,
+      "permissions": [
+        "sa:admin:sources:manage"
+      ],
+      "view": "sources"
+    },
+    {
+      "may": false,
+      "permissions": [
+        "sa:admin:sources:manage"
+      ],
+      "view": "review_archive.theirs.gmb"
+    },
+    {
+      "may": true,
+      "permissions": [
+        "sa:review_archive:members:act_as"
+      ],
+      "view": "review_archive.theirs.gmb"
+    },
+    {
+      "may": true,
+      "permissions": [],
+      "view": "review_archive.mine.gmb"
+    }
+  ],
   "refused": [
     "/nope",
     "/sources/x",

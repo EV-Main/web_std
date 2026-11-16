@@ -3,13 +3,14 @@ import { join } from 'node:path';
 
 import { describe, expect, expectTypeOf, it } from 'vitest';
 
-import { type At, type Carried, type Table, ViewError, href, parse } from '../src/index';
+import { type At, type Carried, type Table, ViewError, href, mayOpen, parse } from '../src/index';
 
 // The Rust writes these (`rust/tests/views.rs`, `BLESS=1`); both codecs answer them alike.
 const F = JSON.parse(readFileSync(join(import.meta.dirname, '../../../tests/fixtures/views/views.json'), 'utf8')) as {
   table: Table;
   cases: { at: At<Table>; carried: Carried<Table>; href: string }[];
   refused: string[];
+  may: { view: At<Table>['view']; permissions: string[]; may: boolean }[];
 };
 
 describe('views fixtures', () => {
@@ -17,6 +18,11 @@ describe('views fixtures', () => {
     it(`${c.at.view} ⇄ ${c.href}`, () => {
       expect(href(F.table, c.at, c.carried)).toBe(c.href);
       expect(parse(F.table, c.href)).toEqual({ at: c.at, carried: c.carried });
+    });
+  }
+  for (const m of F.may) {
+    it(`${m.view} opens for [${m.permissions.join(', ')}]: ${m.may}`, () => {
+      expect(mayOpen(F.table, m.view, m.permissions)).toBe(m.may);
     });
   }
   for (const h of F.refused) {

@@ -145,6 +145,20 @@ struct Field {
 	name: String,
 	ty: Type,
 	doc: String,
+	/// `#[view(flatten)]`: a struct whose fields are the view's query keys, as serde flattens one.
+	flatten: bool,
+}
+
+fn flatten(attrs: &[Attribute]) -> Result<bool> {
+	let mut flatten = false;
+	for attr in attrs.iter().filter(|a| a.path().is_ident("view")) {
+		let name: Ident = attr.parse_args()?;
+		if name != "flatten" || flatten {
+			return Err(Error::new(name.span(), "a field takes `#[view(flatten)]`, once"));
+		}
+		flatten = true;
+	}
+	Ok(flatten)
 }
 
 fn derive(input: DeriveInput) -> Result<Tokens> {
@@ -194,14 +208,15 @@ fn derive(input: DeriveInput) -> Result<Tokens> {
 				.iter()
 				.map(|f| {
 					let ident = f.ident.clone().expect("named fields have idents");
-					Field {
+					Ok(Field {
 						name: ident.to_string().trim_start_matches("r#").to_owned(),
 						ident,
 						ty: f.ty.clone(),
 						doc: doc(&f.attrs),
-					}
+						flatten: flatten(&f.attrs)?,
+					})
 				})
-				.collect(),
+				.collect::<Result<_>>()?,
 			Fields::Unnamed(_) => return Err(Error::new(vident.span(), "a view's fields are named: their names are its params' and query keys'")),
 		};
 		let named = params(&a.path, !matches!(a.kind, Kind::Plain))?;
@@ -211,6 +226,9 @@ fn derive(input: DeriveInput) -> Result<Tokens> {
 			}
 		}
 		let (path_fields, rest): (Vec<&Field>, Vec<&Field>) = fields.iter().partition(|f| named.contains(&f.name));
+		if let Some(f) = fields.iter().find(|f| f.flatten && (named.contains(&f.name) || !matches!(a.kind, Kind::Plain))) {
+			return Err(Error::new(f.ident.span(), "a flattened field gives a view its query keys: it is no path param, nor a nest's"));
+		}
 		takes_any |= if matches!(a.kind, Kind::Nest) { !path_fields.is_empty() } else { !fields.is_empty() };
 		if let Some(key) = &a.key {
 			if !named.is_empty() {
@@ -238,7 +256,7 @@ fn derive(input: DeriveInput) -> Result<Tokens> {
 		};
 		let schema = |f: &&Field| {
 			let (n, ty, d) = (&f.name, &f.ty, &f.doc);
-			quote!((#n, b.schema::<#ty>(#d)))
+			quote!((::std::string::String::from(#n), b.schema::<#ty>(#d)))
 		};
 		let path_schemas: Vec<Tokens> = path_fields.iter().map(schema).collect();
 		let all_idents: Vec<&Ident> = fields.iter().map(|f| &f.ident).collect();
@@ -246,19 +264,20 @@ fn derive(input: DeriveInput) -> Result<Tokens> {
 			Fields::Unit => quote!(Self::#vident),
 			_ => quote!(Self::#vident { #(#all_idents),* }),
 		};
-		let pairs = |fs: &[&Field]| -> Vec<Tokens> {
-			fs.iter()
-				.map(|f| {
-					let (n, i) = (&f.name, &f.ident);
-					quote!((#n, #p::value(#i)))
-				})
-				.collect()
+		let pairs = |fs: &[&Field]| -> Tokens {
+			let (flat, own): (Vec<&&Field>, Vec<&&Field>) = fs.iter().partition(|f| f.flatten);
+			let own = own.iter().map(|f| {
+				let (n, i) = (&f.name, &f.ident);
+				quote!((::std::string::String::from(#n), #p::value(#i)))
+			});
+			let flat = flat.iter().map(|f| &f.ident);
+			quote!(::std::iter::empty().chain(::std::vec![#(#own),*])#(.chain(#p::spread(#flat)))*.collect())
 		};
 		let takes = |fs: &[&Field]| -> Vec<Tokens> {
 			fs.iter()
 				.map(|f| {
 					let (n, i) = (&f.name, &f.ident);
-					quote!(#i: f.take(#n)?)
+					if f.flatten { quote!(#i: f.flattened()?) } else { quote!(#i: f.take(#n)?) }
 				})
 				.collect()
 		};
@@ -267,15 +286,17 @@ fn derive(input: DeriveInput) -> Result<Tokens> {
 		}
 		match &a.kind {
 			Kind::Plain => {
-				let query_schemas: Vec<Tokens> = rest.iter().map(schema).collect();
+				let (flat, own): (Vec<&Field>, Vec<&Field>) = rest.iter().partition(|f| f.flatten);
+				let query_schemas: Vec<Tokens> = own.iter().map(schema).collect();
+				let flat_tys = flat.iter().map(|f| &f.ty);
 				entries.push(quote! {{
 					let params = ::std::vec![#(#path_schemas),*];
-					let query = ::std::vec![#(#query_schemas),*];
+					let query = ::std::iter::empty().chain(::std::vec![#(#query_schemas),*])#(.chain(b.flattened::<#flat_tys>()))*.collect();
 					b.view(#name, #path, #description, #needs, #key, params, query);
 				}});
 				let all: Vec<&Field> = fields.iter().collect();
 				let pairs = pairs(&all);
-				ats.push(quote!(#pattern => #p::at(#name, ::std::vec![#(#pairs),*])));
+				ats.push(quote!(#pattern => #p::at(#name, #pairs)));
 				let takes = takes(&all);
 				let build = match &v.fields {
 					Fields::Unit => quote!(Self::#vident),
@@ -297,7 +318,7 @@ fn derive(input: DeriveInput) -> Result<Tokens> {
 					b.nest(#name, #path, #needs, params, <#inner_ty as #views::Views>::table());
 				}});
 				let pairs = pairs(&path_fields);
-				ats.push(quote!(#pattern => #p::nested(#name, #views::Views::at(#inner_ident), ::std::vec![#(#pairs),*])));
+				ats.push(quote!(#pattern => #p::nested(#name, #views::Views::at(#inner_ident), #pairs)));
 				let takes = takes(&path_fields);
 				let prefix = format!("{name}.");
 				froms.push(quote!(v if v.starts_with(#prefix) => {
@@ -325,7 +346,7 @@ fn derive(input: DeriveInput) -> Result<Tokens> {
 				}});
 				let all: Vec<&Field> = fields.iter().collect();
 				let pairs = pairs(&all);
-				ats.push(quote!(#pattern => #p::at(#name, ::std::vec![#(#pairs),*])));
+				ats.push(quote!(#pattern => #p::at(#name, #pairs)));
 				let takes = takes(&all);
 				froms.push(quote!(#name => {
 					let v = Self::#vident { #(#takes),* };

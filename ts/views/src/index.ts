@@ -278,6 +278,14 @@ export function href<T extends Table>(table: T, at: At<T>, carried?: Carried<T>)
   return query === "" ? out : `${out}?${query}`;
 }
 
+/** Whether a caller holding `permissions` may open `view`: its `needs`, nothing else. */
+export function mayOpen<T extends Table>(table: T, view: At<T>["view"], permissions: Iterable<string>): boolean {
+  const name: string = view;
+  const entry = has(table.views, name) ? table.views[name] : undefined;
+  if (entry === undefined) throw new ViewError(`no view is named ${JSON.stringify(name)}`);
+  return entry.needs === undefined || new Set(permissions).has(entry.needs);
+}
+
 /** The view `href` is, and the carried keys beside it. An absent key is absent from the params. */
 export function parse<T extends Table>(table: T, href: string): { at: At<T>; carried: Carried<T> } {
   const fail = (why: string) => new ViewError(`${href}: ${why}`);

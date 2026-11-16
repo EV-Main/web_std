@@ -14,15 +14,19 @@ pub struct Builder {
 	table: Table,
 }
 
+fn generator() -> SchemaGenerator {
+	SchemaSettings::draft2020_12()
+		.with(|s| {
+			s.inline_subschemas = true;
+			s.meta_schema = None;
+		})
+		.into_generator()
+}
+
 impl Builder {
 	pub fn empty() -> Self {
 		Self {
-			generator: SchemaSettings::draft2020_12()
-				.with(|s| {
-					s.inline_subschemas = true;
-					s.meta_schema = None;
-				})
-				.into_generator(),
+			generator: generator(),
 			table: Table {
 				carried: object(Map::new()).expect("no properties is an object schema"),
 				views: Default::default(),
@@ -30,20 +34,31 @@ impl Builder {
 		}
 	}
 
-	/// `T` takes and gives back a sampled value of its schema: the one is the other's.
 	pub fn carried<T: JsonSchema + Serialize + DeserializeOwned>(&mut self) {
+		self.table.carried = object(self.keys::<T>("carried")).unwrap_or_else(|e| panic!("carried: {e}"));
+	}
+
+	/// A flattened field's query keys, as serde flattens it.
+	pub fn flattened<T: JsonSchema + Serialize + DeserializeOwned>(&mut self) -> Vec<(String, Result<Value, String>)> {
+		self.keys::<T>("a flattened field").into_iter().map(|(k, s)| (k, Ok(s))).collect()
+	}
+
+	/// A struct's fields, each a key. `T` takes and gives back a sampled value of its schema: the one
+	/// is the other's.
+	fn keys<T: JsonSchema + Serialize + DeserializeOwned>(&mut self, what: &str) -> Map<String, Value> {
+		let ty = T::schema_name();
 		let root = self.generator.root_schema_for::<T>().to_value();
-		let properties = root["properties"]
+		let properties: Map<String, Value> = root["properties"]
 			.as_object()
-			.unwrap_or_else(|| panic!("carried {}: a struct, its fields the keys", T::schema_name()));
-		let properties = properties
+			.unwrap_or_else(|| panic!("{what} {ty}: a struct, its fields the keys"))
 			.iter()
-			.map(|(k, s)| canonical(s.clone()).map(|s| (k.clone(), s)).unwrap_or_else(|e| panic!("carried ?{k}: {e}")))
+			.map(|(k, s)| canonical(s.clone()).map(|s| (k.clone(), s)).unwrap_or_else(|e| panic!("{what} {ty}: ?{k}: {e}")))
 			.collect();
-		self.table.carried = object(properties).unwrap_or_else(|e| panic!("carried: {e}"));
-		let sample = Value::Object(sampled(&self.table.carried).unwrap_or_else(|e| panic!("carried: {e}")));
-		let taken: T = serde_json::from_value(sample.clone()).unwrap_or_else(|e| panic!("carried {}: {sample} is no value of it: {e}", T::schema_name()));
-		assert_eq!(value(&taken), sample, "carried {}: its schema is not how it serializes", T::schema_name());
+		let schema = object(properties.clone()).unwrap_or_else(|e| panic!("{what} {ty}: {e}"));
+		let sample = Value::Object(sampled(&schema).unwrap_or_else(|e| panic!("{what} {ty}: {e}")));
+		let taken: T = serde_json::from_value(sample.clone()).unwrap_or_else(|e| panic!("{what} {ty}: {sample} is no value of it: {e}"));
+		assert_eq!(value(&taken), sample, "{what} {ty}: its schema is not how it serializes");
+		properties
 	}
 
 	pub fn schema<T: JsonSchema>(&mut self, doc: &str) -> Result<Value, String> {
@@ -62,8 +77,8 @@ impl Builder {
 		description: &str,
 		needs: Option<&str>,
 		key: Option<char>,
-		params: Vec<(&str, Result<Value, String>)>,
-		query: Vec<(&str, Result<Value, String>)>,
+		params: Vec<(String, Result<Value, String>)>,
+		query: Vec<(String, Result<Value, String>)>,
 	) {
 		let entry = Entry {
 			path: path.into(),
@@ -78,7 +93,7 @@ impl Builder {
 		assert!(self.table.views.insert(name.into(), entry).is_none(), "{name} is a view already");
 	}
 
-	pub fn nest(&mut self, name: &str, path: &str, needs: Option<&str>, params: Vec<(&str, Result<Value, String>)>, inner: &Table) {
+	pub fn nest(&mut self, name: &str, path: &str, needs: Option<&str>, params: Vec<(String, Result<Value, String>)>, inner: &Table) {
 		let outer = props(&fields(name, params)).clone();
 		self.table.merge(name, path, outer, needs, inner.clone(), true).unwrap_or_else(|e| panic!("{e}"));
 	}
@@ -93,9 +108,9 @@ impl Builder {
 		needs: Option<&str>,
 		key: Option<char>,
 		scope: Option<char>,
-		mut params: Vec<(&str, Result<Value, String>)>,
+		mut params: Vec<(String, Result<Value, String>)>,
 	) {
-		params.push(("below", Ok(json!({ "type": "string" }))));
+		params.push(("below".into(), Ok(json!({ "type": "string" }))));
 		let entry = Entry {
 			path: path.into(),
 			description: description.into(),
@@ -116,8 +131,12 @@ impl Builder {
 	}
 }
 
-fn fields(view: &str, fields: Vec<(&str, Result<Value, String>)>) -> Value {
-	let properties = fields.into_iter().map(|(k, s)| (k.to_owned(), s.unwrap_or_else(|e| panic!("{view}: {k}: {e}")))).collect();
+fn fields(view: &str, fields: Vec<(String, Result<Value, String>)>) -> Value {
+	let mut properties = Map::new();
+	for (k, s) in fields {
+		let s = s.unwrap_or_else(|e| panic!("{view}: {k}: {e}"));
+		assert!(properties.insert(k.clone(), s).is_none(), "{view}: ?{k} is two fields' key");
+	}
 	object(properties).unwrap_or_else(|e| panic!("{view}: {e}"))
 }
 
@@ -125,14 +144,26 @@ pub fn value<T: Serialize>(v: &T) -> Value {
 	serde_json::to_value(v).expect("a view's field serializes to JSON")
 }
 
-pub fn at(view: &str, params: Vec<(&str, Value)>) -> At {
-	At {
+pub fn at(view: &str, params: Vec<(String, Value)>) -> At {
+	let mut at = At {
 		view: view.into(),
-		params: params.into_iter().map(|(k, v)| (k.to_owned(), v)).collect(),
+		params: Map::new(),
+	};
+	for (k, v) in params {
+		assert!(at.params.insert(k.clone(), v).is_none(), "{view}: ?{k} is two fields' key");
+	}
+	at
+}
+
+/// A flattened field's keys and values.
+pub fn spread<T: Serialize>(v: &T) -> Vec<(String, Value)> {
+	match value(v) {
+		Value::Object(o) => o.into_iter().collect(),
+		v => panic!("a flattened field serializes as a struct, not as {v}"),
 	}
 }
 
-pub fn nested(view: &str, inner: At, params: Vec<(&str, Value)>) -> At {
+pub fn nested(view: &str, inner: At, params: Vec<(String, Value)>) -> At {
 	let mut at = at(&format!("{view}.{}", inner.view), params);
 	at.params.extend(inner.params);
 	at
@@ -168,6 +199,14 @@ impl Fields {
 			Some(k) => Err(Error(format!("{}: it has no param {k}", self.view))),
 			None => Ok(()),
 		}
+	}
+
+	/// A flattened field, from the keys its struct has.
+	pub fn flattened<T: JsonSchema + DeserializeOwned>(&mut self) -> Result<T, Error> {
+		let root = generator().root_schema_for::<T>().to_value();
+		let keys = root["properties"].as_object().expect("a flattened field's schema is checked on build");
+		let taken: Map<String, Value> = keys.keys().filter_map(|k| self.params.remove(k).map(|v| (k.clone(), v))).collect();
+		serde_json::from_value(Value::Object(taken)).map_err(|e| Error(format!("{}: {e}", self.view)))
 	}
 
 	/// What is left, as the nested view's.

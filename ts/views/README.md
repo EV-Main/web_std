@@ -18,6 +18,7 @@ const { at, carried } = parse(VIEWS, location.pathname + location.search); // th
 | `Table::parse(href)`          | `parse(table, href)` → `{ at, carried }`   |
 | `At { view, params }`         | `At<typeof VIEWS>`, a union by `view`      |
 | `Err(views::Error)`           | throws `ViewError`                         |
+| a view's `needs`              | `mayOpen(table, view, permissions)`        |
 | an absent `Option`/flag/list  | the key left out                           |
 | `i64`/`u64` in a view         | `number`, a safe integer checked           |
 
