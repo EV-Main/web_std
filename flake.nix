@@ -36,12 +36,10 @@
             let base = v_flakes.files.preCommit { inherit pkgs; }; in
             base // {
               hooks = base.hooks // {
-                # Regenerate and re-stage, rather than assert-and-fail. CI is off in
-                # this repo (see the `github` module below), so an assertion would
-                # have nothing to run it — and a stale generated file is silent:
-                # Tailwind answers an undefined token by emitting no rule at all, so
-                # a token sheet that drifted from its source shows up as a colour
-                # quietly going missing on a consumer, not as a build error.
+                # Regenerate and re-stage, rather than leave it to `gen-drift`: a stale
+                # generated file is silent. Tailwind answers an undefined token by
+                # emitting no rule at all, so a token sheet that drifted from its source
+                # shows up as a colour quietly going missing on a consumer.
                 generated = {
                   enable = true;
                   name = "regenerate derived files";
@@ -62,8 +60,42 @@
             build.enable = false;
           };
 
+          js = v_flakes.js { inherit pkgs; packages = [ "ts/*" ]; rootDir = ./.; };
+
+          # the Rust side of the uikit: both ports' tests, the gallery's baselines among them
+          uikit = {
+            name = "rust-uikit";
+            program = pkgs.writeShellApplication {
+              name = "rust-uikit";
+              runtimeInputs = [ rust pkgs.git pkgs.pkg-config pkgs.playwright-test pkgs.python3 ] ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.mold ];
+              runtimeEnv = visual.env // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux { PKG_CONFIG_PATH = "${pkgs.openssl.dev}/lib/pkgconfig"; };
+              text = ''
+                cd "$(git rev-parse --show-toplevel)"
+                ln -sfn ${visual.nodeModules} rust/tests/visual/node_modules
+                exec cargo test -p ev_lib --features "uikit_dioxus uikit_leptos"
+              '';
+            };
+          };
+
+          # the generated files are committed: a source change not regenerated, or an edit to the output, is drift
+          genDrift = {
+            name = "gen-drift";
+            program = pkgs.writeShellApplication {
+              name = "gen-drift";
+              runtimeInputs = [ pkgs.git ] ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.mold ];
+              text = ''
+                cd "$(git rev-parse --show-toplevel)"
+                out=(rust/classes ':(glob)ts/*/src/generated' ':(glob)ts/*/styles')
+                state() { git status --porcelain -- "''${out[@]}" && git diff -- "''${out[@]}"; }
+                before=$(state)
+                ${gen}/bin/gen
+                [ "$(state)" = "$before" ] || { echo "stale generated files, which \`nix run .#gen\` has now rewritten:"; git status --short -- "''${out[@]}"; exit 1; }
+              '';
+            };
+          };
+
           github = v_flakes.github {
-            inherit pkgs pname rs;
+            inherit pkgs pname rs js;
             enable = true;
             lastSupportedVersion = "nightly-2026-05-12";
             gitignore.extra = ''
@@ -79,7 +111,10 @@
               .claude/
             '';
             lfs = false;
-            jobs.errors.augment = [{ name = "js-tests"; args.packagesDir = "ts"; }];
+            jobs.errors.default = true;
+            jobs.errors.augment = [ uikit genDrift ];
+            jobs.warnings.default = true;
+            jobs.warnings.exclude = map (p: "ts-${p}-lint") [ "analytics" "api" "architecture" "error-monitoring" "experiments" "figma-render" "i18n" "keymap" "marketing" "mfe" "settings" "uikit" "views" ]; # no ts package has a linter
             npmRelease = {
               scope = "evinvest";
               packagesDir = "ts";
@@ -97,14 +132,11 @@
             defaults = true;
             lastSupportedVersion = "nightly-1.92";
             rootDir = ./.;
-            # No `ci` badge — it emits an errors *and* a warnings one, and only
-            # `errors` is generated here, so the second would sit at "no status"
-            # advertising a check that does not exist. No `loc` badge either: its
-            # gist isn't created, so that endpoint 404s.
-            badges = [ "msrv" "crates_io" "docs_rs" ];
+            # No `loc` badge: its gist isn't created, so that endpoint 404s.
+            badges = [ "msrv" "crates_io" "docs_rs" "ci" ];
           };
 
-          combined = v_flakes.utils.combine { inherit rust; modules = [ rs github readme ]; };
+          combined = v_flakes.utils.combine { inherit rust; modules = [ rs js github readme ]; };
 
           # `nix run .#publish -- <major|minor|patch>`: cargo-release for the crates
           # plus a release tag per impacted ts package, which CI publishes. See scripts/publish.rs;
@@ -265,6 +297,7 @@
               Commands:
                 nix develop                              dev shell (rust nightly, node, playwright, pre-commit)
                 nix run .#gen                            regenerate every derived file (class tables, token sheets)
+                nix run .#test                           every check (particles); `-- --help` lists them
                 nix run .#publish -- <major|minor|patch> cargo-release + npm publish of impacted ts packages
                 nix run .#visual                         serve the kit gallery: live board, colorscheme, every page the visual test captures
                 cargo test --test it gallery --features uikit_dioxus   visual regression of the kit gallery (UPDATE_EXPECT=1 accepts)
@@ -323,7 +356,6 @@
                 playwright-driver.browsers
                 playwright-test
                 python3
-                sccache
               ]
               ++ lib.optionals stdenv.isLinux [
                 mold
@@ -340,7 +372,6 @@
 
               env = visual.env // {
                 RUST_BACKTRACE = 1;
-                RUSTC_WRAPPER = "sccache";
               };
             };
         }
