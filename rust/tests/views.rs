@@ -334,3 +334,25 @@ fn a_routable_routes_through_the_views() {
 		assert_eq!(route.to_string(), href);
 	}
 }
+
+#[test]
+fn an_enum_with_some_words_documented_is_its_words() {
+	#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+	#[serde(rename_all = "snake_case")]
+	enum Booking {
+		None,
+		/// Asked for a slot, none had yet.
+		Requested,
+		Booked,
+	}
+	#[derive(Debug, PartialEq, Views)]
+	enum Partly {
+		/// The leads, by where their booking stands.
+		#[view("/leads")]
+		Leads { booking: Option<Booking> },
+	}
+	for booking in [None, Some(Booking::None), Some(Booking::Requested), Some(Booking::Booked)] {
+		let view = Partly::Leads { booking };
+		assert_eq!(Partly::parse(&view.href()).unwrap(), view, "{}", view.href());
+	}
+}

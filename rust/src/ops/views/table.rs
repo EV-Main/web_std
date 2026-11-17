@@ -429,13 +429,19 @@ pub(super) fn canonical(schema: Value) -> Result<Value, String> {
 		return Ok(inner);
 	}
 	if let Some(one) = o.remove("oneOf") {
+		// schemars gives a documented word its own `const`, and the undocumented ones one `enum`.
 		let words = one
 			.as_array()
 			.ok_or("oneOf is an array")?
 			.iter()
-			.map(|v| v.get("const").filter(|c| c.is_string()).cloned())
+			.map(|v| match (v.get("const"), v.get("enum")) {
+				(Some(c @ Value::String(_)), None) => Some(vec![c.clone()]),
+				(None, Some(Value::Array(e))) if e.iter().all(Value::is_string) => Some(e.clone()),
+				_ => None,
+			})
 			.collect::<Option<Vec<_>>>()
-			.ok_or("a oneOf other than an enum's words has no URL form")?;
+			.ok_or("a oneOf other than an enum's words has no URL form")?
+			.concat();
 		o.insert("type".into(), "string".into());
 		o.insert("enum".into(), Value::Array(words));
 	}
