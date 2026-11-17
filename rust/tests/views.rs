@@ -356,3 +356,39 @@ fn an_enum_with_some_words_documented_is_its_words() {
 		assert_eq!(Partly::parse(&view.href()).unwrap(), view, "{}", view.href());
 	}
 }
+
+#[test]
+fn a_type_its_check_narrows_is_sampled_by_its_example() {
+	/// Lowercase only: a text with a space is none.
+	#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+	#[serde(try_from = "String")]
+	struct Slug(String);
+	impl TryFrom<String> for Slug {
+		type Error = String;
+
+		fn try_from(s: String) -> Result<Self, String> {
+			s.bytes().all(|b| b.is_ascii_lowercase()).then(|| Self(s.clone())).ok_or(s)
+		}
+	}
+	impl JsonSchema for Slug {
+		fn schema_name() -> std::borrow::Cow<'static, str> {
+			"Slug".into()
+		}
+
+		fn json_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+			schemars::json_schema!({ "type": "string", "pattern": "^[a-z]+$", "examples": ["aquafix"] })
+		}
+	}
+	#[derive(Debug, PartialEq, Views)]
+	enum Narrowed {
+		/// A brand's leads, one of them open.
+		#[view("/leads/{brand}")]
+		Leads { brand: Slug, lead: Option<(Slug, Slug)>, tags: Vec<Slug> },
+	}
+	let view = Narrowed::Leads {
+		brand: Slug("vifnet".into()),
+		lead: Some((Slug("vifnet".into()), Slug("royat".into()))),
+		tags: vec![Slug("new".into())],
+	};
+	assert_eq!(Narrowed::parse(&view.href()).unwrap(), view);
+}

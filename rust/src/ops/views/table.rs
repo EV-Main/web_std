@@ -673,23 +673,32 @@ fn number(t: &str) -> bool {
 
 /// A value of each of an object schema's properties.
 pub(super) fn sampled(object: &Value) -> Result<Map<String, Value>, String> {
-	props(object).iter().map(|(k, s)| Ok((k.clone(), sample(&shape(s)?)))).collect()
+	props(object).iter().map(|(k, s)| Ok((k.clone(), sample(s, &shape(s)?)))).collect()
 }
 
-fn sample(shape: &Shape) -> Value {
-	fn scalar(s: &Scalar) -> Value {
+/// A value of `schema`: its first `examples` where it names one (a type a pattern or a check
+/// narrows), a date for a `format` of one, else a text with a space in it.
+fn sample(schema: &Value, shape: &Shape) -> Value {
+	fn scalar(schema: &Value, s: &Scalar) -> Value {
+		if let Some(example) = schema.get("examples").and_then(|e| e.get(0)) {
+			return example.clone();
+		}
 		match s {
 			Scalar::Text(Some(words)) => Value::String(words[0].clone()),
-			Scalar::Text(None) => Value::String("s 0".into()),
+			Scalar::Text(None) => match schema.get("format").and_then(Value::as_str) {
+				Some("date") => json!("2026-01-31"),
+				Some("date-time") => json!("2026-01-31T10:00:00Z"),
+				_ => Value::String("s 0".into()),
+			},
 			Scalar::Int => json!(7),
 			Scalar::Num => json!(0.5),
 		}
 	}
 	match &shape.form {
 		Form::Flag => Value::Bool(true),
-		Form::Scalar(s) => scalar(s),
-		Form::List(s) => json!([scalar(s), scalar(s)]),
-		Form::Tuple(ss) => Value::Array(ss.iter().map(scalar).collect()),
+		Form::Scalar(s) => scalar(schema, s),
+		Form::List(s) => json!([scalar(&schema["items"], s), scalar(&schema["items"], s)]),
+		Form::Tuple(ss) => Value::Array(ss.iter().zip(schema["prefixItems"].as_array().into_iter().flatten()).map(|(s, item)| scalar(item, s)).collect()),
 		Form::Json => json!({}),
 	}
 }
