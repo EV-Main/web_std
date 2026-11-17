@@ -6,6 +6,14 @@ description = "EV-invest shared Rust libraries, one per feature"
 license = "BlueOak-1.0.0"
 repository = "https://github.com/EV-Main/web_std"
 
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+# only ever turned on, for `uikit_leptos`'s `reactive_graph/hydration`
+[package.metadata.cargo-machete]
+ignored = ["reactive_graph"]
+
 [features]
 # The kit has one token vocabulary: `tokens.css`.
 default = []

@@ -152,7 +152,7 @@ fn format(pattern: &[char], locale: Locale, values: &MessageValues, pound: Optio
 }
 
 /// Index of the `}` closing the `{` at `start`, or `None` if unbalanced.
-fn match_brace(source: &[char], start: usize) -> Option<usize> {
+pub(super) fn match_brace(source: &[char], start: usize) -> Option<usize> {
 	let mut depth = 0usize;
 	for (offset, ch) in source[start..].iter().enumerate() {
 		match ch {
@@ -170,7 +170,7 @@ fn match_brace(source: &[char], start: usize) -> Option<usize> {
 }
 
 /// Index of the first `sep` not nested inside braces.
-fn top_level_index_of(source: &[char], sep: char) -> Option<usize> {
+pub(super) fn top_level_index_of(source: &[char], sep: char) -> Option<usize> {
 	let mut depth = 0i32;
 	for (i, &ch) in source.iter().enumerate() {
 		match ch {

@@ -24,7 +24,7 @@ pub(super) const SEGMENT: &AsciiSet = &NON_ALPHANUMERIC
 	.remove(b')');
 
 /// A service's views, by name: the document's `x-views`, and what `href`/`parse` read.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Table {
 	/// The query keys beside every view, which the page keeps across its moves.
@@ -32,7 +32,7 @@ pub struct Table {
 	pub(super) views: BTreeMap<String, Entry>,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct Entry {
 	pub(super) path: String,

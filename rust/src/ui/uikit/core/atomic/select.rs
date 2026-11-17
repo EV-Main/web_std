@@ -4,8 +4,6 @@ use ev_lib_classes::SELECT_TYPEAHEAD_MS;
 
 use crate::ui::uikit::core::{KeyInput, Placement, sort_by_position};
 
-/// Keys typed within this long of each other build one type-ahead query.
-
 /// One `Select`'s open list: its options, the one holding focus, the type-ahead.
 /// The chosen value is the port's controllable state, so every read takes it.
 #[derive(Clone, Debug, Default)]

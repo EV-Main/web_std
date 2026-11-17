@@ -36,7 +36,7 @@ impl Members {
 	}
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Copy, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 enum Tab {
 	Launch,
@@ -44,7 +44,7 @@ enum Tab {
 	Kit,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Copy, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 enum Issue {
 	/// No point placed yet.
@@ -53,7 +53,7 @@ enum Issue {
 	Closed,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Copy, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 enum Stage {
 	Created,
@@ -61,20 +61,20 @@ enum Stage {
 }
 
 /// The Add a GBP panel: what it opens with.
-#[derive(Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
 struct Add {
 	gmail: Option<i64>,
 	trade: Option<i64>,
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
 struct Tier {
 	weight: f64,
 	show: bool,
 }
 
 /// Beside every page.
-#[derive(Serialize, Deserialize, JsonSchema)]
+#[derive(Deserialize, JsonSchema, Serialize)]
 struct Outline {
 	/// The GMBs being edited; empty, none yet.
 	gmbs: Option<Vec<i64>>,
@@ -114,7 +114,7 @@ enum Conductor {
 }
 
 /// `GET /leads`' query: the Leads view's filter keys are its fields.
-#[derive(Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
 struct LeadsQuery {
 	stage: Option<Stage>,
 	overdue: bool,
@@ -344,7 +344,7 @@ fn a_routable_routes_through_the_views() {
 
 #[test]
 fn an_enum_with_some_words_documented_is_its_words() {
-	#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+	#[derive(Clone, Copy, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
 	#[serde(rename_all = "snake_case")]
 	enum Booking {
 		None,
@@ -367,7 +367,7 @@ fn an_enum_with_some_words_documented_is_its_words() {
 #[test]
 fn a_type_its_check_narrows_is_sampled_by_its_example() {
 	/// Lowercase only: a text with a space is none.
-	#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+	#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 	#[serde(try_from = "String")]
 	struct Slug(String);
 	impl TryFrom<String> for Slug {

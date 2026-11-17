@@ -10,7 +10,7 @@ fn fixture() -> Value {
 }
 
 fn flag(v: &Value, name: &str) -> bool {
-	v.get(name).map_or(false, |f| f.as_bool().expect("a flag is a bool"))
+	v.get(name).is_some_and(|f| f.as_bool().expect("a flag is a bool"))
 }
 
 fn text(v: &Value) -> String {

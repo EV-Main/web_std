@@ -45,8 +45,7 @@ fn named_scopes(code: &str) -> BTreeSet<String> {
 		if let Some(group) = rest.strip_prefix('{') {
 			let mut depth = 1;
 			let mut item_start = true;
-			let mut chars = group.char_indices();
-			while let Some((i, c)) = chars.next() {
+			for (i, c) in group.char_indices() {
 				match c {
 					'{' => depth += 1,
 					'}' => depth -= 1,

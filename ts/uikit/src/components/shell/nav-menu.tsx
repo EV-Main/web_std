@@ -43,7 +43,7 @@ export function NavMenu({ label, href, current, linkComponent, children, classNa
     >
       <NavigationMenuLink
         asChild
-        className={cn(navigationMenuTriggerStyle(), "group flex-row items-center", current && "bg-hover/50", className)}
+        className={cn(navigationMenuTriggerStyle(), "group flex-row items-center", current && "bg-selected", className)}
       >
         <Link
           href={href}

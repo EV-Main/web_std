@@ -93,7 +93,7 @@ impl ToasterHandle {
 	/// Begins the exit animation: the toast flips to `data-state="closed"` and
 	/// stays mounted so the exit transition can play; its `transitionend` drops
 	/// it — there is no host timer. A toast dismissed before it has ever painted
-	/// mounts closed and so never transitions; [`ToastItem`] drops that one on
+	/// mounts closed and so never transitions; `ToastItem` drops that one on
 	/// mount instead.
 	pub fn dismiss(&self, id: u64) {
 		let mut queue = self.toasts.0;

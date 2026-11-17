@@ -151,44 +151,40 @@ pub fn ChatComposer(
 						}
 					})} {tools.map(|t| t.run())} <span class=CHAT_COMPOSER_SPACER></span>
 				{hint.map(|h| view! { <span class=CHAT_COMPOSER_HINT>{h.run()}</span> })}
-				{
-					let stop_label = stop_label;
-					let send_label = send_label;
-					move || {
-						if streaming.get() {
-							view! {
-								<IconButton
-									variant=IconButtonVariant::Outline
-									aria_label=stop_label.clone()
-									on_click=Callback::new(move |_| {
-										if let Some(stop) = on_stop {
-											stop.run(());
-										}
-										#[cfg(all(target_arch = "wasm32", feature = "wasm"))]
-										if let Some(el) = field.get_untracked() {
-											let _ = el.focus();
-										}
-									})
-								>
-									<Glyph class="size-4">{icon_shapes(Icon::Stop)}</Glyph>
-								</IconButton>
-							}
-								.into_any()
-						} else {
-							view! {
-								<IconButton
-									variant=IconButtonVariant::Outline
-									aria_label=send_label.clone()
-									disabled=Signal::derive(move || disabled.get() || empty.get())
-									on_click=Callback::new(move |_| send())
-								>
-									<Glyph class="size-4">{icon_shapes(Icon::ArrowUp)}</Glyph>
-								</IconButton>
-							}
-								.into_any()
+				{move || {
+					if streaming.get() {
+						view! {
+							<IconButton
+								variant=IconButtonVariant::Outline
+								aria_label=stop_label.clone()
+								on_click=Callback::new(move |_| {
+									if let Some(stop) = on_stop {
+										stop.run(());
+									}
+									#[cfg(all(target_arch = "wasm32", feature = "wasm"))]
+									if let Some(el) = field.get_untracked() {
+										let _ = el.focus();
+									}
+								})
+							>
+								<Glyph class="size-4">{icon_shapes(Icon::Stop)}</Glyph>
+							</IconButton>
 						}
+							.into_any()
+					} else {
+						view! {
+							<IconButton
+								variant=IconButtonVariant::Outline
+								aria_label=send_label.clone()
+								disabled=Signal::derive(move || disabled.get() || empty.get())
+								on_click=Callback::new(move |_| send())
+							>
+								<Glyph class="size-4">{icon_shapes(Icon::ArrowUp)}</Glyph>
+							</IconButton>
+						}
+							.into_any()
 					}
-				}
+				}}
 			</div>
 		</div>
 	}

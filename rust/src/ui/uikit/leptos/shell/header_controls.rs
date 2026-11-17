@@ -202,14 +202,14 @@ pub fn NotificationBell(
 /// A button dressed as the search field; it opens the palette rather than
 /// taking input. Mirrors the TS `HeaderSearch`.
 ///
-/// The hint reads "Ctrl+K" on the server and on the first client render, so
-/// the two agree; on Apple platforms the `wasm` build then switches it to "⌘K".
+/// The hint reads "Ctrl+k" on the server and on the first client render, so
+/// the two agree; on Apple platforms the `wasm` build then switches it to "⌘k".
 #[component]
 pub fn HeaderSearch(
 	/// The field text; "Search or jump to…".
 	#[prop(optional, into)]
 	placeholder: Option<String>,
-	/// The shortcut hint at the end. Default: "⌘K" on Apple platforms, "Ctrl+K"
+	/// The shortcut hint at the end. Default: "⌘k" on Apple platforms, "Ctrl+k"
 	/// elsewhere.
 	#[prop(optional, into)]
 	shortcut: Option<String>,

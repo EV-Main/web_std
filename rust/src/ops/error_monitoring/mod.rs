@@ -4,7 +4,7 @@
 //! - **native** (Axum and other servers) — the `sentry` crate: [`init`] guard,
 //!   [`tracing_layer`], the tower [`NewSentryLayer`]/[`SentryHttpLayer`], and
 //!   [`report`]. The `sentry` crate is native-only and never linked into wasm.
-//! - **wasm** (Dioxus frontend) — a pure-Rust [`init`]/[`report_error`] pair that
+//! - **wasm** (Dioxus frontend) — a pure-Rust [`init`]/`report_error` pair that
 //!   builds a Sentry [`envelope`] and POSTs it via `reqwest` fetch, plus a panic
 //!   hook. No JS SDK, no session replay, no symbolicated stack — best-effort,
 //!   message-level reporting.

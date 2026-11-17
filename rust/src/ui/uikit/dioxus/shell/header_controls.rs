@@ -166,13 +166,13 @@ pub fn NotificationBell(
 /// A button dressed as the search field; it opens the palette rather than
 /// taking input. Mirrors the TS `HeaderSearch`.
 ///
-/// The hint reads "Ctrl+K" on the server and on the first client render, so
-/// the two agree; on Apple platforms the `wasm` build then switches it to "⌘K".
+/// The hint reads "Ctrl+k" on the server and on the first client render, so
+/// the two agree; on Apple platforms the `wasm` build then switches it to "⌘k".
 #[component]
 pub fn HeaderSearch(
 	/// The field text; "Search or jump to…".
 	placeholder: Option<String>,
-	/// The shortcut hint at the end. Default: "⌘K" on Apple platforms, "Ctrl+K"
+	/// The shortcut hint at the end. Default: "⌘k" on Apple platforms, "Ctrl+k"
 	/// elsewhere.
 	shortcut: Option<String>,
 	onclick: Option<EventHandler<MouseEvent>>,
@@ -488,7 +488,7 @@ mod tests {
 		assert!(html.starts_with("<button type=\"button\""), "{html}");
 		assert!(html.contains("Search or jump to…"), "{html}");
 		assert!(html.contains("data-slot=\"kbd\""), "{html}");
-		assert!(html.contains(">Ctrl+K</kbd>"), "{html}");
+		assert!(html.contains(">Ctrl+k</kbd>"), "{html}");
 		let clicks = harness.listening("click");
 		assert_eq!(clicks.len(), 1, "{html}");
 		harness.click(clicks[0]);
@@ -505,6 +505,6 @@ mod tests {
 		assert!(text.contains("truncate"), "{text}");
 		assert!(text.contains("min-w-0"), "{text}");
 		assert!(html.contains(">/</kbd>"), "{html}");
-		assert!(!html.contains("Ctrl+K"), "{html}");
+		assert!(!html.contains("Ctrl+k"), "{html}");
 	}
 }

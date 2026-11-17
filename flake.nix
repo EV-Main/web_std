@@ -112,7 +112,12 @@
             '';
             lfs = false;
             jobs.errors.default = true;
-            jobs.errors.augment = [ uikit genDrift ];
+            jobs.errors.exclude = [ "rust-tests" ];
+            jobs.errors.augment = [
+              { name = "rust-tests"; args.skipPatterns = [ "gallery::matches_baselines" ]; } # rust-uikit's, which brings the render's pinned inputs
+              uikit
+              genDrift
+            ];
             jobs.warnings.default = true;
             jobs.warnings.exclude = map (p: "ts-${p}-lint") [ "analytics" "api" "architecture" "error-monitoring" "experiments" "figma-render" "i18n" "keymap" "marketing" "mfe" "settings" "uikit" "views" ]; # no ts package has a linter
             npmRelease = {

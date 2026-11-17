@@ -216,7 +216,7 @@ pub fn use_roving_item(roving: RovingFocus, key: String) -> usize {
 	});
 	id
 }
-/// One overlay's place on the page's [`LayerStack`] — the Rust side of the TS
+/// One overlay's place on the page's `LayerStack` — the Rust side of the TS
 /// `useDismissableLayer`.
 ///
 /// Unlike the TS hook there is no document listener (that needs `web-sys`):

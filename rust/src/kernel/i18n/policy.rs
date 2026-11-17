@@ -36,7 +36,10 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use super::{DEFAULT_LOCALE, Locale, Messages};
+use super::{
+	DEFAULT_LOCALE, Locale, Messages,
+	format::{match_brace, top_level_index_of},
+};
 
 /// One layer of a non-English locale as it sits on disk: `messages/<locale>/common.auto.json`
 /// (generated) or `messages/<locale>/common.json` (overrides, written by hand).
@@ -428,11 +431,11 @@ fn walk(text: &[char], found: &mut BTreeMap<String, ArgumentShape>) {
 			continue;
 		}
 
-		let Some(end) = closing(text, i) else { return };
+		let Some(end) = match_brace(text, i) else { return };
 		let inner = &text[i + 1..end];
 		i = end + 1;
 
-		let Some(first_comma) = top_level(inner, ',') else {
+		let Some(first_comma) = top_level_index_of(inner, ',') else {
 			let name: String = inner.iter().collect::<String>().trim().to_owned();
 			if !name.is_empty() {
 				found.entry(name).or_insert(ArgumentShape {
@@ -445,7 +448,7 @@ fn walk(text: &[char], found: &mut BTreeMap<String, ArgumentShape>) {
 
 		let name: String = inner[..first_comma].iter().collect::<String>().trim().to_owned();
 		let rest = &inner[first_comma + 1..];
-		let second_comma = top_level(rest, ',');
+		let second_comma = top_level_index_of(rest, ',');
 		let declared: String = match second_comma {
 			Some(idx) => rest[..idx].iter().collect::<String>(),
 			None => rest.iter().collect::<String>(),
@@ -475,36 +478,6 @@ fn walk(text: &[char], found: &mut BTreeMap<String, ArgumentShape>) {
 	}
 }
 
-fn closing(source: &[char], start: usize) -> Option<usize> {
-	let mut depth = 0usize;
-	for (offset, ch) in source[start..].iter().enumerate() {
-		match ch {
-			'{' => depth += 1,
-			'}' => {
-				depth -= 1;
-				if depth == 0 {
-					return Some(start + offset);
-				}
-			}
-			_ => {}
-		}
-	}
-	None
-}
-
-fn top_level(source: &[char], sep: char) -> Option<usize> {
-	let mut depth = 0i32;
-	for (i, &ch) in source.iter().enumerate() {
-		match ch {
-			'{' => depth += 1,
-			'}' => depth -= 1,
-			c if c == sep && depth == 0 => return Some(i),
-			_ => {}
-		}
-	}
-	None
-}
-
 fn branches_of(body: &[char]) -> Vec<(String, Vec<char>)> {
 	let mut out = Vec::new();
 	let mut i = 0;
@@ -523,7 +496,7 @@ fn branches_of(body: &[char]) -> Vec<(String, Vec<char>)> {
 		if body.get(i) != Some(&'{') {
 			break;
 		}
-		let Some(end) = closing(body, i) else { break };
+		let Some(end) = match_brace(body, i) else { break };
 		if !key.is_empty() {
 			out.push((key, body[i + 1..end].to_vec()));
 		}

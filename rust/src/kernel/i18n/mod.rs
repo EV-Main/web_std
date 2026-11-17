@@ -362,7 +362,7 @@ pub fn locale_path(locale: Locale, path: &str) -> String {
 	// a crawler — one canonical shape per page, so strip it.
 	if clean == "/" { format!("/{locale}") } else { format!("/{locale}{clean}") }
 }
-/// The error [`Locale::from_str`] returns for a tag EV does not publish.
+/// The error `Locale::from_str` returns for a tag EV does not publish.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct UnknownLocale(pub String);
 /// One of the five locales EV publishes.
