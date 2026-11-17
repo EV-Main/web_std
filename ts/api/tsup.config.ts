@@ -18,7 +18,7 @@ const react: Options = {
   clean: false,
   sourcemap: true,
   target: 'es2022',
-  external: ['react'],
+  external: ['react', '@evinvest/api'],
   banner: { js: '"use client";' },
 };
 

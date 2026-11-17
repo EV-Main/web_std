@@ -3,7 +3,8 @@ import type { MaybeOptionalInit } from "openapi-fetch";
 import type { PathsWithMethod } from "openapi-typescript-helpers";
 
 import { type LiveStatus, type Reader, type Signal, hostLive, readLive, readsOf } from "../live";
-import type { Answer, Api, InitParam } from "../types";
+import type { Api } from "@evinvest/api"; // one `Api` across the two d.ts passes, or a consumer's `Api<paths>` is not the hooks'
+import type { Answer, InitParam } from "../types";
 
 export type { LiveStatus, Signal } from "../live";
 
