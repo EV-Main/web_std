@@ -453,9 +453,33 @@ pub(super) fn canonical(schema: Value) -> Result<Value, String> {
 	if let Some(Value::Array(items)) = o.remove("prefixItems") {
 		o.insert("prefixItems".into(), Value::Array(items.into_iter().map(canonical).collect::<Result<_, _>>()?));
 	}
-	let schema = Value::Object(o);
-	shape(&schema)?;
+	let mut schema = Value::Object(o);
+	if shape(&schema)?.form == Form::Json {
+		required_listed(&mut schema);
+	}
 	Ok(schema)
+}
+
+/// Every object in a JSON value lists its `required`, `[]` too (schemars leaves an empty one out), so a
+/// client types its members by it.
+fn required_listed(schema: &mut Value) {
+	let Value::Object(o) = schema else { return };
+	if o.contains_key("properties") && !o.contains_key("required") {
+		o.insert("required".into(), json!([]));
+	}
+	if let Some(Value::Object(members)) = o.get_mut("properties") {
+		members.values_mut().for_each(required_listed);
+	}
+	for key in ["additionalProperties", "items"] {
+		if let Some(v) = o.get_mut(key) {
+			required_listed(v);
+		}
+	}
+	for key in ["prefixItems", "anyOf", "oneOf"] {
+		if let Some(Value::Array(vs)) = o.get_mut(key) {
+			vs.iter_mut().for_each(required_listed);
+		}
+	}
 }
 
 #[derive(Clone, Debug, PartialEq)]

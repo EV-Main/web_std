@@ -10,7 +10,12 @@ export interface Schema {
   readonly enum?: readonly (string | null)[];
   readonly items?: Schema;
   readonly prefixItems?: readonly Schema[];
+  /** An object's, which rides as its JSON: every object in it lists its `required`. */
+  readonly properties?: { readonly [member: string]: Schema };
+  readonly required?: readonly string[];
+  readonly additionalProperties?: Schema;
   readonly description?: string;
+  readonly [keyword: string]: unknown;
 }
 
 export interface ObjectSchema {
@@ -41,10 +46,37 @@ export interface Table {
 type Simplify<T> = { [K in keyof T]: T[K] } & {};
 type Base<S> = S extends { readonly type: readonly [infer B, "null"] } ? B : S extends { readonly type: infer B } ? B : never;
 type Words<S> = S extends { readonly enum: readonly (infer W)[] } ? Exclude<W, null> : never;
-type Json<S> = S extends { readonly properties: unknown; readonly required: readonly unknown[] }
-  ? Fields<S>
+/** A value inside a JSON object, as serde writes it: an `Option` is `null` when none. */
+type JsonValue<S> = S extends { readonly anyOf: readonly (infer A)[] }
+  ? JsonValue<A>
+  : S extends { readonly oneOf: readonly (infer A)[] }
+    ? JsonValue<A>
+    : S extends { readonly const: infer C }
+      ? C
+      : S extends { readonly type: "null" }
+        ? null
+        : S extends { readonly type: readonly [infer B, "null"] }
+          ? JsonOf<Omit<S, "type"> & { readonly type: B }> | null
+          : JsonOf<S>;
+type JsonOf<S> = S extends { readonly enum: readonly (infer W)[] }
+  ? W
+  : S extends { readonly type: "string" }
+    ? string
+    : S extends { readonly type: "integer" | "number" }
+      ? number
+      : S extends { readonly type: "boolean" }
+        ? boolean
+        : S extends { readonly type: "array"; readonly prefixItems: infer P extends readonly unknown[] }
+          ? { -readonly [K in keyof P]: JsonValue<P[K]> }
+          : S extends { readonly type: "array"; readonly items: infer I }
+            ? JsonValue<I>[]
+            : S extends { readonly type: "object" }
+              ? Json<S>
+              : unknown;
+type Json<S> = S extends { readonly properties: infer P; readonly required: readonly (infer R)[] }
+  ? Simplify<{ -readonly [K in keyof P & R]: JsonValue<P[K]> } & { -readonly [K in Exclude<keyof P, R>]?: JsonValue<P[K]> }>
   : S extends { readonly additionalProperties: infer A }
-    ? { [key: string]: Value<A> }
+    ? { [key: string]: JsonValue<A> }
     : unknown;
 
 /** What a value of schema `S` is in TS: an integer is a `number`. */

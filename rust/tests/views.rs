@@ -60,6 +60,13 @@ enum Stage {
 	Won,
 }
 
+/// The Add a GBP panel: what it opens with.
+#[derive(Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+struct Add {
+	gmail: Option<i64>,
+	trade: Option<i64>,
+}
+
 #[derive(Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 struct Tier {
 	weight: f64,
@@ -85,8 +92,8 @@ enum Conductor {
 		gmb: Option<i64>,
 		tab: Option<Tab>,
 		trash: bool,
-		/// `<gmail>,<trade>`: the Add a GBP panel.
-		add: Option<(i64, i64)>,
+		/// The Add a GBP panel.
+		add: Option<Add>,
 		at: Option<(f64, f64, f64)>,
 		/// Empty: draw a new area.
 		kit: Option<String>,
@@ -213,7 +220,7 @@ fn a_view_parses_its_own_href() {
 			gmb: Some(5),
 			tab: Some(Tab::Kit),
 			trash: true,
-			add: Some((3, 4)),
+			add: Some(Add { gmail: Some(3), trade: None }),
 			at: Some((52.52, 13.405, 12.0)),
 			kit: Some(String::new()),
 			tiers: Some(tiers),

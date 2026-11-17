@@ -3,10 +3,10 @@
     {
       "at": {
         "params": {
-          "add": [
-            3,
-            4
-          ],
+          "add": {
+            "gmail": 3,
+            "trade": null
+          },
           "at": [
             52.52,
             13.405,
@@ -34,7 +34,7 @@
         "gmbs": [],
         "issue": "closed"
       },
-      "href": "/?add=3%2C4&at=52.52%2C13.405%2C11.5&find=a+b%26c&gmail=1%2C2&gmb=5&gmbs=&issue=closed&kit=&tab=kit&tiers=%7B%222.FR%22%3A%7B%22show%22%3Atrue%2C%22weight%22%3A0.5%7D%7D&trash="
+      "href": "/?add=%7B%22gmail%22%3A3%2C%22trade%22%3Anull%7D&at=52.52%2C13.405%2C11.5&find=a+b%26c&gmail=1%2C2&gmb=5&gmbs=&issue=closed&kit=&tab=kit&tiers=%7B%222.FR%22%3A%7B%22show%22%3Atrue%2C%22weight%22%3A0.5%7D%7D&trash="
     },
     {
       "at": {
@@ -265,21 +265,26 @@
         "query": {
           "properties": {
             "add": {
-              "description": "`<gmail>,<trade>`: the Add a GBP panel.",
-              "maxItems": 2,
-              "minItems": 2,
-              "prefixItems": [
-                {
+              "description": "The Add a GBP panel.",
+              "properties": {
+                "gmail": {
                   "format": "int64",
-                  "type": "integer"
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
                 },
-                {
+                "trade": {
                   "format": "int64",
-                  "type": "integer"
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
                 }
-              ],
+              },
+              "required": [],
               "type": [
-                "array",
+                "object",
                 "null"
               ]
             },

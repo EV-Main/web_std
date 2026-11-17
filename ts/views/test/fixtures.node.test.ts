@@ -46,6 +46,8 @@ it('types a view by its table', () => {
             tab: { type: ['string', 'null'], enum: ['launch', 'kit', null] },
             trash: { type: 'boolean' },
             at: { type: ['array', 'null'], prefixItems: [{ type: 'number' }, { type: 'number' }] },
+            add: { type: ['object', 'null'], properties: { gmail: { type: ['integer', 'null'] }, tab: { type: 'string', enum: ['kit'] } }, required: ['tab'] },
+            tiers: { type: ['object', 'null'], additionalProperties: { type: 'object', properties: { show: { type: 'boolean' } }, required: ['show'] } },
           },
           required: [],
         },
@@ -54,7 +56,17 @@ it('types a view by its table', () => {
     },
   } as const satisfies Table;
   expectTypeOf<At<typeof VIEWS>>().toEqualTypeOf<
-    { view: 'gmb'; params: { gmb: number; tab?: 'launch' | 'kit'; trash?: boolean; at?: [number, number] } } | { view: 'home'; params: {} }
+    {
+      view: 'gmb';
+      params: {
+        gmb: number;
+        tab?: 'launch' | 'kit';
+        trash?: boolean;
+        at?: [number, number];
+        add?: { tab: 'kit'; gmail?: number | null };
+        tiers?: { [key: string]: { show: boolean } };
+      };
+    } | { view: 'home'; params: {} }
   >();
   expectTypeOf<Carried<typeof VIEWS>>().toEqualTypeOf<{ find?: string }>();
   expect(href(VIEWS, { view: 'gmb', params: { gmb: 5, tab: 'kit', at: [1.5, 2] } }, { find: 'x' })).toBe('/gmbs/5?at=1.5%2C2&find=x&tab=kit');
