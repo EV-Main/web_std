@@ -1,6 +1,5 @@
 //! `tests/fixtures/keymap/keymap.json`, which `ts/keymap` reads too.
 #![cfg(feature = "keymap")]
-#![feature(default_field_values)]
 
 use ev_lib::keymap::{Binding, Chord, HelpRow, Hint, HintRow, KeyInput, Keymap, Node, Platform, Step, Trie, Trigger};
 use serde_json::Value;

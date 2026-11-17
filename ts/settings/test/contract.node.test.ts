@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { bool, int, list, num, str } from '../src/index';
 
-// Shared with ev_lib::settings (rust/tests/settings.rs).
+// Shared with ev_lib::settings (rust/tests/it/settings.rs).
 const CONTRACT = JSON.parse(readFileSync(join(import.meta.dirname, '../../../tests/fixtures/settings/contract.json'), 'utf8')) as {
   bool: { true: string[]; false: string[]; invalid: string[]; error: string };
   string: string[];

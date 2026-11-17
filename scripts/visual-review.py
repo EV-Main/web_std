@@ -48,7 +48,7 @@ def magick(*a):
 if args.fresh:
     # the test must not fail on mismatch: it is the capture we want
     subprocess.run(
-        [os.environ.get("EV_CARGO", "cargo"), "test", "--features", "uikit_dioxus", "--test", "gallery"],
+        [os.environ.get("EV_CARGO", "cargo"), "test", "--features", "uikit_dioxus", "--test", "it", "gallery"],
         cwd=root / "rust", check=True, env={**os.environ, "EV_CAPTURE_ONLY": "1"},
     )
     new_dir = root / "rust/tests/visual/dist/captured"

@@ -5,8 +5,8 @@ per theme (`<label>.{dark,light,oldschool}.png`) in `__screenshots__/`, compared
 **byte for byte** by the gallery test.
 
 ```sh
-cargo test --features uikit_dioxus --test gallery                   # capture and compare
-UPDATE_EXPECT=1 cargo test --features uikit_dioxus --test gallery   # accept the current render
+cargo test --features uikit_dioxus --test it gallery                   # capture and compare
+UPDATE_EXPECT=1 cargo test --features uikit_dioxus --test it gallery   # accept the current render
 nix run .#visual                                             # look at the pages
 ```
 

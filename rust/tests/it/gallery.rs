@@ -4,8 +4,8 @@
 //! `UPDATE_EXPECT=1` accepts the current render instead. See tests/visual/README.md.
 #![cfg(feature = "uikit_dioxus")]
 
-include!("support/gallery.rs");
-include!("support/board.rs");
+include!("../support/gallery.rs");
+include!("../support/board.rs");
 
 use std::{collections::BTreeMap, path::PathBuf, process::Command};
 

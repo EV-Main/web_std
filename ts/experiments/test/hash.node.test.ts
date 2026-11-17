@@ -14,7 +14,7 @@ import {
   type ExperimentSpec,
 } from '../src/index';
 
-// Shared with ev_lib::experiments (rust/tests/experiments.rs).
+// Shared with ev_lib::experiments (rust/tests/it/experiments.rs).
 const HASH = JSON.parse(readFileSync(join(import.meta.dirname, '../../../tests/fixtures/experiments/hash.json'), 'utf8')) as {
   fnv1a32: [string, number][];
   pick_variant_for: [ExperimentSpec, string, string, string][];
