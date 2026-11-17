@@ -42,12 +42,26 @@ impl Guard<App> for Session {
 	}
 }
 
-/// Adds a parent (its trigger logs it) and deletes the first, whose child cascades.
+/// Adds a parent (its trigger logs it), deletes the first, whose child cascades, and empties
+/// `cleared` whole.
 async fn write(State(app): State<App>) -> Json<Value> {
 	let mut tx = app.pool.begin().await.unwrap();
 	sqlx::query("INSERT INTO p(a) VALUES (2)").execute(&mut *tx).await.unwrap();
 	sqlx::query("DELETE FROM p WHERE id = 1").execute(&mut *tx).await.unwrap();
+	sqlx::query("DELETE FROM cleared").execute(&mut *tx).await.unwrap();
 	tx.commit().await.unwrap();
+	Json(Value::Null)
+}
+
+/// Writes that match no row: an update, a delete whose cascade has nothing to take, an ignored
+/// insert.
+async fn idle(State(app): State<App>) -> Json<Value> {
+	let mut tx = app.pool.begin().await.unwrap();
+	sqlx::query("UPDATE p SET a = 0 WHERE a < 0").execute(&mut *tx).await.unwrap();
+	sqlx::query("DELETE FROM p WHERE id = 999").execute(&mut *tx).await.unwrap();
+	sqlx::query("INSERT OR IGNORE INTO ch(id, p) VALUES (1, 1)").execute(&mut *tx).await.unwrap();
+	tx.commit().await.unwrap();
+	sqlx::query("DELETE FROM log WHERE a < 0").execute(&app.pool).await.unwrap();
 	Json(Value::Null)
 }
 
@@ -101,10 +115,18 @@ const SCHEMA: &str = "
 	CREATE TABLE ch(id INTEGER PRIMARY KEY, p INTEGER REFERENCES p(id) ON DELETE CASCADE);
 	CREATE TABLE log(a INTEGER);
 	CREATE TABLE marker(id INTEGER PRIMARY KEY);
+	CREATE TABLE cleared(x INTEGER);
+	CREATE TABLE renamed(x INTEGER);
+	DROP TABLE renamed;
+	CREATE TABLE renamed(y INTEGER);
+	CREATE VIEW over AS SELECT x FROM cleared;
+	DROP VIEW over;
+	CREATE VIEW over AS SELECT x FROM cleared;
 	CREATE TRIGGER logged AFTER INSERT ON p BEGIN INSERT INTO log VALUES (new.a); END;
 	CREATE VIEW v AS SELECT p.a, ch.id AS child FROM p JOIN ch ON ch.p = p.id;
 	INSERT INTO p(a) VALUES (1);
 	INSERT INTO ch(p) VALUES (1);
+	INSERT INTO cleared VALUES (1);
 ";
 
 struct Db {
@@ -130,6 +152,7 @@ impl Db {
 			Route::new(Method::GET, "/read", Session, read),
 			Route::new(Method::GET, "/nothing", Session, nothing),
 			Route::new(Method::POST, "/undone", Session, undone),
+			Route::new(Method::POST, "/idle", Session, idle),
 			Route::new(Method::GET, "/read_p", Session, read_p),
 			Route::new(Method::GET, "/read_log", Session, read_log),
 		];
@@ -183,8 +206,8 @@ async fn a_committed_write_is_told_with_exactly_the_tables_it_changed() {
 	assert!(res.headers().get("x-sa-reads").is_none(), "only a GET is stamped");
 	assert_eq!(
 		db.written().await,
-		topics(&["ch", "log", "p"]),
-		"the trigger's and the cascade's tables too; sessions and the FK's reads are no write"
+		topics(&["ch", "cleared", "log", "p"]),
+		"the trigger's and the cascade's tables too, a whole table's delete; sessions and the FK's reads are no write"
 	);
 }
 
@@ -197,6 +220,13 @@ async fn a_get_is_stamped_with_the_tables_it_read_and_nothing_else() {
 		"a view by its tables, no json_each, not the gate's sessions"
 	);
 	assert_eq!(reads(&db.call(Method::GET, "/nothing").await), "");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_write_that_changes_no_row_tells_nothing() {
+	let mut db = Db::new(1).await;
+	db.call(Method::POST, "/idle").await;
+	assert_eq!(db.written().await, BTreeSet::new());
 }
 
 #[tokio::test(flavor = "multi_thread")]

@@ -1,5 +1,6 @@
-//! Which tables a service's statements read and write, as SQLite itself reports them: its
-//! authorizer, set on every connection of the pool [`pool`] builds.
+//! Which tables a service's statements read and change, as SQLite itself reports them: its
+//! authorizer (reads) and update hook (rows changed), set on every connection of the pool [`pool`]
+//! builds.
 //!
 //! - **Writes are told once committed**, as `<service>.<table>` topics to the service's sink, when
 //!   the connection that made them goes back to the pool (or closes). A write rolled back tells
@@ -12,9 +13,11 @@
 //!   (`sqlite_*`) and sqlx's `_sqlx_migrations`. A view is not one (its tables are), nor a temp
 //!   table, nor a table-valued function (`json_each`, `pragma_*`).
 //!
-//! The statement cache is off, so every statement is prepared, and so authorized. A write is known
-//! when its statement is prepared: an `UPDATE` that matches no row, or a savepoint rolled back
-//! inside a transaction that commits, is still told.
+//! A write is told by the rows it changed: one that matches no row tells nothing, a trigger's or a
+//! cascade's rows tell their tables. The authorizer turns every `DELETE` row by row (no truncate),
+//! so the update hook sees each. Rows a savepoint rolled back inside a transaction that commits are
+//! still told. A `WITHOUT ROWID` table, whose rows the update hook does not see, is refused at
+//! connect. The statement cache is off, so every statement is prepared, and so authorized.
 
 use std::{
 	collections::BTreeSet,
@@ -104,10 +107,14 @@ struct Shared {
 
 impl Shared {
 	async fn load_tables(&self, conn: &mut SqliteConnection) -> Result<(), sqlx::Error> {
-		let names: Vec<String> = sqlx::query_scalar(r"SELECT name FROM sqlite_schema WHERE type = 'table' AND name NOT LIKE 'sqlite\_%' ESCAPE '\' AND name <> '_sqlx_migrations'")
-			.fetch_all(conn)
-			.await?;
-		*self.tables.write().expect("no writer of the tables panics") = names.into_iter().collect();
+		let tables: Vec<(String, bool)> =
+			sqlx::query_as(r"SELECT name, wr FROM pragma_table_list WHERE schema = 'main' AND type = 'table' AND name NOT LIKE 'sqlite\_%' ESCAPE '\' AND name <> '_sqlx_migrations'")
+				.fetch_all(conn)
+				.await?;
+		if let Some((name, _)) = tables.iter().find(|(_, without_rowid)| *without_rowid) {
+			panic!("{name} is WITHOUT ROWID: the update hook sees none of its rows, so its writes would go untold");
+		}
+		*self.tables.write().expect("no writer of the tables panics") = tables.into_iter().map(|(name, _)| name).collect();
 		Ok(())
 	}
 
@@ -129,10 +136,12 @@ struct Bound {
 	pool: Arc<Shared>,
 	/// `None` outside a GET operation's handler: what is read there is no one's to stamp.
 	reads: Option<Arc<Reads>>,
-	/// Written by statements of the transaction open now.
+	/// Changed by the transaction open now.
 	pending: Mutex<BTreeSet<String>>,
 	/// Written by transactions that committed.
 	written: Mutex<BTreeSet<String>>,
+	/// What a `DROP` (table, view) being prepared names: the `DELETE` it is authorized for next is the drop's.
+	dropping: Mutex<Option<String>>,
 }
 
 impl Drop for Bound {
@@ -158,18 +167,28 @@ async fn bind(conn: &mut SqliteConnection, pool: Arc<Shared>) -> Result<(), sqlx
 		reads,
 		pending: Mutex::default(),
 		written: Mutex::default(),
+		dropping: Mutex::default(),
 	});
 	let mut handle = conn.lock_handle().await?;
 	// The hooks set below own `bound`, and are dropped only after the authorizer stops pointing at it.
 	let set = unsafe { ffi::sqlite3_set_authorizer(handle.as_raw_handle().as_ptr(), Some(authorize), Arc::as_ptr(&bound).cast_mut().cast()) };
 	assert_eq!(set, ffi::SQLITE_OK, "setting an authorizer cannot fail on an open connection");
+	let changing = bound.clone();
+	handle.set_update_hook(move |row| {
+		if row.database == "main" {
+			let mut pending = changing.pending.lock().expect("nothing panics holding it");
+			if !pending.contains(row.table) {
+				pending.insert(row.table.to_owned());
+			}
+		}
+	});
 	let committing = bound.clone();
 	handle.set_commit_hook(move || {
-		let pending = mem::take(&mut *committing.pending.lock().expect("the authorizer never panics holding it"));
+		let pending = mem::take(&mut *committing.pending.lock().expect("the update hook never panics holding it"));
 		committing.written.lock().expect("nothing panics holding it").extend(pending);
 		true
 	});
-	handle.set_rollback_hook(move || bound.pending.lock().expect("the authorizer never panics holding it").clear());
+	handle.set_rollback_hook(move || bound.pending.lock().expect("the update hook never panics holding it").clear());
 	Ok(())
 }
 
@@ -183,6 +202,7 @@ async fn unbind(conn: &mut SqliteConnection, pool: &Shared) -> Result<(), sqlx::
 	assert_ne!(unsafe { ffi::sqlite3_get_autocommit(db) }, 0, "a connection goes back to the pool outside any transaction");
 	let set = unsafe { ffi::sqlite3_set_authorizer(db, Some(authorize), ptr::null_mut()) };
 	assert_eq!(set, ffi::SQLITE_OK, "setting an authorizer cannot fail on an open connection");
+	handle.remove_update_hook();
 	handle.remove_commit_hook();
 	handle.remove_rollback_hook();
 	Ok(())
@@ -196,8 +216,8 @@ unsafe extern "C" fn authorize(bound: *mut c_void, action: c_int, a: *const c_ch
 
 unsafe fn authorized(bound: Option<&Bound>, action: c_int, table: *const c_char, db: *const c_char) -> c_int {
 	match action {
-		ffi::SQLITE_READ | ffi::SQLITE_INSERT | ffi::SQLITE_UPDATE | ffi::SQLITE_DELETE => {}
-		ffi::SQLITE_CREATE_TABLE | ffi::SQLITE_DROP_TABLE | ffi::SQLITE_ALTER_TABLE => {
+		ffi::SQLITE_READ | ffi::SQLITE_INSERT | ffi::SQLITE_UPDATE | ffi::SQLITE_DELETE | ffi::SQLITE_DROP_TABLE | ffi::SQLITE_DROP_VIEW | ffi::SQLITE_DROP_VTABLE => {}
+		ffi::SQLITE_CREATE_TABLE | ffi::SQLITE_ALTER_TABLE => {
 			if let Some(bound) = bound {
 				bound.pool.schema_moved.store(true, Ordering::Relaxed);
 			}
@@ -214,14 +234,27 @@ unsafe fn authorized(bound: Option<&Bound>, action: c_int, table: *const c_char,
 		return ffi::SQLITE_OK;
 	}
 	let Some(bound) = bound else { return ffi::SQLITE_DENY };
-	let into = match (action, &bound.reads) {
-		(ffi::SQLITE_READ, Some(reads)) => &reads.tables,
-		(ffi::SQLITE_READ, None) => return ffi::SQLITE_OK,
-		_ => &bound.pending,
-	};
-	let mut tables = into.lock().expect("nothing panics holding it");
-	if !tables.contains(table) {
-		tables.insert(table.to_owned());
+	match (action, &bound.reads) {
+		(ffi::SQLITE_READ, Some(reads)) => {
+			let mut tables = reads.tables.lock().expect("nothing panics holding it");
+			if !tables.contains(table) {
+				tables.insert(table.to_owned());
+			}
+			ffi::SQLITE_OK
+		}
+		(ffi::SQLITE_DROP_TABLE | ffi::SQLITE_DROP_VIEW | ffi::SQLITE_DROP_VTABLE, _) => {
+			bound.pool.schema_moved.store(true, Ordering::Relaxed);
+			*bound.dropping.lock().expect("nothing panics holding it") = Some(table.to_owned());
+			ffi::SQLITE_OK
+		}
+		(ffi::SQLITE_DELETE, _) => match bound.dropping.lock().expect("nothing panics holding it").take() {
+			Some(dropped) if dropped == table => ffi::SQLITE_OK, // IGNORE here would skip the drop
+			// IGNORE on a DELETE only turns off the truncate, whose rows the update hook would not see.
+			dropped => {
+				assert!(dropped.is_none(), "{dropped:?}: a DROP is authorized its DELETE next");
+				ffi::SQLITE_IGNORE
+			}
+		},
+		_ => ffi::SQLITE_OK,
 	}
-	ffi::SQLITE_OK
 }

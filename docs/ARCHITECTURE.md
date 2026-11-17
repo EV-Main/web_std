@@ -463,13 +463,16 @@ does. With `views_dioxus`, a `Routable` routes through one catch-all, `Routed<Vi
 ## The `sqlite` library
 
 Which tables a service's statements read and write, as SQLite reports them, so no live topic is
-written by hand (`ev_lib::sqlite`, native-only). `sqlite::pool` gives the service's pool. Each
-connection has an SQLite authorizer, set while it is held and with the statement cache off, so every
-statement is authorized. Writes go through the commit and rollback hooks.
+written by hand (`ev_lib::sqlite`, native-only). `sqlite::pool` gives the service's pool. While a
+connection is held it has an SQLite authorizer (reads; the statement cache is off, so every
+statement is authorized) and an update hook (rows changed), and its commit and rollback hooks
+decide what of that stands.
 
-- A committed write is told to the service's sink as `<service>.<table>` when the connection that
-  made it goes back to the pool or closes. A request, a background task and a migration are told
-  alike, and a rolled-back write is not told.
+- A committed write is told to the service's sink as `<service>.<table>`, one topic per table whose
+  rows it changed (a trigger's and a cascade's included; a write matching no row tells nothing),
+  when the connection that made it goes back to the pool or closes. A request, a background task
+  and a migration are told alike, and a rolled-back write is not told. A `WITHOUT ROWID` table,
+  whose rows the update hook does not see, is refused at connect.
 - A GET operation's answer carries `x-sa-reads`: the topics its handler read, empty when it read
   none. The stamping begins where the gate (`api`'s `Gated`) hands over to the handler, so the
   gate's reads are never among them.
