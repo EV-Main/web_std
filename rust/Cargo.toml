@@ -1,6 +1,6 @@
 [package]
 name = "ev_lib"
-version = "0.33.0"
+version = "0.34.0"
 edition = "2024"
 description = "EV-invest shared Rust libraries, one per feature"
 license = "BlueOak-1.0.0"
@@ -139,7 +139,15 @@ ts_gen = ["dep:serde_json", "dep:ts-rs", "dep:strum", "dep:serde"]
 
 # A service's operations as one table: the router and the OpenAPI document both derive from it
 # (`ops/api/README.md`). `api_docs` is its build-time half: the handlers' `///` from `build.rs`.
-api = ["dep:aide", "dep:axum", "dep:schemars", "dep:serde", "dep:serde_json", "dep:strum", "views"]
+api = [
+    "dep:aide",
+    "dep:axum",
+    "dep:schemars",
+    "dep:serde",
+    "dep:serde_json",
+    "dep:strum",
+    "views",
+]
 api_docs = ["dep:syn"]
 # A socket is a route like any other: its handler takes `WebSocketUpgrade`, and its operation is `x-socket`.
 api_ws = ["api", "aide/axum-ws", "axum/ws"]
@@ -148,7 +156,14 @@ api_gen = ["dep:serde_json"]
 
 # A service's views as one enum (`#[derive(Views)]`, `ops/views/README.md`): their hrefs, and the
 # document's `x-views` that `@evinvest/views` reads. `views_dioxus`: a Dioxus `Routable`'s catch-all over it.
-views = ["dep:ev_lib_macros", "dep:form_urlencoded", "dep:percent-encoding", "dep:schemars", "dep:serde", "dep:serde_json"]
+views = [
+    "dep:ev_lib_macros",
+    "dep:form_urlencoded",
+    "dep:percent-encoding",
+    "dep:schemars",
+    "dep:serde",
+    "dep:serde_json",
+]
 views_dioxus = ["views", "dep:dioxus", "dioxus?/router"]
 
 # The tables a service's SQLite statements read and write, from its authorizer: committed writes told
@@ -195,11 +210,11 @@ axum = { workspace = true, features = ["json", "query"], optional = true }
 dioxus = { workspace = true, features = ["macro", "html", "signals", "hooks"], optional = true }
 ev_lib_classes = { workspace = true, optional = true }
 ev_lib_macros = { workspace = true, optional = true }
-form_urlencoded = { version = "1", optional = true }
+form_urlencoded = { workspace = true, optional = true }
 jiff = { workspace = true, features = ["serde"], optional = true }
 leptos = { workspace = true, optional = true }
 leptos_meta = { workspace = true, optional = true }
-percent-encoding = { version = "2", optional = true }
+percent-encoding = { workspace = true, optional = true }
 reactive_graph = { workspace = true, optional = true }
 schemars = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive"], optional = true }
@@ -221,7 +236,6 @@ inventory = { version = "0.3", optional = true }
 
 # The `sqlite` feature. `libsqlite3-sys` for the authorizer sqlx does not wrap; its version is sqlx's.
 libsqlite3-sys = { version = "0.37", optional = true, default-features = false }
-sqlx = { version = "0.9", optional = true, default-features = false, features = ["sqlite-bundled", "runtime-tokio"] }
 
 # OpenTelemetry (the `otel` feature). Native-only, pinned to a mutually-consistent
 # 0.31-era set; `tracing-opentelemetry` tracks one minor ahead of the core crates.
@@ -234,6 +248,7 @@ opentelemetry-semantic-conventions = { version = "0.31", optional = true }
 opentelemetry_sdk = { version = "0.31", optional = true, features = ["trace", "logs"] }
 reqwest = { version = "0.13", optional = true, default-features = false, features = ["rustls", "json"] }
 sentry = { version = "0.48.2", optional = true, default-features = false, features = ["backtrace", "contexts", "panic", "reqwest", "rustls", "tower-axum-matched-path", "tracing"] }
+sqlx = { version = "0.9", optional = true, default-features = false, features = ["sqlite-bundled", "runtime-tokio"] }
 tokio = { workspace = true, optional = true, features = ["sync", "macros", "fs"] }
 tonic = { version = "0.13", optional = true, default-features = false }
 tracing = { version = "0.1", optional = true }
@@ -265,17 +280,17 @@ axum = { workspace = true, features = ["ws", "multipart"] }
 dioxus = { workspace = true, features = ["signals", "hooks"] }
 dioxus-liveview = { workspace = true, features = ["axum"] }
 dioxus-ssr.workspace = true
+insta = { workspace = true }
 jiff = { workspace = true, features = ["serde"] }
 leptos = { workspace = true, features = ["ssr"] }
 scraper.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
-tempfile.workspace = true
-thiserror = "2"
-tokio = { workspace = true, features = ["macros", "rt", "net", "io-util", "time", "test-util"] }
-tower = { version = "0.5", features = ["util"] }
-insta = "1"
 strum.workspace = true
+tempfile.workspace = true
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt", "net", "io-util", "time", "test-util"] }
+tower = { workspace = true, features = ["util"] }
 tracing-subscriber = { workspace = true, features = ["registry", "std", "fmt"] }
 ts-rs.workspace = true
 uuid = { workspace = true, features = ["serde", "v4"] }
