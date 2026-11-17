@@ -31,26 +31,6 @@ pub struct Table {
 	pub(super) carried: Value,
 	pub(super) views: BTreeMap<String, Entry>,
 }
-
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
-#[serde(deny_unknown_fields)]
-pub(super) struct Entry {
-	pub(super) path: String,
-	pub(super) description: String,
-	pub(super) params: Value,
-	pub(super) query: Value,
-	#[serde(skip_serializing_if = "Option::is_none")]
-	pub(super) needs: Option<String>,
-	#[serde(skip_serializing_if = "Option::is_none")]
-	pub(super) key: Option<char>,
-	/// The service whose table goes under this one: everything below it is `below`'s.
-	#[serde(skip_serializing_if = "Option::is_none")]
-	pub(super) nest: Option<String>,
-	/// The key that opens the nested service's own keys.
-	#[serde(skip_serializing_if = "Option::is_none")]
-	pub(super) scope: Option<char>,
-}
-
 impl Table {
 	/// `at`'s href, `carried` beside it. Its query is sorted by key.
 	pub fn href(&self, at: &At, carried: &Map<String, Value>) -> Result<String, Error> {
@@ -346,6 +326,25 @@ impl Table {
 		}
 		Ok(())
 	}
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct Entry {
+	pub(super) path: String,
+	pub(super) description: String,
+	pub(super) params: Value,
+	pub(super) query: Value,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub(super) needs: Option<String>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub(super) key: Option<char>,
+	/// The service whose table goes under this one: everything below it is `below`'s.
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub(super) nest: Option<String>,
+	/// The key that opens the nested service's own keys.
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub(super) scope: Option<char>,
 }
 
 /// Whether a view opens with no value given: a key's view.

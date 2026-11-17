@@ -13,6 +13,13 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use tower::ServiceExt;
 
+const DOCS: ev_lib::api::Docs = &[
+	("it::api::get_note", "A note."),
+	("it::api::put_note", "Writes a note."),
+	("it::api::list_notes", "Every note."),
+	("it::api::live", "What changed."),
+];
+
 #[derive(Clone, Copy, Debug, Serialize, strum::VariantArray)]
 #[serde(rename_all = "snake_case")]
 enum Code {
@@ -130,13 +137,6 @@ async fn list_notes(Params(Since { since }): Params<Since>) -> Json<Vec<Note>> {
 async fn live(ws: WebSocketUpgrade) -> Response {
 	ws.on_upgrade(|_| async {})
 }
-
-const DOCS: ev_lib::api::Docs = &[
-	("it::api::get_note", "A note."),
-	("it::api::put_note", "Writes a note."),
-	("it::api::list_notes", "Every note."),
-	("it::api::live", "What changed."),
-];
 
 fn routes() -> Vec<Route<(), Open>> {
 	vec![
@@ -275,5 +275,5 @@ async fn the_document_is_revalidated_by_its_etag() {
 
 #[test]
 fn a_rust_client_of_the_document() {
-	insta::assert_snapshot!(rust_client(&doc(), "crate::dto"));
+	insta::assert_snapshot!(rust_client(&doc(), "crate::dto"), @"");
 }

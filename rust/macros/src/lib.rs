@@ -377,7 +377,7 @@ fn derive(input: DeriveInput) -> Result<Tokens> {
 			}
 
 			fn from_at(at: #views::At) -> ::core::result::Result<Self, #views::Error> {
-				let (view, #f) = #p::Fields::new(<Self as #views::Views>::table(), at)?;
+				let (view, #f) = #p::Fields::try_new(<Self as #views::Views>::table(), at)?;
 				match view.as_str() {
 					#(#froms,)*
 					_ => ::core::unreachable!("Fields::new refuses a view the table has not"),

@@ -1,4 +1,8 @@
-use std::{any::type_name, collections::BTreeSet, pin::Pin};
+use std::{
+	any::type_name,
+	collections::{BTreeMap, BTreeSet},
+	pin::Pin,
+};
 
 pub use aide::{
 	OperationInput, OperationOutput,
@@ -113,16 +117,6 @@ impl<S: Clone + Send + Sync + 'static, G> Route<S, G> {
 /// The id of `handler`'s operation, as its route's [`Route::id`].
 pub fn op_id<H>(_: H) -> &'static str {
 	id(named::<H>())
-}
-
-fn named<H>() -> &'static str {
-	let path = type_name::<H>();
-	assert!(!path.contains('{'), "{path}: an operation's handler is a named fn, its name the operation's id");
-	path
-}
-
-fn id(handler_path: &'static str) -> &'static str {
-	handler_path.rsplit("::").next().expect("rsplit yields at least one item")
 }
 
 /// The OpenAPI document of `routes`, served under `base`; `docs` from `api_docs!()`; `views` its
@@ -243,6 +237,25 @@ pub fn document<S: Clone + Send + Sync + 'static, G: Guard<S>>(
 	}
 }
 
+/// `201` and the created resource.
+pub struct Created<T>(pub T);
+
+/// `201` a resource made now, `200` the one that stood already.
+pub enum Upserted<T> {
+	Created(T),
+	Existed(T),
+}
+
+fn named<H>() -> &'static str {
+	let path = type_name::<H>();
+	assert!(!path.contains('{'), "{path}: an operation's handler is a named fn, its name the operation's id");
+	path
+}
+
+fn id(handler_path: &'static str) -> &'static str {
+	handler_path.rsplit("::").next().expect("rsplit yields at least one item")
+}
+
 /// A route's handler behind its guard.
 #[derive(Clone)]
 pub(crate) struct Gated<H, G> {
@@ -268,18 +281,9 @@ impl<H: Handler<T, S>, T: 'static, S: Clone + Send + Sync + 'static, G: Guard<S>
 	}
 }
 
-/// `201` and the created resource.
-pub struct Created<T>(pub T);
-
-/// `201` a resource made now, `200` the one that stood already.
-pub enum Upserted<T> {
-	Created(T),
-	Existed(T),
-}
-
 /// Every word any operation refuses with, each answered with one status across the document.
 fn error_codes(paths: &Paths) -> Vec<String> {
-	let mut words = std::collections::BTreeMap::new();
+	let mut words = BTreeMap::new();
 	for (path, item) in &paths.paths {
 		let ReferenceOr::Item(item) = item else { unreachable!("only items are inserted") };
 		for (method, op) in item.iter() {

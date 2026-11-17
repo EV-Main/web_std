@@ -1,6 +1,18 @@
-use std::fmt::Write as _;
+use std::{collections::BTreeSet, fmt::Write as _};
 
 use serde_json::{Map, Value};
+
+const SEGMENT: &str = "/// `s`, percent-encoded as one path segment.
+fn segment(s: &str) -> String {
+	s.bytes()
+		.map(|b| match b {
+			b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' => (b as char).to_string(),
+			b => format!(\"%{b:02X}\"),
+		})
+		.collect()
+}
+
+";
 
 /// Rust source of one `async fn` per operation of `doc` (a document [`document`](super::document)
 /// built), its schemas bound to the types of the same name under `types` (`"crate::dto"`).
@@ -41,18 +53,6 @@ pub fn rust_client(doc: &Value, types: &str) -> String {
 	out
 }
 
-const SEGMENT: &str = "/// `s`, percent-encoded as one path segment.
-fn segment(s: &str) -> String {
-	s.bytes()
-		.map(|b| match b {
-			b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' => (b as char).to_string(),
-			b => format!(\"%{b:02X}\"),
-		})
-		.collect()
-}
-
-";
-
 struct Op<'a> {
 	path: &'a str,
 	method: &'a str,
@@ -60,53 +60,6 @@ struct Op<'a> {
 	types: &'a str,
 	schemas: &'a Map<String, Value>,
 }
-
-/// A Rust type, and how an argument takes it.
-struct Ty {
-	owned: String,
-	taken: Taken,
-}
-
-enum Taken {
-	Copied,
-	Str,
-	Borrowed,
-}
-
-impl Ty {
-	fn arg(&self, lifetime: &str) -> String {
-		match self.taken {
-			Taken::Copied => self.owned.clone(),
-			Taken::Str => format!("&{lifetime}str"),
-			Taken::Borrowed => format!("&{lifetime}{}", self.owned),
-		}
-	}
-}
-
-enum Answer {
-	Unit,
-	Json(String),
-	Bytes,
-}
-
-impl Answer {
-	fn ty(&self) -> String {
-		match self {
-			Self::Unit => "()".into(),
-			Self::Json(t) => t.clone(),
-			Self::Bytes => "Vec<u8>".into(),
-		}
-	}
-
-	fn decode(&self) -> &'static str {
-		match self {
-			Self::Unit => "()",
-			Self::Json(_) => "res.json().await?",
-			Self::Bytes => "res.bytes().await?.to_vec()",
-		}
-	}
-}
-
 impl Op<'_> {
 	fn id(&self) -> &str {
 		self.op["operationId"].as_str().expect("document() names every operation")
@@ -172,7 +125,7 @@ impl Op<'_> {
 				Some(required)
 			}
 		};
-		let unique: std::collections::BTreeSet<&str> = args.iter().map(|a| a.split(':').next().expect("split yields one item")).collect();
+		let unique: BTreeSet<&str> = args.iter().map(|a| a.split(':').next().expect("split yields one item")).collect();
 		assert_eq!(unique.len(), args.len(), "{id}: two arguments of one name");
 		let answers = self.answers();
 		let answer = match answers.iter().all(|(_, a)| a.ty() == answers[0].1.ty()) {
@@ -316,14 +269,16 @@ impl Op<'_> {
 		for union in ["anyOf", "oneOf"] {
 			if let Some(variants) = schema.get(union).and_then(Value::as_array) {
 				let (null, other): (Vec<&Value>, Vec<&Value>) = variants.iter().partition(|v| v["type"] == "null");
-				assert!(null.len() == 1 && other.len() == 1, "{id}: no Rust type for {schema}");
+				assert!(null.len() == 1, "{id}: no Rust type for {schema}");
+				assert!(other.len() == 1, "{id}: no Rust type for {schema}");
 				return self.nullable(self.ty(other[0], false), optional);
 			}
 		}
 		let ty = match &schema["type"] {
 			Value::Array(t) => {
 				let other: Vec<&Value> = t.iter().filter(|t| *t != "null").collect();
-				assert!(t.len() == 2 && other.len() == 1, "{id}: no Rust type for {schema}");
+				assert!(t.len() == 2, "{id}: no Rust type for {schema}");
+				assert!(other.len() == 1, "{id}: no Rust type for {schema}");
 				let mut inner = schema.clone();
 				inner["type"] = other[0].clone();
 				return self.nullable(self.ty(&inner, false), optional);
@@ -376,6 +331,51 @@ impl Op<'_> {
 	}
 }
 
+/// A Rust type, and how an argument takes it.
+struct Ty {
+	owned: String,
+	taken: Taken,
+}
+impl Ty {
+	fn arg(&self, lifetime: &str) -> String {
+		match self.taken {
+			Taken::Copied => self.owned.clone(),
+			Taken::Str => format!("&{lifetime}str"),
+			Taken::Borrowed => format!("&{lifetime}{}", self.owned),
+		}
+	}
+}
+
+enum Taken {
+	Copied,
+	Str,
+	Borrowed,
+}
+
+enum Answer {
+	Unit,
+	Json(String),
+	Bytes,
+}
+
+impl Answer {
+	fn ty(&self) -> String {
+		match self {
+			Self::Unit => "()".into(),
+			Self::Json(t) => t.clone(),
+			Self::Bytes => "Vec<u8>".into(),
+		}
+	}
+
+	fn decode(&self) -> &'static str {
+		match self {
+			Self::Unit => "()",
+			Self::Json(_) => "res.json().await?",
+			Self::Bytes => "res.bytes().await?.to_vec()",
+		}
+	}
+}
+
 fn optional(ty: &str, required: bool) -> String {
 	match required {
 		true => ty.to_owned(),
@@ -386,10 +386,8 @@ fn optional(ty: &str, required: bool) -> String {
 /// `name` as a Rust identifier: `Idempotency-Key` is `idempotency_key`.
 fn ident(name: &str) -> String {
 	let ident = name.to_lowercase().replace('-', "_");
-	assert!(
-		ident.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') && !ident.starts_with(|c: char| c.is_ascii_digit()),
-		"{name} makes no Rust identifier"
-	);
+	assert!(ident.chars().all(|c| c.is_ascii_alphanumeric() || c == '_'), "{name} makes no Rust identifier");
+	assert!(!ident.starts_with(|c: char| c.is_ascii_digit()), "{name} makes no Rust identifier");
 	match syn_keyword(&ident) {
 		true => format!("r#{ident}"),
 		false => ident,

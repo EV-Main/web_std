@@ -10,6 +10,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
+const FIXTURE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../tests/fixtures/views/views.json");
+
 #[derive(Clone, Copy)]
 enum Sources {
 	Manage,
@@ -164,8 +166,6 @@ enum Archive {
 	#[view("", nest)]
 	Mine { view: Board },
 }
-
-const FIXTURE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../tests/fixtures/views/views.json");
 
 /// The conductor's table as its catalog has it: both services' under their nests.
 fn merged() -> Table {

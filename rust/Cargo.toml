@@ -288,7 +288,7 @@ axum = { workspace = true, features = ["ws", "multipart"] }
 dioxus = { workspace = true, features = ["signals", "hooks"] }
 dioxus-liveview = { workspace = true, features = ["axum"] }
 dioxus-ssr.workspace = true
-insta = { workspace = true }
+insta.workspace = true
 jiff = { workspace = true, features = ["serde"] }
 leptos = { workspace = true, features = ["ssr"] }
 scraper.workspace = true
@@ -296,7 +296,7 @@ serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 strum.workspace = true
 tempfile.workspace = true
-thiserror = { workspace = true }
+thiserror.workspace = true
 tokio = { workspace = true, features = ["macros", "rt", "net", "io-util", "time", "test-util"] }
 tower = { workspace = true, features = ["util"] }
 tracing-subscriber = { workspace = true, features = ["registry", "std", "fmt"] }

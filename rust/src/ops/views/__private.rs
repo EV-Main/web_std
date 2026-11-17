@@ -13,16 +13,6 @@ pub struct Builder {
 	generator: SchemaGenerator,
 	table: Table,
 }
-
-fn generator() -> SchemaGenerator {
-	SchemaSettings::draft2020_12()
-		.with(|s| {
-			s.inline_subschemas = true;
-			s.meta_schema = None;
-		})
-		.into_generator()
-}
-
 impl Builder {
 	pub fn empty() -> Self {
 		Self {
@@ -131,15 +121,6 @@ impl Builder {
 	}
 }
 
-fn fields(view: &str, fields: Vec<(String, Result<Value, String>)>) -> Value {
-	let mut properties = Map::new();
-	for (k, s) in fields {
-		let s = s.unwrap_or_else(|e| panic!("{view}: {k}: {e}"));
-		assert!(properties.insert(k.clone(), s).is_none(), "{view}: ?{k} is two fields' key");
-	}
-	object(properties).unwrap_or_else(|e| panic!("{view}: {e}"))
-}
-
 pub fn value<T: Serialize>(v: &T) -> Value {
 	serde_json::to_value(v).expect("a view's field serializes to JSON")
 }
@@ -174,9 +155,8 @@ pub struct Fields {
 	view: String,
 	params: Map<String, Value>,
 }
-
 impl Fields {
-	pub fn new(table: &Table, at: At) -> Result<(String, Self), Error> {
+	pub fn try_new(table: &Table, at: At) -> Result<(String, Self), Error> {
 		let entry = table.views.get(&at.view).ok_or_else(|| Error(format!("no view is named {:?}", at.view)))?;
 		let mut params = at.params;
 		for (k, s) in props(&entry.params).iter().chain(props(&entry.query)) {
@@ -216,4 +196,22 @@ impl Fields {
 			params: self.params,
 		}
 	}
+}
+
+fn generator() -> SchemaGenerator {
+	SchemaSettings::draft2020_12()
+		.with(|s| {
+			s.inline_subschemas = true;
+			s.meta_schema = None;
+		})
+		.into_generator()
+}
+
+fn fields(view: &str, fields: Vec<(String, Result<Value, String>)>) -> Value {
+	let mut properties = Map::new();
+	for (k, s) in fields {
+		let s = s.unwrap_or_else(|e| panic!("{view}: {k}: {e}"));
+		assert!(properties.insert(k.clone(), s).is_none(), "{view}: ?{k} is two fields' key");
+	}
+	object(properties).unwrap_or_else(|e| panic!("{view}: {e}"))
 }

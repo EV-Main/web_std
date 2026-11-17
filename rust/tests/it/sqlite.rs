@@ -15,6 +15,26 @@ use sqlx::{SqlitePool, sqlite::SqliteConnectOptions};
 use tokio::sync::{Barrier, mpsc};
 use tower::ServiceExt;
 
+const SCHEMA: &str = "
+	CREATE TABLE sessions(id INTEGER PRIMARY KEY);
+	CREATE TABLE p(id INTEGER PRIMARY KEY AUTOINCREMENT, a INTEGER);
+	CREATE TABLE ch(id INTEGER PRIMARY KEY, p INTEGER REFERENCES p(id) ON DELETE CASCADE);
+	CREATE TABLE log(a INTEGER);
+	CREATE TABLE marker(id INTEGER PRIMARY KEY);
+	CREATE TABLE cleared(x INTEGER);
+	CREATE TABLE renamed(x INTEGER);
+	DROP TABLE renamed;
+	CREATE TABLE renamed(y INTEGER);
+	CREATE VIEW over AS SELECT x FROM cleared;
+	DROP VIEW over;
+	CREATE VIEW over AS SELECT x FROM cleared;
+	CREATE TRIGGER logged AFTER INSERT ON p BEGIN INSERT INTO log VALUES (new.a); END;
+	CREATE VIEW v AS SELECT p.a, ch.id AS child FROM p JOIN ch ON ch.p = p.id;
+	INSERT INTO p(a) VALUES (1);
+	INSERT INTO ch(p) VALUES (1);
+	INSERT INTO cleared VALUES (1);
+";
+
 #[derive(Clone)]
 struct App {
 	pool: SqlitePool,
@@ -108,26 +128,6 @@ async fn read_log(State(app): State<App>) -> Json<Value> {
 	read_held(&app, "log").await;
 	Json(Value::Null)
 }
-
-const SCHEMA: &str = "
-	CREATE TABLE sessions(id INTEGER PRIMARY KEY);
-	CREATE TABLE p(id INTEGER PRIMARY KEY AUTOINCREMENT, a INTEGER);
-	CREATE TABLE ch(id INTEGER PRIMARY KEY, p INTEGER REFERENCES p(id) ON DELETE CASCADE);
-	CREATE TABLE log(a INTEGER);
-	CREATE TABLE marker(id INTEGER PRIMARY KEY);
-	CREATE TABLE cleared(x INTEGER);
-	CREATE TABLE renamed(x INTEGER);
-	DROP TABLE renamed;
-	CREATE TABLE renamed(y INTEGER);
-	CREATE VIEW over AS SELECT x FROM cleared;
-	DROP VIEW over;
-	CREATE VIEW over AS SELECT x FROM cleared;
-	CREATE TRIGGER logged AFTER INSERT ON p BEGIN INSERT INTO log VALUES (new.a); END;
-	CREATE VIEW v AS SELECT p.a, ch.id AS child FROM p JOIN ch ON ch.p = p.id;
-	INSERT INTO p(a) VALUES (1);
-	INSERT INTO ch(p) VALUES (1);
-	INSERT INTO cleared VALUES (1);
-";
 
 struct Db {
 	app: App,
