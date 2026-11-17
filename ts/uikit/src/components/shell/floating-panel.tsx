@@ -4,6 +4,9 @@ import * as React from "react";
 import { Portal } from "../../primitives/portal";
 import { UiIcon } from "../../icons/ui-icons";
 
+/** What of its width, and of its height, stays in the viewport however it is dragged. */
+const KEPT = 0.25;
+
 export interface FloatingPanelProps {
   title: React.ReactNode;
   /** Where its top-left corner first sits, in viewport pixels; dragging by the title moves it from there. */
@@ -14,7 +17,7 @@ export interface FloatingPanelProps {
   children: React.ReactNode;
 }
 
-/** A non-modal window over the page, dragged by its title bar and kept inside the viewport; the page under it stays live. Focused when it opens, Escape within it closes it. Its content sets its width. */
+/** A non-modal window over the page, dragged by its title bar, partly past the viewport's edges but never its title bar; the page under it stays live. Focused when it opens, Escape within it closes it. Its content sets its width. */
 export function FloatingPanel({ title, at, onClose, closeLabel = "Close", children }: FloatingPanelProps) {
   const [pos, setPos] = React.useState(at);
   const ref = React.useRef<HTMLDivElement>(null);
@@ -22,7 +25,11 @@ export function FloatingPanel({ title, at, onClose, closeLabel = "Close", childr
   const clamp = React.useCallback((p: { x: number; y: number }) => {
     const box = ref.current?.getBoundingClientRect();
     if (box === undefined) return p;
-    return { x: Math.min(Math.max(0, p.x), window.innerWidth - box.width), y: Math.min(Math.max(0, p.y), window.innerHeight - box.height) };
+    const title = ref.current!.firstElementChild!.getBoundingClientRect().height;
+    const keptX = box.width * KEPT;
+    const keptY = Math.max(title, box.height * KEPT);
+    // the top edge never leaves: the title bar is what drags it back
+    return { x: Math.min(Math.max(keptX - box.width, p.x), window.innerWidth - keptX), y: Math.min(Math.max(0, p.y), window.innerHeight - keptY) };
   }, []);
   React.useLayoutEffect(() => setPos(clamp), [clamp]);
   React.useEffect(() => ref.current?.focus({ preventScroll: true }), []);
