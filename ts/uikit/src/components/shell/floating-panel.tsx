@@ -14,16 +14,18 @@ export interface FloatingPanelProps {
   children: React.ReactNode;
 }
 
-/** A non-modal window over the page, dragged by its title bar and kept inside the viewport; the page under it stays live. Its content sets its width. */
+/** A non-modal window over the page, dragged by its title bar and kept inside the viewport; the page under it stays live. Focused when it opens, Escape within it closes it. Its content sets its width. */
 export function FloatingPanel({ title, at, onClose, closeLabel = "Close", children }: FloatingPanelProps) {
   const [pos, setPos] = React.useState(at);
   const ref = React.useRef<HTMLDivElement>(null);
+  const titleId = React.useId();
   const clamp = React.useCallback((p: { x: number; y: number }) => {
     const box = ref.current?.getBoundingClientRect();
     if (box === undefined) return p;
     return { x: Math.min(Math.max(0, p.x), window.innerWidth - box.width), y: Math.min(Math.max(0, p.y), window.innerHeight - box.height) };
   }, []);
   React.useLayoutEffect(() => setPos(clamp), [clamp]);
+  React.useEffect(() => ref.current?.focus({ preventScroll: true }), []);
   React.useEffect(() => {
     const onResize = () => setPos(clamp);
     window.addEventListener("resize", onResize);
@@ -36,9 +38,15 @@ export function FloatingPanel({ title, at, onClose, closeLabel = "Close", childr
         ref={ref}
         role="dialog"
         aria-modal={false}
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        // DOM containment, not React's: an Escape in a dialog portalled from its content is that dialog's
+        onKeyDown={e => {
+          if (e.key === "Escape" && e.currentTarget.contains(e.target as Node)) onClose();
+        }}
         data-slot="floating-panel"
         style={{ left: pos.x, top: pos.y }}
-        className="fixed z-50 flex max-h-[calc(100vh-1rem)] max-w-[calc(100vw-1rem)] flex-col rounded-panel border border-border bg-popover text-ink shadow-md"
+        className="fixed z-50 flex max-h-[calc(100vh-1rem)] max-w-[calc(100vw-1rem)] flex-col rounded-panel border border-border bg-popover text-ink shadow-md outline-none"
       >
         <div
           data-slot="floating-panel-title"
@@ -53,7 +61,7 @@ export function FloatingPanel({ title, at, onClose, closeLabel = "Close", childr
           }}
           className="flex h-(--control-h-sm) shrink-0 cursor-grab touch-none items-center gap-2 border-b border-border pr-1 pl-3 text-body-s font-medium select-none active:cursor-grabbing"
         >
-          <span className="flex-1 truncate">{title}</span>
+          <span id={titleId} className="flex-1 truncate">{title}</span>
           <button
             type="button"
             aria-label={closeLabel}
