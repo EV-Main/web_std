@@ -36,6 +36,12 @@ export async function calls() {
   // @ts-expect-error the path parameter is required
   api.url("/gmbs/{id}/kit");
 
+  const hopped = createApi<paths, "gateway_down">({ document: openapi, baseUrl: "/api/v1", onUnauthenticated: () => undefined, hop: { gateway_down: 503 } });
+  const viaHop = await hopped.GET("/gmbs/{id}/kit", { params: { path: { id: 1 } } });
+  if (viaHop.error) is<Equal<typeof viaHop.error.code, ErrorCode | "gateway_down" | "network">>(true);
+  // @ts-expect-error a hop's codes are named in the type, or it has none
+  createApi<paths>({ document: openapi, baseUrl: "/api/v1", onUnauthenticated: () => undefined, hop: { gateway_down: 503 } });
+
   const failure: Failure<paths> = { code: "network", error: "" };
   return failure;
 }

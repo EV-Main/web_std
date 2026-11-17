@@ -7,8 +7,10 @@ export interface Network {
   error: string;
 }
 
-/** Every refusal any operation of `Paths` can answer, and `Network`: what a screen showing any failure takes. */
-export type Failure<Paths extends {}> = Refusals<Paths> | Network;
+/** Every refusal any operation of `Paths` or the hop in front can answer, and `Network`: what a screen showing any failure takes. */
+export type Failure<Paths extends {}, Hop extends string = never> = Refusals<Paths> | HopRefusal<Hop> | Network;
+
+type HopRefusal<Hop extends string> = [Hop] extends [never] ? never : { code: Hop; error: string };
 
 type Refusals<Paths> = {
   [P in keyof Paths]: {
@@ -18,28 +20,31 @@ type Refusals<Paths> = {
 
 export type InitParam<I> = RequiredKeysOf<I> extends never ? [(I & { [key: string]: unknown })?] : [I & { [key: string]: unknown }];
 
-export type Answer<Op extends Record<string | number, unknown>, I> = FetchResponse<Op, I, MediaType> | { data?: never; error: Network; response?: never };
+export type Answer<Op extends Record<string | number, unknown>, I, Hop extends string> =
+  | FetchResponse<Op, I, MediaType>
+  | { data?: never; error: Network; response?: never }
+  | { data?: never; error: HopRefusal<Hop>; response: Response };
 
-type Method<Paths extends {}, M extends HttpMethod> = <P extends PathsWithMethod<Paths, M>, I extends MaybeOptionalInit<Paths[P], M & keyof Paths[P]>>(
+type Method<Paths extends {}, M extends HttpMethod, Hop extends string> = <P extends PathsWithMethod<Paths, M>, I extends MaybeOptionalInit<Paths[P], M & keyof Paths[P]>>(
   path: P,
   ...init: InitParam<I>
-) => Promise<Answer<Paths[P][M & keyof Paths[P]] & Record<string | number, unknown>, I>>;
+) => Promise<Answer<Paths[P][M & keyof Paths[P]] & Record<string | number, unknown>, I, Hop>>;
 
 export type Params<Op> = Op extends { parameters: infer X } ? X : never;
 type ParamsParam<Op> = RequiredKeysOf<Params<Op>> extends never ? [Params<Op>?] : [Params<Op>];
 
-export interface Api<Paths extends {}> {
-  GET: Method<Paths, "get">;
-  POST: Method<Paths, "post">;
-  PUT: Method<Paths, "put">;
-  PATCH: Method<Paths, "patch">;
-  DELETE: Method<Paths, "delete">;
+export interface Api<Paths extends {}, Hop extends string = never> {
+  GET: Method<Paths, "get", Hop>;
+  POST: Method<Paths, "post", Hop>;
+  PUT: Method<Paths, "put", Hop>;
+  PATCH: Method<Paths, "patch", Hop>;
+  DELETE: Method<Paths, "delete", Hop>;
   /** A raw body over XHR, for its progress (a fraction sent); its content type the operation's one, or the body's own where it lists several. */
   upload<M extends "put" | "post", P extends PathsWithMethod<Paths, M>>(
     method: M,
     path: P,
     upload: { params: Params<Paths[P][M & keyof Paths[P]]>; body: Blob; onProgress: (sent: number) => void },
-  ): Promise<Answer<Paths[P][M & keyof Paths[P]] & Record<string | number, unknown>, object>>;
+  ): Promise<Answer<Paths[P][M & keyof Paths[P]] & Record<string | number, unknown>, object, Hop>>;
   /** Where a GET operation is, absolute; `ws:`/`wss:` for one the document marks `x-socket`. */
   url<P extends PathsWithMethod<Paths, "get">>(path: P, ...params: ParamsParam<Paths[P]["get" & keyof Paths[P]]>): URL;
   /** Whether a caller holding `permissions` passes the operation's gate: its `x-permission`, or any signed-in caller where it names none. */

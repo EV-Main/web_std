@@ -32,6 +32,7 @@ useLiveSocket(api.url("/live"), { onUnauthenticated, onForbidden });   // the ho
 answer 2xx        checked against the operation's JSON schema (ajv)    off it: throws
 refusal           {code, error} checked against its schema; code ∈ x-errors, status = x-errors[code]
                   ─▶ { error } keyed by code; anything else throws; a 401 also calls onUnauthenticated
+hop refusal       a code the host's hop in front answers itself (createApi's `hop`, {code: status}), at its status
 no answer         fetch failed, or a non-JSON 502/503/504 (a proxy's page) ─▶ { error: {code: "network"} }
 url(path, p)      the GET operation's URL; ws:/wss: when the document marks it x-socket
 upload(m, p, …)   XHR for its progress; content type the operation's one, or the body's own among several; same checks

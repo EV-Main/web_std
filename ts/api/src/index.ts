@@ -5,7 +5,7 @@ import type { Api, Network } from "./types";
 export type { Api, Failure, Network } from "./types";
 export { backoffDelay } from "./live";
 
-interface ApiOptions {
+interface ApiOptions<Hop extends string> {
   /** The service's OpenAPI document, the one `Paths` is generated from. */
   document: object;
   /** Where the document's paths are mounted (`/api/v1`); relative to the page when not absolute. */
@@ -15,6 +15,8 @@ interface ApiOptions {
   /** Sent with every request of `method` (a write's CSRF token, say). */
   headers?: (method: string) => Record<string, string>;
   fetch?: typeof fetch;
+  /** The refusals the hop in front of the service answers itself (a host's forward), `{code: status}`, as the host gives them. */
+  hop?: [Hop] extends [never] ? never : Record<Hop, number>;
 }
 
 interface Operation {
@@ -50,8 +52,13 @@ function isJson(response: Response): boolean {
   return /^application\/([\w.+-]*\+)?json\b/.test(response.headers.get("content-type") ?? "");
 }
 
-export function createApi<Paths extends {}>(options: ApiOptions): Api<Paths> {
+export function createApi<Paths extends {}, Hop extends string = never>(options: ApiOptions<Hop>): Api<Paths, Hop> {
   const ops = operations(options.document);
+  const hop: Record<string, number> = options.hop ?? {};
+  if (NETWORK in hop) throw new Error(`api: the hop in front lists "${NETWORK}", the client's own code`);
+  for (const [at, op] of ops)
+    for (const [code, status] of Object.entries(op["x-errors"]))
+      if (hop[code] !== undefined && hop[code] !== status) throw new Error(`api: ${at} refuses ${code} with ${status}, the hop in front with ${hop[code]}`);
   // A cast would only promise the shape: every answer is checked against the same document the types come from.
   const ajv = new Ajv2020({ strict: false, validateFormats: false, validateSchema: false });
   ajv.addSchema(options.document, "api");
@@ -93,11 +100,15 @@ export function createApi<Paths extends {}>(options: ApiOptions): Api<Paths> {
     }
     const body: unknown = await response.clone().json();
     const op = operation(method, path);
-    validated(method, path, op.responses[status] ? status : "default", body, `a refusal ${status}`);
-    const code = (body as { code: unknown }).code;
+    const code = typeof body === "object" && body !== null && "code" in body ? body.code : undefined;
     if (typeof code !== "string") throw new Error(`api: ${method} ${path} ${status}: a refusal without a code`);
-    const listed = op["x-errors"][code];
-    if (listed !== response.status) throw new Error(`api: ${method} ${path} refused with ${code} ${status}; x-errors has ${listed ?? "no such code"}`);
+    if (op["x-errors"][code] !== undefined) {
+      validated(method, path, op.responses[status] ? status : "default", body, `a refusal ${status}`);
+      if (op["x-errors"][code] !== response.status) throw new Error(`api: ${method} ${path} refused with ${code} ${status}; x-errors has ${op["x-errors"][code]}`);
+    } else if (hop[code] !== undefined) {
+      if (typeof (body as { error?: unknown }).error !== "string") throw new Error(`api: ${method} ${path}: the hop's ${code} without an error text`);
+      if (hop[code] !== response.status) throw new Error(`api: ${method} ${path}: the hop refused with ${code} ${status}; it lists ${hop[code]}`);
+    } else throw new Error(`api: ${method} ${path} refused with ${code} ${status}; x-errors has no such code, nor the hop in front`);
     if (response.status === 401) options.onUnauthenticated();
   }
 
@@ -185,5 +196,5 @@ export function createApi<Paths extends {}>(options: ApiOptions): Api<Paths> {
         xhr.send(body);
       });
     },
-  } as Api<Paths>;
+  } as Api<Paths, Hop>;
 }

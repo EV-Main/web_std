@@ -7,10 +7,11 @@ import type { paths } from "./fixtures/notes";
 const json = (status: number, body: unknown, headers: Record<string, string> = {}) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", ...headers } });
 
-function notes(answer: (request: Request) => Response | Promise<Response>) {
+function notes(answer: (request: Request) => Response | Promise<Response>, hop?: Record<"csrf" | "unavailable" | "conflict", number>) {
   const onUnauthenticated = vi.fn();
   const seen: Request[] = [];
-  const api = createApi<paths>({
+  const api = createApi<paths, "csrf" | "unavailable" | "conflict">({
+    ...(hop === undefined ? {} : { hop }),
     document,
     baseUrl: "http://service.test/api/v1",
     onUnauthenticated,
@@ -124,5 +125,18 @@ describe("upload", () => {
     expect(() => photo("image/gif")).toThrow(/takes image\/jpeg, image\/png, not a body of type "image\/gif"/);
     expect(sent).toEqual(["image/png"]);
     vi.unstubAllGlobals();
+  });
+});
+
+describe("the hop in front", () => {
+  it("adds its refusals to every operation's, at its own statuses, and may not contradict the document", async () => {
+    const hop = { csrf: 403, unavailable: 503 } as Record<"csrf" | "unavailable" | "conflict", number>;
+    const put = (status: number, code: string) =>
+      notes(() => json(status, { code, error: "" }), hop).api.PUT("/notes/{id}", { params: { path: { id: 7 } }, body: { text: "x" } });
+    expect((await put(403, "csrf")).error?.code).toBe("csrf");
+    expect((await put(503, "unavailable")).error?.code).toBe("unavailable");
+    expect((await put(409, "conflict")).error?.code).toBe("conflict");
+    await expect(put(400, "csrf")).rejects.toThrow(/the hop refused with csrf 400; it lists 403/);
+    expect(() => notes(() => json(200, {}), { conflict: 400 } as Record<"csrf" | "unavailable" | "conflict", number>)).toThrow(/refuses conflict with 409, the hop in front with 400/);
   });
 });

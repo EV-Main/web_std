@@ -115,16 +115,16 @@ interface Answered<D, F> {
  * act on the answer asked for waits for it. A re-read nobody asked for is quiet: if it fails, the last
  * answer stays. A broken contract (an answer off its schema) is thrown in render.
  */
-export function useResource<Paths extends {}, P extends PathsWithMethod<Paths, "get">, I extends MaybeOptionalInit<Paths[P], "get" & keyof Paths[P]> & { keep?: boolean }>(
-  api: Api<Paths>,
+export function useResource<Paths extends {}, Hop extends string, P extends PathsWithMethod<Paths, "get">, I extends MaybeOptionalInit<Paths[P], "get" & keyof Paths[P]> & { keep?: boolean }>(
+  api: Api<Paths, Hop>,
   path: P,
   ...init: InitParam<I>
-): Resource<Data<Answer<Paths[P]["get" & keyof Paths[P]] & Record<string | number, unknown>, I>>, Refused<Answer<Paths[P]["get" & keyof Paths[P]] & Record<string | number, unknown>, I>>> & {
+): Resource<Data<Answer<Paths[P]["get" & keyof Paths[P]] & Record<string | number, unknown>, I, Hop>>, Refused<Answer<Paths[P]["get" & keyof Paths[P]] & Record<string | number, unknown>, I, Hop>>> & {
   reload: () => void;
   fresh: boolean;
 } {
-  type D = Data<Answer<Paths[P]["get" & keyof Paths[P]] & Record<string | number, unknown>, I>>;
-  type F = Refused<Answer<Paths[P]["get" & keyof Paths[P]] & Record<string | number, unknown>, I>>;
+  type D = Data<Answer<Paths[P]["get" & keyof Paths[P]] & Record<string | number, unknown>, I, Hop>>;
+  type F = Refused<Answer<Paths[P]["get" & keyof Paths[P]] & Record<string | number, unknown>, I, Hop>>;
   const options = init[0] as ({ params?: object; keep?: boolean } & Record<string, unknown>) | undefined;
   const key = (api.url as (p: string, params?: object) => URL)(String(path), options?.params).href;
   const group = options?.keep ? String(path) : key;
