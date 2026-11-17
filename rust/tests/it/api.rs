@@ -132,10 +132,10 @@ async fn live(ws: WebSocketUpgrade) -> Response {
 }
 
 const DOCS: ev_lib::api::Docs = &[
-	("api::get_note", "A note."),
-	("api::put_note", "Writes a note."),
-	("api::list_notes", "Every note."),
-	("api::live", "What changed."),
+	("it::api::get_note", "A note."),
+	("it::api::put_note", "Writes a note."),
+	("it::api::list_notes", "Every note."),
+	("it::api::live", "What changed."),
 ];
 
 fn routes() -> Vec<Route<(), Open>> {
@@ -224,7 +224,7 @@ fn a_word_is_one_status() {
 		"1",
 		"/",
 		&[Route::new(Method::GET, "/tickets/{id}", Open, ticket)],
-		&[("api::ticket", "A ticket.")],
+		&[("it::api::ticket", "A ticket.")],
 		None,
 	);
 }

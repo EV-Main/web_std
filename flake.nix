@@ -205,7 +205,7 @@
           distPath = builtins.getEnv "EV_VISUAL_DIST";
 
           # Serves what the visual test renders: the live board on /, the static
-          # pages it screenshots on /dist/. Comparing them is `cargo test --test gallery`.
+          # pages it screenshots on /dist/. Comparing them is `cargo test --test it gallery`.
           visual-app = pkgs.writeShellApplication {
             name = "visual";
             # `mold` because .cargo/config.toml links through it on linux
@@ -234,7 +234,7 @@
             runtimeInputs = [ pkgs.git ];
             text = ''
               cd "$(git rev-parse --show-toplevel)"
-              UPDATE_EXPECT=1 exec cargo test -p ev_lib --features uikit_dioxus --test gallery
+              UPDATE_EXPECT=1 exec cargo test -p ev_lib --features uikit_dioxus --test it gallery
             '';
           };
 
@@ -267,7 +267,7 @@
                 nix run .#gen                            regenerate every derived file (class tables, token sheets)
                 nix run .#publish -- <major|minor|patch> cargo-release + npm publish of impacted ts packages
                 nix run .#visual                         serve the kit gallery: live board, colorscheme, every page the visual test captures
-                cargo test --test gallery --features uikit_dioxus   visual regression of the kit gallery (UPDATE_EXPECT=1 accepts)
+                cargo test --test it gallery --features uikit_dioxus   visual regression of the kit gallery (UPDATE_EXPECT=1 accepts)
                 nix run .#visual-review -- [<git-ref>]   diff | old | new of every component whose baseline moved since <git-ref> (default origin/main), in tmp/visual-review.html
 
               Docs: README.md, docs/
@@ -293,7 +293,7 @@
           packages.visual-snapshots =
             if distPath == "" then
               pkgs.runCommand "ev-visual-snapshots-no-dist" { } ''
-                echo "EV_VISUAL_DIST is unset — this is built by \`cargo test --test gallery\` off linux, which generates dist/ first." >&2
+                echo "EV_VISUAL_DIST is unset — this is built by \`cargo test --test it gallery\` off linux, which generates dist/ first." >&2
                 exit 1
               ''
             else

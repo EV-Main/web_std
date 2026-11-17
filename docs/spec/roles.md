@@ -6,7 +6,7 @@ token that is missing.
 
 A theme reshapes the kit by writing a few inputs. A literal in a table is a
 place the theme cannot reach, and a sibling that spells the same role in
-another way drifts from it without anything noticing. `rust/tests/roles.rs`
+another way drifts from it without anything noticing. `rust/tests/it/roles.rs`
 fails on a literal; an exemption there says why its literal is no role.
 
 ## Control height

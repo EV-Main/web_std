@@ -69,7 +69,7 @@ so the grouping is internal. Inside the crate, paths name the scope
 - **Edges only run down the drawing.** `product`, `ops` and `ui` may import
   `kernel`; nothing imports sideways or up. `ui` never imports `ops`: a page
   reports through what it is handed, not through a service's plumbing.
-  `rust/tests/scopes.rs` fails on any other `crate::<scope>` edge.
+  `rust/tests/it/scopes.rs` fails on any other `crate::<scope>` edge.
 - **`codegen` is build-time only.** No runtime scope imports it; consumers
   enable `ts_gen` in their own `gen` binary only.
 
@@ -205,7 +205,7 @@ discipline:
 - **Rust core, two Rust ports, TS mirror:** behaviour lives once, in the core;
   each Rust port is glue over it and renders the same markup from its own
   template (nothing in Rust can share a view across Dioxus and Leptos, so
-  `rust/tests/parity.rs` is what holds them together). The TS port mirrors the
+  `rust/tests/it/parity.rs` is what holds them together). The TS port mirrors the
   semantics; canonical Tailwind class strings are identical per element across
   all three. Variants are the **superset** of the two original sources.
 - **`tokens.css` is the contract:** the design tokens (CSS custom properties +
@@ -248,17 +248,17 @@ the full list is in [`ts/uikit/README.md`](../ts/uikit/README.md#limitations).
   and renders markup from the view data, deriving per-part reads so a change
   re-renders only the parts whose state changed. Behaviour a port re-implements
   is a bug in the split.
-- **Both ports render the same HTML.** `rust/tests/parity.rs` renders every
+- **Both ports render the same HTML.** `rust/tests/it/parity.rs` renders every
   gallery entry through dioxus-ssr and Leptos SSR and compares them after
   canonicalising (attribute order and spelling, comments and hydration markers,
   whitespace-only text, and ids renamed by first appearance).
 - **A component exists in both ports or neither.** The same test fails on a
   gallery label present on one side only, and on a `#[component]` exported by
   one port only; every exported component appears in a gallery entry.
-- **Slot names come from `ev_lib_classes::Slot`.** Both ports render `Slot::X.as_str()`; TS types `data-slot` against the generated `DataSlot`, plus the TS-only names it declares itself. `rust/tests/slots.rs` and `ts/uikit/test/slots.test.ts` hold it.
+- **Slot names come from `ev_lib_classes::Slot`.** Both ports render `Slot::X.as_str()`; TS types `data-slot` against the generated `DataSlot`, plus the TS-only names it declares itself. `rust/tests/it/slots.rs` and `ts/uikit/test/slots.test.ts` hold it.
 - **A class table names a role, never a magnitude**
   ([spec/roles.md](spec/roles.md)). A literal where the theme has a role token
-  is a missing token; `rust/tests/roles.rs` fails on one.
+  is a missing token; `rust/tests/it/roles.rs` fails on one.
 - **Three layers, edges only downward** (#234). Every component sits in
   `atomic/`, `derived/` or `shell/` — the same one in the core, both ports and
   TS. `atomic` renders no other component; `derived` composes `atomic` ones

@@ -1,5 +1,5 @@
 //! Behaviour tests for the `settings!` macro. The parsing contract shared with
-//! TS is `tests/fixtures/settings/contract.json` (`rust/tests/settings.rs`).
+//! TS is `tests/fixtures/settings/contract.json` (`rust/tests/it/settings.rs`).
 
 use std::collections::HashMap;
 

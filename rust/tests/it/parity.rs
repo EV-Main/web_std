@@ -16,8 +16,8 @@ use std::{
 use scraper::{ElementRef, Html, node::Node as Parsed};
 
 mod dioxus_side {
-	include!("support/gallery.rs");
-	include!("support/gallery_parity_only.rs");
+	include!("../support/gallery.rs");
+	include!("../support/gallery_parity_only.rs");
 
 	pub(super) fn render() -> Vec<(&'static str, String)> {
 		GALLERY.iter().chain(PARITY_ONLY).map(|&(label, demo)| (label, settled(demo))).collect()
@@ -45,7 +45,7 @@ mod dioxus_side {
 }
 
 mod leptos_side {
-	include!("support/gallery_leptos.rs");
+	include!("../support/gallery_leptos.rs");
 
 	pub(super) fn render() -> Vec<(&'static str, String)> {
 		GALLERY.iter().chain(PARITY_ONLY).map(|&(label, demo)| (label, Owner::new().with(|| demo().to_html()))).collect()
