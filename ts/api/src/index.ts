@@ -3,6 +3,7 @@ import createClient, { createFinalURL, createQuerySerializer, defaultPathSeriali
 import type { Api, Network } from "./types";
 
 export type { Api, Failure, Network } from "./types";
+export { backoffDelay } from "./live";
 
 interface ApiOptions {
   /** The service's OpenAPI document, the one `Paths` is generated from. */

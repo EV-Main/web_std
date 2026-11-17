@@ -57,7 +57,7 @@ function signalOf(message: Message): Signal | null {
  * The wait before reconnect attempt `attempt` (0-based): exponential, capped, half of it certain and
  * half at random, so a server restart does not get every open tab back in the same millisecond.
  */
-function backoffDelay(attempt: number, random: () => number, baseMs = 1_000, capMs = 30_000): number {
+export function backoffDelay(attempt: number, random: () => number, baseMs = 1_000, capMs = 30_000): number {
   const step = Math.min(capMs, baseMs * 2 ** Math.max(0, attempt));
   return Math.round(step / 2 + random() * (step / 2));
 }
