@@ -9,6 +9,7 @@ import { usePresence } from "../../primitives/presence";
 import { mergeRefs } from "../../primitives/merge-refs";
 import { Portal } from "../../primitives/portal";
 import { Slot } from "../../primitives/slot";
+import { Opener } from "../../primitives/opener";
 import {
   SHEET_CLOSE,
   SHEET_CONTENT,
@@ -65,21 +66,8 @@ export interface SheetTriggerProps extends React.ComponentProps<"button"> {
   asChild?: boolean;
 }
 
-export function SheetTrigger({ asChild = false, onClick, ...props }: SheetTriggerProps) {
-  const { open, setOpen, triggerRef } = useSheet();
-  const Comp = asChild ? Slot : "button";
-  return (
-    <Comp
-      data-slot="sheet-trigger"
-      aria-expanded={open}
-      ref={triggerRef as React.Ref<HTMLButtonElement>}
-      onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
-        onClick?.(e);
-        setOpen(true);
-      }}
-      {...(props as Record<string, unknown>)}
-    />
-  );
+export function SheetTrigger(props: SheetTriggerProps) {
+  return <Opener state={useSheet()} dataSlot="sheet-trigger" {...props} />;
 }
 
 export interface SheetOverlayProps extends React.ComponentProps<"div"> {}

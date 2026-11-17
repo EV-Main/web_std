@@ -405,6 +405,22 @@ pub(crate) fn icon_shapes(icon: Icon) -> Element {
 	}
 }
 
+/// A hover overlay's root (`HoverCard`, `Tooltip`): Escape closes it. Dep-light: inline
+/// positioning, no portal or floating (README, Limitations).
+pub(crate) fn hover_root(open: Controllable<bool>, children: Element) -> Element {
+	rsx! {
+		div {
+			class: "relative inline-block",
+			onkeydown: move |e| {
+				if e.key() == Key::Escape {
+					open.set(false);
+				}
+			},
+			{children}
+		}
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;

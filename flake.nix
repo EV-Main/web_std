@@ -119,7 +119,19 @@
               genDrift
             ];
             jobs.warnings.default = true;
-            jobs.warnings.exclude = map (p: "ts-${p}-lint") [ "analytics" "api" "architecture" "error-monitoring" "experiments" "figma-render" "i18n" "keymap" "marketing" "mfe" "settings" "uikit" "views" ]; # no ts package has a linter
+            jobs.warnings.exclude = [ "code-duplication" ] ++ map (p: "ts-${p}-lint") [ "analytics" "api" "architecture" "error-monitoring" "experiments" "figma-render" "i18n" "keymap" "marketing" "mfe" "settings" "uikit" "views" ]; # no ts package has a linter
+            jobs.warnings.augment = [{
+              name = "code-duplication";
+              args.excludePatterns = [
+                "rust/src/ui/uikit/leptos/**" # the Dioxus port's components, in Leptos
+                "rust/tests/support/gallery_leptos.rs" # gallery.rs, in Leptos
+                "rust/tests/support/gallery_parity_only.rs" # each component in both ports, to compare
+                "rust/src/ui/uikit/dioxus/atomic/context_menu.rs" # the dropdown menu's items under a right-click, as shadcn keeps them apart
+                "ts/uikit/src/components/atomic/context-menu.tsx" # the same, over Radix's other trigger
+                "ts/uikit/src/components/shell/top-bar.tsx" # two regions in a frame, as SettingsLayout's rail and column
+                "rust/classes/src/tone.rs" # a `#[tw(class)]` per variant: ToastPosition's shape, not its classes
+              ];
+            }];
             npmRelease = {
               scope = "evinvest";
               packagesDir = "ts";

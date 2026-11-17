@@ -99,65 +99,11 @@ pub fn CarouselItem(#[props(default)] class: String, children: Element) -> Eleme
 }
 #[component]
 pub fn CarouselPrevious(#[props(default)] class: String) -> Element {
-	let ctx = use_context::<CarouselContext>();
-	let pos = match ctx.orientation {
-		Orientation::Horizontal => CAROUSEL_PREVIOUS_HORIZONTAL,
-		Orientation::Vertical => CAROUSEL_PREVIOUS_VERTICAL,
-	};
-	let cls = cn!(CAROUSEL_NAV, pos, class);
-	rsx! {
-		Button {
-			variant: ButtonVariant::Outline,
-			size: Size::Md,
-			icon: true,
-			class: cls,
-			disabled: !ctx.can_scroll_prev(),
-			onclick: move |_| ctx.scroll_prev(),
-			svg {
-				xmlns: "http://www.w3.org/2000/svg",
-				view_box: "0 0 24 24",
-				fill: "none",
-				stroke: "currentColor",
-				stroke_width: "2",
-				stroke_linecap: "round",
-				stroke_linejoin: "round",
-				"aria-hidden": "true",
-				{icon_shapes(Icon::ChevronLeft)}
-			}
-			span { class: "sr-only", {copy::CAROUSEL_PREVIOUS} }
-		}
-	}
+	carousel_step(false, &class)
 }
 #[component]
 pub fn CarouselNext(#[props(default)] class: String) -> Element {
-	let ctx = use_context::<CarouselContext>();
-	let pos = match ctx.orientation {
-		Orientation::Horizontal => CAROUSEL_NEXT_HORIZONTAL,
-		Orientation::Vertical => CAROUSEL_NEXT_VERTICAL,
-	};
-	let cls = cn!(CAROUSEL_NAV, pos, class);
-	rsx! {
-		Button {
-			variant: ButtonVariant::Outline,
-			size: Size::Md,
-			icon: true,
-			class: cls,
-			disabled: !ctx.can_scroll_next(),
-			onclick: move |_| ctx.scroll_next(),
-			svg {
-				xmlns: "http://www.w3.org/2000/svg",
-				view_box: "0 0 24 24",
-				fill: "none",
-				stroke: "currentColor",
-				stroke_width: "2",
-				stroke_linecap: "round",
-				stroke_linejoin: "round",
-				"aria-hidden": "true",
-				{icon_shapes(Icon::ChevronRight)}
-			}
-			span { class: "sr-only", {copy::CAROUSEL_NEXT} }
-		}
-	}
+	carousel_step(true, &class)
 }
 /// Netflix-style edge scrims that dissolve the current slide into the surface
 /// colour, signalling adjacent slides without revealing them. Each side shows
@@ -170,6 +116,43 @@ pub fn CarouselEdgeFade(#[props(default)] class: String) -> Element {
 	rsx! {
 		div { class: prev, "aria-hidden": "true" }
 		div { class: next, "aria-hidden": "true" }
+	}
+}
+fn carousel_step(forward: bool, class: &str) -> Element {
+	let ctx = use_context::<CarouselContext>();
+	let pos = match (forward, ctx.orientation) {
+		(false, Orientation::Horizontal) => CAROUSEL_PREVIOUS_HORIZONTAL,
+		(false, Orientation::Vertical) => CAROUSEL_PREVIOUS_VERTICAL,
+		(true, Orientation::Horizontal) => CAROUSEL_NEXT_HORIZONTAL,
+		(true, Orientation::Vertical) => CAROUSEL_NEXT_VERTICAL,
+	};
+	let (icon, label) = if forward {
+		(Icon::ChevronRight, copy::CAROUSEL_NEXT)
+	} else {
+		(Icon::ChevronLeft, copy::CAROUSEL_PREVIOUS)
+	};
+	let cls = cn!(CAROUSEL_NAV, pos, class);
+	rsx! {
+		Button {
+			variant: ButtonVariant::Outline,
+			size: Size::Md,
+			icon: true,
+			class: cls,
+			disabled: !if forward { ctx.can_scroll_next() } else { ctx.can_scroll_prev() },
+			onclick: move |_| if forward { ctx.scroll_next() } else { ctx.scroll_prev() },
+			svg {
+				xmlns: "http://www.w3.org/2000/svg",
+				view_box: "0 0 24 24",
+				fill: "none",
+				stroke: "currentColor",
+				stroke_width: "2",
+				stroke_linecap: "round",
+				stroke_linejoin: "round",
+				"aria-hidden": "true",
+				{icon_shapes(icon)}
+			}
+			span { class: "sr-only", {label} }
+		}
 	}
 }
 #[derive(Clone, Copy)]

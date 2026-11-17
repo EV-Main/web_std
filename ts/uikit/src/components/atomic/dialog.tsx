@@ -9,6 +9,7 @@ import { usePresence } from "../../primitives/presence";
 import { mergeRefs } from "../../primitives/merge-refs";
 import { Portal } from "../../primitives/portal";
 import { Slot } from "../../primitives/slot";
+import { Opener } from "../../primitives/opener";
 import {
   DIALOG_CLOSE,
   DIALOG_CONTENT,
@@ -69,21 +70,8 @@ export interface DialogTriggerProps extends React.ComponentProps<"button"> {
   asChild?: boolean;
 }
 
-export function DialogTrigger({ asChild = false, onClick, ...props }: DialogTriggerProps) {
-  const { open, setOpen, triggerRef } = useDialog();
-  const Comp = asChild ? Slot : "button";
-  return (
-    <Comp
-      data-slot="dialog-trigger"
-      aria-expanded={open}
-      ref={triggerRef as React.Ref<HTMLButtonElement>}
-      onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
-        onClick?.(e);
-        setOpen(true);
-      }}
-      {...(props as Record<string, unknown>)}
-    />
-  );
+export function DialogTrigger(props: DialogTriggerProps) {
+  return <Opener state={useDialog()} dataSlot="dialog-trigger" {...props} />;
 }
 
 export type DialogPortalProps = { children?: React.ReactNode };

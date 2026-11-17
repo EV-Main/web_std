@@ -4,7 +4,7 @@ use crate::{
 	cn,
 	ui::uikit::dioxus::{
 		Slot, TOOLTIP_CONTENT,
-		primitives::{Controllable, use_controllable},
+		primitives::{Controllable, hover_root, use_controllable},
 	},
 };
 
@@ -20,18 +20,7 @@ pub fn TooltipProvider(children: Element) -> Element {
 pub fn Tooltip(open: Option<bool>, #[props(default)] default_open: bool, on_open_change: Option<EventHandler<bool>>, children: Element) -> Element {
 	let state = use_controllable(open, default_open, on_open_change);
 	use_context_provider(|| TooltipCtx { open: state });
-	// dep-light: inline positioning + backdrop; no portal/floating — see README Limitations
-	rsx! {
-		div {
-			class: "relative inline-block",
-			onkeydown: move |e| {
-				if e.key() == Key::Escape {
-					state.set(false);
-				}
-			},
-			{children}
-		}
-	}
+	hover_root(state, children)
 }
 
 #[component]

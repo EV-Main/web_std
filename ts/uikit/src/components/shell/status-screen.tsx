@@ -139,38 +139,49 @@ export interface StatusPageProps {
 }
 
 /** 404 — page not found. */
-export function NotFound({ linkComponent = "a", homeHref = "/", contactHref = "/contact" }: StatusPageProps) {
-  return (
-    <StatusScreen
-      accent="debug"
-      eyebrow={copy.NOT_FOUND_EYEBROW}
-      code="404"
-      headlineLead={copy.NOT_FOUND_HEADLINE_LEAD}
-      headlineAccent={copy.NOT_FOUND_HEADLINE_ACCENT}
-      subtext={copy.NOT_FOUND_SUBTEXT}
-      linkComponent={linkComponent}
-      links={[
-        { label: copy.STATUS_HOME, href: homeHref, leadingArrow: true },
-        { label: copy.NOT_FOUND_CONTACT, href: contactHref, variant: "outline" },
-      ]}
-    />
-  );
+export function NotFound(props: StatusPageProps) {
+  return <Refusal page={NOT_FOUND} {...props} />;
 }
 
 /** 403 — access forbidden. */
-export function Forbidden({ linkComponent = "a", homeHref = "/", contactHref = "/contact" }: StatusPageProps) {
+export function Forbidden(props: StatusPageProps) {
+  return <Refusal page={FORBIDDEN} {...props} />;
+}
+
+const NOT_FOUND = {
+  accent: "debug",
+  code: "404",
+  eyebrow: copy.NOT_FOUND_EYEBROW,
+  headlineLead: copy.NOT_FOUND_HEADLINE_LEAD,
+  headlineAccent: copy.NOT_FOUND_HEADLINE_ACCENT,
+  subtext: copy.NOT_FOUND_SUBTEXT,
+  contact: copy.NOT_FOUND_CONTACT,
+} as const;
+
+const FORBIDDEN = {
+  accent: "warn",
+  code: "403",
+  eyebrow: copy.FORBIDDEN_EYEBROW,
+  headlineLead: copy.FORBIDDEN_HEADLINE_LEAD,
+  headlineAccent: copy.FORBIDDEN_HEADLINE_ACCENT,
+  subtext: copy.FORBIDDEN_SUBTEXT,
+  contact: copy.FORBIDDEN_CONTACT,
+} as const;
+
+/** A page refused: home first, then the page's own way to ask. */
+function Refusal({
+  page: { contact, ...page },
+  linkComponent = "a",
+  homeHref = "/",
+  contactHref = "/contact",
+}: StatusPageProps & { page: typeof NOT_FOUND | typeof FORBIDDEN }) {
   return (
     <StatusScreen
-      accent="warn"
-      eyebrow={copy.FORBIDDEN_EYEBROW}
-      code="403"
-      headlineLead={copy.FORBIDDEN_HEADLINE_LEAD}
-      headlineAccent={copy.FORBIDDEN_HEADLINE_ACCENT}
-      subtext={copy.FORBIDDEN_SUBTEXT}
+      {...page}
       linkComponent={linkComponent}
       links={[
         { label: copy.STATUS_HOME, href: homeHref, leadingArrow: true },
-        { label: copy.FORBIDDEN_CONTACT, href: contactHref, variant: "outline" },
+        { label: contact, href: contactHref, variant: "outline" },
       ]}
     />
   );

@@ -4,7 +4,7 @@ use crate::{
 	cn,
 	ui::uikit::dioxus::{
 		HOVER_CARD_CONTENT, Slot,
-		primitives::{Controllable, Side, use_controllable},
+		primitives::{Controllable, Side, hover_root, use_controllable},
 	},
 };
 
@@ -12,18 +12,7 @@ use crate::{
 pub fn HoverCard(open: Option<bool>, #[props(default)] default_open: bool, on_open_change: Option<EventHandler<bool>>, children: Element) -> Element {
 	let state = use_controllable(open, default_open, on_open_change);
 	use_context_provider(|| HoverCardCtx { open: state });
-	// dep-light: inline positioning + backdrop; no portal/floating — see README Limitations
-	rsx! {
-		div {
-			class: "relative inline-block",
-			onkeydown: move |e| {
-				if e.key() == Key::Escape {
-					state.set(false);
-				}
-			},
-			{children}
-		}
-	}
+	hover_root(state, children)
 }
 
 #[component]

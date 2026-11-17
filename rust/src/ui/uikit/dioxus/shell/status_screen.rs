@@ -22,6 +22,24 @@ use crate::{
 	ui::uikit::dioxus::{Accent, ButtonVariant, Logo, accent_text_class, primitives::icon_shapes},
 };
 
+const NOT_FOUND: Refused = Refused {
+	accent: Accent::Debug,
+	code: "404",
+	eyebrow: copy::NOT_FOUND_EYEBROW,
+	headline_lead: copy::NOT_FOUND_HEADLINE_LEAD,
+	headline_accent: copy::NOT_FOUND_HEADLINE_ACCENT,
+	subtext: copy::NOT_FOUND_SUBTEXT,
+	contact: copy::NOT_FOUND_CONTACT,
+};
+const FORBIDDEN: Refused = Refused {
+	accent: Accent::Warn,
+	code: "403",
+	eyebrow: copy::FORBIDDEN_EYEBROW,
+	headline_lead: copy::FORBIDDEN_HEADLINE_LEAD,
+	headline_accent: copy::FORBIDDEN_HEADLINE_ACCENT,
+	subtext: copy::FORBIDDEN_SUBTEXT,
+	contact: copy::FORBIDDEN_CONTACT,
+};
 /// Shared skeleton for the 404 / 403 / 500 status pages: a centred hero with the
 /// logo mark, a mono eyebrow, a giant Playfair code, a headline whose final clause
 /// is an italic accent, supporting copy, and the CTAs. The accent threads through
@@ -81,58 +99,12 @@ pub fn StatusScreen(
 /// 404 — page not found.
 #[component]
 pub fn NotFound(#[props(default = "/".to_string())] home_href: String, #[props(default = "/contact".to_string())] contact_href: String) -> Element {
-	rsx! {
-		StatusScreen {
-			accent: Accent::Debug,
-			eyebrow: copy::NOT_FOUND_EYEBROW,
-			code: "404",
-			headline_lead: copy::NOT_FOUND_HEADLINE_LEAD,
-			headline_accent: copy::NOT_FOUND_HEADLINE_ACCENT,
-			subtext: copy::NOT_FOUND_SUBTEXT,
-			links: vec![
-				StatusLinkData {
-					label: copy::STATUS_HOME.to_string(),
-					href: home_href,
-					variant: ButtonVariant::Primary,
-					leading_arrow: true,
-				},
-				StatusLinkData {
-					label: copy::NOT_FOUND_CONTACT.to_string(),
-					href: contact_href,
-					variant: ButtonVariant::Outline,
-					leading_arrow: false,
-				},
-			],
-		}
-	}
+	refusal(NOT_FOUND, home_href, contact_href)
 }
 /// 403 — access forbidden.
 #[component]
 pub fn Forbidden(#[props(default = "/".to_string())] home_href: String, #[props(default = "/contact".to_string())] contact_href: String) -> Element {
-	rsx! {
-		StatusScreen {
-			accent: Accent::Warn,
-			eyebrow: copy::FORBIDDEN_EYEBROW,
-			code: "403",
-			headline_lead: copy::FORBIDDEN_HEADLINE_LEAD,
-			headline_accent: copy::FORBIDDEN_HEADLINE_ACCENT,
-			subtext: copy::FORBIDDEN_SUBTEXT,
-			links: vec![
-				StatusLinkData {
-					label: copy::STATUS_HOME.to_string(),
-					href: home_href,
-					variant: ButtonVariant::Primary,
-					leading_arrow: true,
-				},
-				StatusLinkData {
-					label: copy::FORBIDDEN_CONTACT.to_string(),
-					href: contact_href,
-					variant: ButtonVariant::Outline,
-					leading_arrow: false,
-				},
-			],
-		}
-	}
+	refusal(FORBIDDEN, home_href, contact_href)
 }
 /// 500 — server error. The "Try again" button runs `reset` or reloads the page.
 #[component]
@@ -165,6 +137,42 @@ pub fn ServerError(#[props(default = "/".to_string())] home_href: String, reset:
 				},
 				{copy::SERVER_ERROR_RETRY}
 			}
+		}
+	}
+}
+struct Refused {
+	accent: Accent,
+	code: &'static str,
+	eyebrow: &'static str,
+	headline_lead: &'static str,
+	headline_accent: &'static str,
+	subtext: &'static str,
+	contact: &'static str,
+}
+/// A page refused: home first, then the page's own way to ask.
+fn refusal(page: Refused, home_href: String, contact_href: String) -> Element {
+	rsx! {
+		StatusScreen {
+			accent: page.accent,
+			eyebrow: page.eyebrow,
+			code: page.code,
+			headline_lead: page.headline_lead,
+			headline_accent: page.headline_accent,
+			subtext: page.subtext,
+			links: vec![
+				StatusLinkData {
+					label: copy::STATUS_HOME.to_string(),
+					href: home_href,
+					variant: ButtonVariant::Primary,
+					leading_arrow: true,
+				},
+				StatusLinkData {
+					label: page.contact.to_string(),
+					href: contact_href,
+					variant: ButtonVariant::Outline,
+					leading_arrow: false,
+				},
+			],
 		}
 	}
 }

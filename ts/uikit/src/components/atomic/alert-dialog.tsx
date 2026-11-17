@@ -9,7 +9,7 @@ import { useFocusScope } from "../../primitives/focus-scope";
 import { usePresence } from "../../primitives/presence";
 import { mergeRefs } from "../../primitives/merge-refs";
 import { Portal } from "../../primitives/portal";
-import { Slot } from "../../primitives/slot";
+import { Opener } from "../../primitives/opener";
 import {
   ALERT_DIALOG_CONTENT,
   ALERT_DIALOG_DESCRIPTION,
@@ -58,21 +58,8 @@ export interface AlertDialogTriggerProps extends React.ComponentProps<"button"> 
   asChild?: boolean;
 }
 
-export function AlertDialogTrigger({ asChild = false, onClick, ...props }: AlertDialogTriggerProps) {
-  const { open, setOpen, triggerRef } = useAlertDialog();
-  const Comp = asChild ? Slot : "button";
-  return (
-    <Comp
-      data-slot="alert-dialog-trigger"
-      aria-expanded={open}
-      ref={triggerRef as React.Ref<HTMLButtonElement>}
-      onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
-        onClick?.(e);
-        setOpen(true);
-      }}
-      {...(props as Record<string, unknown>)}
-    />
-  );
+export function AlertDialogTrigger(props: AlertDialogTriggerProps) {
+  return <Opener state={useAlertDialog()} dataSlot="alert-dialog-trigger" {...props} />;
 }
 
 export interface AlertDialogOverlayProps extends React.ComponentProps<"div"> {}

@@ -212,56 +212,24 @@ export function CarouselEdgeFade({
   );
 }
 
-export function CarouselPrevious({
-  className,
-  variant = "outline",
-  size = "md",
-  icon = true,
-  ...props
-}: ButtonProps) {
-  const { orientation, scrollPrev, canScrollPrev } = useCarousel();
-
-  return (
-    <Button
-      variant={variant}
-      size={size}
-      icon={icon}
-      className={cn(
-        CAROUSEL_NAV,
-        orientation === "horizontal"
-          ? CAROUSEL_PREVIOUS_HORIZONTAL
-          : CAROUSEL_PREVIOUS_VERTICAL,
-        className,
-      )}
-      disabled={!canScrollPrev}
-      onClick={scrollPrev}
-      {...props}
-    >
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        aria-hidden="true"
-      >
-        {iconShapes("chevron-left")}
-      </svg>
-      <span className="sr-only">{copy.CAROUSEL_PREVIOUS}</span>
-    </Button>
-  );
+export function CarouselPrevious(props: ButtonProps) {
+  return <CarouselStep forward={false} {...props} />;
 }
 
-export function CarouselNext({
+export function CarouselNext(props: ButtonProps) {
+  return <CarouselStep forward {...props} />;
+}
+
+function CarouselStep({
+  forward,
   className,
   variant = "outline",
   size = "md",
   icon = true,
   ...props
-}: ButtonProps) {
-  const { orientation, scrollNext, canScrollNext } = useCarousel();
+}: ButtonProps & { forward: boolean }) {
+  const { orientation, scrollPrev, scrollNext, canScrollPrev, canScrollNext } = useCarousel();
+  const horizontal = orientation === "horizontal";
 
   return (
     <Button
@@ -270,13 +238,13 @@ export function CarouselNext({
       icon={icon}
       className={cn(
         CAROUSEL_NAV,
-        orientation === "horizontal"
-          ? CAROUSEL_NEXT_HORIZONTAL
-          : CAROUSEL_NEXT_VERTICAL,
+        forward
+          ? horizontal ? CAROUSEL_NEXT_HORIZONTAL : CAROUSEL_NEXT_VERTICAL
+          : horizontal ? CAROUSEL_PREVIOUS_HORIZONTAL : CAROUSEL_PREVIOUS_VERTICAL,
         className,
       )}
-      disabled={!canScrollNext}
-      onClick={scrollNext}
+      disabled={!(forward ? canScrollNext : canScrollPrev)}
+      onClick={forward ? scrollNext : scrollPrev}
       {...props}
     >
       <svg
@@ -289,9 +257,9 @@ export function CarouselNext({
         strokeLinejoin="round"
         aria-hidden="true"
       >
-        {iconShapes("chevron-right")}
+        {iconShapes(forward ? "chevron-right" : "chevron-left")}
       </svg>
-      <span className="sr-only">{copy.CAROUSEL_NEXT}</span>
+      <span className="sr-only">{forward ? copy.CAROUSEL_NEXT : copy.CAROUSEL_PREVIOUS}</span>
     </Button>
   );
 }

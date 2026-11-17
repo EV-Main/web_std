@@ -97,33 +97,21 @@ pub fn AlertDialogDescription(id: Option<String>, #[props(default)] class: Strin
 /// then closes the dialog.
 #[component]
 pub fn AlertDialogAction(onclick: Option<EventHandler<MouseEvent>>, #[props(default)] class: String, children: Element) -> Element {
-	let ctx = use_context::<AlertDialogCtx>();
-	let cls = button_classes(&ButtonVariant::Primary, Size::Md, false, None, &class);
-	rsx! {
-		button {
-			r#type: "button",
-			class: cls,
-			"data-slot": Slot::AlertDialogAction.as_str(),
-			onclick: move |e| {
-				if let Some(h) = onclick {
-					h.call(e);
-				}
-				ctx.open.set(false);
-			},
-			{children}
-		}
-	}
+	closing(ButtonVariant::Primary, Slot::AlertDialogAction, onclick, &class, children)
 }
 /// The dismiss button: runs `onclick`, then closes the dialog.
 #[component]
 pub fn AlertDialogCancel(onclick: Option<EventHandler<MouseEvent>>, #[props(default)] class: String, children: Element) -> Element {
+	closing(ButtonVariant::Outline, Slot::AlertDialogCancel, onclick, &class, children)
+}
+fn closing(variant: ButtonVariant, slot: Slot, onclick: Option<EventHandler<MouseEvent>>, class: &str, children: Element) -> Element {
 	let ctx = use_context::<AlertDialogCtx>();
-	let cls = button_classes(&ButtonVariant::Outline, Size::Md, false, None, &class);
+	let cls = button_classes(&variant, Size::Md, false, None, class);
 	rsx! {
 		button {
 			r#type: "button",
 			class: cls,
-			"data-slot": Slot::AlertDialogCancel.as_str(),
+			"data-slot": slot.as_str(),
 			onclick: move |e| {
 				if let Some(h) = onclick {
 					h.call(e);
