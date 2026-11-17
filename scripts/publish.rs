@@ -235,7 +235,8 @@ fn main() -> ExitCode {
 	const RUST: &[(&str, &[&str])] = &[
 		("ev_lib_classes", &["rust/classes"]),
 		("ev_lib_gen", &["rust/gen"]),
-		("ev_lib", &["rust", ":!rust/classes", ":!rust/gen", ":!rust/uikit-viewer"]),
+		("ev_lib_macros", &["rust/macros"]),
+		("ev_lib", &["rust", ":!rust/classes", ":!rust/gen", ":!rust/macros", ":!rust/uikit-viewer"]),
 	];
 	let rust_changed: Vec<&str> = if npm_only {
 		Vec::new()
