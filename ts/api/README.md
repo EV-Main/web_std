@@ -34,7 +34,7 @@ refusal           {code, error} checked against its schema; code ∈ x-errors, s
                   ─▶ { error } keyed by code; anything else throws; a 401 also calls onUnauthenticated
 no answer         fetch failed, or a non-JSON 502/503/504 (a proxy's page) ─▶ { error: {code: "network"} }
 url(path, p)      the GET operation's URL; ws:/wss: when the document marks it x-socket
-upload(m, p, …)   XHR for its progress; content type from the operation's requestBody; same checks
+upload(m, p, …)   XHR for its progress; content type the operation's one, or the body's own among several; same checks
 mayCall(m, p, ps) the operation's x-permission is among the caller's permissions (the service's /me, a host's); none named: true
 GET x-sa-reads    the tables the answer read (<service>.<table>); every GET answer carries it
 ```

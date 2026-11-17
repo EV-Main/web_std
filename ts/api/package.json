@@ -36,7 +36,7 @@
     "build:react": "TSUP_ONLY=react tsup",
     "build": "npm run build:core && npm run build:react",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && npm run build && tsc --noEmit -p test/built",
     "prepare": "npm run build"
   },
   "dependencies": {

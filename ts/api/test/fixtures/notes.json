@@ -24,6 +24,15 @@
         }
       }
     },
+    "/notes/{id}/photo": {
+      "post": {
+        "operationId": "add_photo",
+        "parameters": [{ "in": "path", "name": "id", "required": true, "schema": { "type": "integer" } }],
+        "requestBody": { "required": true, "content": { "image/jpeg": {}, "image/png": {} } },
+        "x-errors": {},
+        "responses": { "204": { "description": "" } }
+      }
+    },
     "/live": {
       "get": {
         "operationId": "live",

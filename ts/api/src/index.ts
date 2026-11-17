@@ -151,11 +151,13 @@ export function createApi<Paths extends {}>(options: ApiOptions): Api<Paths> {
     upload(m: string, path: string, { params, body, onProgress }: { params: object; body: Blob; onProgress: (sent: number) => void }) {
       const method = m.toUpperCase();
       const types = Object.keys(operation(method, path).requestBody?.content ?? {});
-      if (types.length !== 1) throw new Error(`api: ${method} ${path} takes ${types.length} body types; an upload needs exactly one`);
+      if (types.length === 0) throw new Error(`api: ${method} ${path} takes no body`);
+      const type = types.length === 1 ? types[0]! : body.type;
+      if (!types.includes(type)) throw new Error(`api: ${method} ${path} takes ${types.join(", ")}, not a body of type "${type}"`);
       return new Promise((done, fail) => {
         const xhr = new XMLHttpRequest();
         xhr.open(method, resolve(path, params));
-        xhr.setRequestHeader("content-type", types[0]!);
+        xhr.setRequestHeader("content-type", type);
         xhr.setRequestHeader("accept", "application/json");
         for (const [k, v] of Object.entries(options.headers?.(method) ?? {})) xhr.setRequestHeader(k, v);
         xhr.upload.onprogress = (e) => e.lengthComputable && onProgress(e.loaded / e.total);

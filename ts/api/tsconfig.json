@@ -20,10 +20,9 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "noEmit": true,
-    "paths": { "@evinvest/api": ["./src/index.ts"] },
     "resolveJsonModule": true,
     "paths": { "@evinvest/api": ["./src/index.ts"] }
   },
   "include": ["src", "test", "tsup.config.ts", "vitest.workspace.ts"],
-  "exclude": ["test/dist"]
+  "exclude": ["test/built"]
 }

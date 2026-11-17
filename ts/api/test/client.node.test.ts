@@ -95,3 +95,34 @@ describe("mayCall", () => {
     expect(api.mayCall("get", "/notes/{id}", [])).toBe(true);
   });
 });
+
+describe("upload", () => {
+  it("sends the operation's one type, or the body's own among several, and refuses one it does not list", async () => {
+    const sent: string[] = [];
+    vi.stubGlobal(
+      "XMLHttpRequest",
+      class {
+        status = 204;
+        responseText = "";
+        upload = {};
+        onload: (() => void) | null = null;
+        open() {}
+        setRequestHeader(name: string, value: string) {
+          if (name === "content-type") sent.push(value);
+        }
+        getAllResponseHeaders() {
+          return "";
+        }
+        send() {
+          this.onload!();
+        }
+      },
+    );
+    const { api } = notes(() => json(200, {}));
+    const photo = (type: string) => api.upload("post", "/notes/{id}/photo", { params: { path: { id: 7 } }, body: new Blob(["x"], { type }), onProgress: () => undefined });
+    expect((await photo("image/png")).error).toBeUndefined();
+    expect(() => photo("image/gif")).toThrow(/takes image\/jpeg, image\/png, not a body of type "image\/gif"/);
+    expect(sent).toEqual(["image/png"]);
+    vi.unstubAllGlobals();
+  });
+});

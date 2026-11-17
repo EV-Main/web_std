@@ -34,7 +34,7 @@ export interface Api<Paths extends {}> {
   PUT: Method<Paths, "put">;
   PATCH: Method<Paths, "patch">;
   DELETE: Method<Paths, "delete">;
-  /** A raw body over XHR, for its progress (a fraction sent); its content type is the one the document gives the operation. */
+  /** A raw body over XHR, for its progress (a fraction sent); its content type the operation's one, or the body's own where it lists several. */
   upload<M extends "put" | "post", P extends PathsWithMethod<Paths, M>>(
     method: M,
     path: P,
