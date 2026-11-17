@@ -38,6 +38,10 @@ impl<C: ErrorCode> Refusal<C> {
 	pub fn new(code: C, error: impl Into<String>) -> Self {
 		Self { code, error: error.into() }
 	}
+
+	pub fn code(&self) -> C {
+		self.code
+	}
 }
 
 // `Refusal` implements no `Display`, so this never overlaps `From<T> for T`.

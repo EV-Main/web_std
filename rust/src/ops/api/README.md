@@ -22,7 +22,8 @@ and the generated TS client are all clients of that document.
   every word of the document, and a word is one status across it. A domain error becomes a refusal
   through `impl Refuses<TheError> for C`, so `?` works where the orphan rule forbids a `From`.
 - **A socket is a route like any other** (feature `api_ws`): its handler takes `WebSocketUpgrade`,
-  which answers 101, and its operation is marked `x-socket`. It is opened by a GET.
+  which answers 101, and its operation is marked `x-socket`; [`Route::socket`] says so from
+  construction. It is opened by a GET.
 - **[`serve`]** answers a document (or any JSON fixed while the process lives) behind a guard, with
   an ETag, and `304` for an `If-None-Match` naming it. It is not an operation of the document.
 - **[`rust_client`]** (feature `api_gen`, build-time) writes a client's methods from the document,

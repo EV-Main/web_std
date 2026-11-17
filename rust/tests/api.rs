@@ -196,6 +196,7 @@ fn an_operation_lists_what_it_refuses_with() {
 	}
 	assert_eq!(op_id(put_note), "put_note");
 	assert_eq!(routes()[2].id(), op_id(put_note));
+	assert_eq!(routes().iter().map(|r| r.socket()).collect::<Vec<_>>(), [false, false, false, true]);
 }
 
 #[derive(Clone, Copy, Serialize, strum::VariantArray)]
@@ -232,6 +233,7 @@ fn a_word_is_one_status() {
 async fn refusals_are_answered_as_documented() {
 	let app = router();
 	let refused = |code: &str, error: &str| json!({ "code": code, "error": error });
+	assert!(matches!(Refusal::<Code>::from(Refused::Taken).code(), Code::Conflict));
 	assert_eq!(call(&app, Method::GET, "/notes/1", "").await, (StatusCode::OK, json!({ "text": "one" })));
 	assert_eq!(call(&app, Method::GET, "/notes/x", "").await, (StatusCode::NOT_FOUND, refused("not_found", "not found")));
 	assert_eq!(call(&app, Method::GET, "/notes/2", "").await, (StatusCode::NOT_FOUND, refused("not_found", "no such note")));

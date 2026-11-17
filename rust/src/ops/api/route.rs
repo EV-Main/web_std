@@ -57,6 +57,7 @@ pub struct Route<S, G> {
 	handler: MethodRouter<S>,
 	/// `<crate>::<module>::<fn>`.
 	handler_path: &'static str,
+	socket: bool,
 	describe: fn(&mut GenContext, &mut SchemaGenerator, &mut Operation),
 }
 
@@ -70,12 +71,21 @@ impl<S: Clone + Send + Sync + 'static, G> Route<S, G> {
 		T: 'static, {
 		let filter = MethodFilter::try_from(method.clone()).expect("routes name standard methods");
 		let handler_path = named::<H>();
+		// aide's `WebSocketUpgrade` answers 101
+		let socket = in_context(|ctx| {
+			let mut op = Operation::default();
+			I::operation_input(ctx, &mut op);
+			op.responses.is_some_and(|r| r.responses.contains_key(&StatusCode::Code(101)))
+		});
+		generate::reset_context(); // what the probe defined is no document's
+		assert!(!socket || method == Method::GET, "{path}: a socket is opened by a GET");
 		Self {
 			method,
 			path,
 			handler: on(filter, Gated { guard: guard.clone(), handler }),
 			guard,
 			handler_path,
+			socket,
 			describe: describe::<I, O>,
 		}
 	}
@@ -92,6 +102,11 @@ impl<S: Clone + Send + Sync + 'static, G> Route<S, G> {
 	/// The handler's name: unique in a service's table.
 	pub fn id(&self) -> &'static str {
 		id(self.handler_path)
+	}
+
+	/// Its handler takes `WebSocketUpgrade`: the operation is `x-socket`.
+	pub fn socket(&self) -> bool {
+		self.socket
 	}
 }
 
@@ -146,16 +161,13 @@ pub fn document<S: Clone + Send + Sync + 'static, G: Guard<S>>(
 			op.extensions.insert("x-errors".into(), Value::Object(Default::default()));
 			(route.describe)(ctx, &mut answered, &mut op);
 			let answers = op.responses.as_ref().map(|r| r.responses.keys().collect::<Vec<_>>()).unwrap_or_default();
-			// aide's `WebSocketUpgrade` answers 101
-			let socket = answers.contains(&&StatusCode::Code(101));
 			assert!(
-				socket || answers.iter().any(|s| matches!(s, StatusCode::Code(200..=299))),
+				route.socket || answers.iter().any(|s| matches!(s, StatusCode::Code(200..=299))),
 				"{} {}: the handler's answer is a typed one (Json, Created, NoContent…), not a bare Response or a tuple",
 				route.method,
 				route.path
 			);
-			if socket {
-				assert_eq!(route.method, Method::GET, "{}: a socket is opened by a GET", route.path);
+			if route.socket {
 				op.extensions.insert("x-socket".into(), Value::Bool(true));
 			}
 			super::refusal::document(ctx, &mut op, &route.guard.refusals());
