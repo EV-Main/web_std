@@ -2,6 +2,8 @@
 
 import * as React from "react";
 import { Portal } from "../../primitives/portal";
+import { useDismissableLayer } from "../../primitives/dismissable-layer";
+import { mergeRefs } from "../../primitives/merge-refs";
 import { UiIcon } from "../../icons/ui-icons";
 
 /** What of its area stays in the viewport however it is dragged. */
@@ -17,10 +19,11 @@ export interface FloatingPanelProps {
   children: React.ReactNode;
 }
 
-/** A non-modal window over the page, dragged by its title bar, partly past the viewport's left, right and bottom edges; the page under it stays live. Focused when it opens, Escape within it closes it. Its content sets its width. */
+/** A non-modal window over the page, dragged by its title bar, partly past the viewport's left, right and bottom edges; the page under it stays live. Focused when it opens, Escape closes it while it is the top of the dismiss stack. Its content sets its width. */
 export function FloatingPanel({ title, at, onClose, closeLabel = "Close", children }: FloatingPanelProps) {
   const [pos, setPos] = React.useState(at);
   const ref = React.useRef<HTMLDivElement>(null);
+  const layer = useDismissableLayer({ enabled: true, onDismiss: e => !e.defaultPrevented && onClose(), pointerOutside: false });
   const titleId = React.useId();
   const clamp = React.useCallback((p: { x: number; y: number }) => {
     const box = ref.current?.getBoundingClientRect();
@@ -51,15 +54,11 @@ export function FloatingPanel({ title, at, onClose, closeLabel = "Close", childr
   return (
     <Portal>
       <div
-        ref={ref}
+        ref={mergeRefs(ref, layer)}
         role="dialog"
         aria-modal={false}
         aria-labelledby={titleId}
         tabIndex={-1}
-        // DOM containment, not React's: an Escape in a dialog portalled from its content is that dialog's
-        onKeyDown={e => {
-          if (e.key === "Escape" && e.currentTarget.contains(e.target as Node)) onClose();
-        }}
         data-slot="floating-panel"
         style={{ left: pos.x, top: pos.y }}
         className="fixed z-50 flex max-h-[calc(100vh-1rem)] max-w-[calc(100vw-1rem)] flex-col rounded-panel border border-border bg-popover text-ink shadow-md outline-none"

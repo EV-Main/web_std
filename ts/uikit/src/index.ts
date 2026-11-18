@@ -760,6 +760,8 @@ export type { CountTweenOptions } from "./components/atomic/use-count-tween";
 
 // Uikit 2.0 elements and composed parts
 export { IconButton } from "./components/derived/icon-button";
+export { CloseButton } from "./components/derived/close-button";
+export type { CloseButtonProps } from "./components/derived/close-button";
 export type { IconButtonProps, IconButtonSize, IconButtonVariant } from "./components/derived/icon-button";
 export { StatusItem, StatusDot } from "./components/atomic/status-item";
 export type { StatusDotProps, StatusItemProps, StatusTone } from "./components/atomic/status-item";
