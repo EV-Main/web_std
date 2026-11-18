@@ -14,13 +14,15 @@ export interface FloatingPanelProps {
   /** Where its top-left corner first sits, in viewport pixels; dragging by the title moves it from there. */
   at: { x: number; y: number };
   onClose: () => void;
+  /** Buttons in its title bar, before the close. */
+  actions?: React.ReactNode;
   /** Default `"Close"`. */
   closeLabel?: string;
   children: React.ReactNode;
 }
 
 /** A non-modal window over the page, dragged by its title bar, partly past the viewport's left, right and bottom edges; the page under it stays live. Focused when it opens, Escape closes it while it is the top of the dismiss stack. Its content sets its width. */
-export function FloatingPanel({ title, at, onClose, closeLabel = "Close", children }: FloatingPanelProps) {
+export function FloatingPanel({ title, at, onClose, actions, closeLabel = "Close", children }: FloatingPanelProps) {
   const [pos, setPos] = React.useState(at);
   const ref = React.useRef<HTMLDivElement>(null);
   const layer = useDismissableLayer({ enabled: true, onDismiss: e => !e.defaultPrevented && onClose(), pointerOutside: false });
@@ -77,6 +79,7 @@ export function FloatingPanel({ title, at, onClose, closeLabel = "Close", childr
           className="flex h-(--control-h-sm) shrink-0 cursor-grab touch-none items-center gap-2 border-b border-border pr-1 pl-3 text-body-s font-medium select-none active:cursor-grabbing"
         >
           <span id={titleId} className="flex-1 truncate">{title}</span>
+          {actions}
           <button
             type="button"
             aria-label={closeLabel}
