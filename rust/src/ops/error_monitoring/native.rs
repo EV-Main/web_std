@@ -67,6 +67,7 @@ pub fn init(config: &Config) -> Option<sentry::ClientInitGuard> {
 	// Parse before handing the DSN over: `sentry::init((dsn, options))` would
 	// `expect` on it and panic at boot.
 	let dsn = config.dsn.as_deref().into_dsn().ok().flatten()?;
+	let _ = rustls::crypto::ring::default_provider().install_default(); //IGNORED_ERROR: Err is "a provider is already installed", which is all reqwest needs
 	let guard = sentry::init(sentry::ClientOptions {
 		dsn: Some(dsn),
 		release: config.release.clone().map(Into::into),

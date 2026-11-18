@@ -119,6 +119,7 @@ pub fn alerts(config: Config) -> (AlertLayer, Deliverer) {
 		last_sent: Mutex::default(),
 		dropped: AtomicUsize::new(0),
 	};
+	let _ = rustls::crypto::ring::default_provider().install_default(); //IGNORED_ERROR: Err is "a provider is already installed", which is all reqwest needs
 	let deliverer = Deliverer {
 		rx,
 		webhooks: config.webhooks,

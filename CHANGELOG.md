@@ -494,6 +494,12 @@ Rust crate and its TypeScript mirror at once.
 
 ### Changed
 
+- **TLS is rustls on ring, not aws-lc** (`ev_lib` `analytics`, `alerts`,
+  `error_monitoring`): reqwest and sentry take `rustls-no-provider`, and ring is
+  installed as the process's provider where ev_lib builds a client (unless one is
+  already installed). `aws-lc-sys` and its bundled C build leave the consumer's graph
+  once the consumer's own deps stop asking for it.
+
 - **The type scale is derived** (`ev_lib` `uikit` and `@evinvest/uikit`, #297):
   the nine `--text-*` steps are a text ramp off `--body-size`, `--body-step`,
   `--body-leading` and a display ramp off `--display-base`, `--display-step`,

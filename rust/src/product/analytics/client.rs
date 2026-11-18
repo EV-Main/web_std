@@ -18,6 +18,7 @@ impl Analytics {
 	/// Builds a client from an optional API key and host (defaulting to
 	/// [`DEFAULT_HOST`]). Read these from the environment in the consuming app.
 	pub fn new(api_key: Option<String>, host: Option<String>) -> Self {
+		let _ = rustls::crypto::ring::default_provider().install_default(); //IGNORED_ERROR: Err is "a provider is already installed", which is all reqwest needs
 		Self {
 			client: reqwest::Client::new(),
 			host: host.unwrap_or_else(|| DEFAULT_HOST.to_string()),
