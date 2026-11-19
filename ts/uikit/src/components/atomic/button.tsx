@@ -84,8 +84,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function 
       {...(reason === undefined ? {} : { disabled: true, "aria-disabled": true })}
       {...(props as Record<string, unknown>)}
     >
-      {children}
-      {planned !== undefined && !icon && <span className={PLANNED_TAG}>{PLANNED}</span>}
+      {planned === undefined || icon || asChild ? children : <>{children}<span className={PLANNED_TAG}>{PLANNED}</span></>}
     </Comp>
   );
   if (reason === undefined) return button;
