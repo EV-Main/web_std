@@ -10,6 +10,40 @@ import type { Browser, BrowserContextOptions, Page, TestType } from "@playwright
 /** The describe the suite sits in; the bin greps by it. */
 export const FIGMA_SUITE = "@figma";
 
+const SETTLE: readonly (readonly [string, (page: Page, selector: string) => Promise<unknown>])[] = [
+  ["fonts", page => page.evaluate(() => document.fonts.ready)],
+  [
+    "images",
+    (page, selector) =>
+      page.locator(selector).evaluate(root =>
+        Promise.all(
+          Array.from(root.querySelectorAll("img"), img => {
+            img.loading = "eager";
+            if (img.complete) return null;
+            return new Promise(done => {
+              img.addEventListener("load", done, { once: true });
+              img.addEventListener("error", done, { once: true });
+            });
+          }),
+        ),
+      ),
+  ],
+  ["network idle", page => page.waitForLoadState("networkidle")],
+  [
+    "animations",
+    page =>
+      page.waitForFunction(
+        () =>
+          document
+            .getAnimations()
+            .filter(a => (a.effect?.getComputedTiming().iterations ?? 1) !== Infinity)
+            .every(a => a.playState === "finished" || a.playState === "idle"),
+        undefined,
+        { timeout: 10_000 },
+      ),
+  ],
+];
+
 /**
  * Waits until a selector's subtree is what a visitor sees: web fonts applied,
  * every image in it loaded (lazy ones forced), the network idle, and every
@@ -17,29 +51,7 @@ export const FIGMA_SUITE = "@figma";
  * not ones driven through the Web Animations API.
  */
 export async function settle(page: Page, selector: string): Promise<void> {
-  await page.evaluate(() => document.fonts.ready);
-  await page.locator(selector).evaluate(root =>
-    Promise.all(
-      Array.from(root.querySelectorAll("img"), img => {
-        img.loading = "eager";
-        if (img.complete) return null;
-        return new Promise(done => {
-          img.addEventListener("load", done, { once: true });
-          img.addEventListener("error", done, { once: true });
-        });
-      }),
-    ),
-  );
-  await page.waitForLoadState("networkidle");
-  await page.waitForFunction(
-    () =>
-      document
-        .getAnimations()
-        .filter(a => (a.effect?.getComputedTiming().iterations ?? 1) !== Infinity)
-        .every(a => a.playState === "finished" || a.playState === "idle"),
-    undefined,
-    { timeout: 10_000 },
-  );
+  for (const [, step] of SETTLE) await step(page, selector);
 }
 
 /** What `generate_figma_design` hands out per frame, verbatim. */
@@ -67,7 +79,42 @@ export interface FigmaSuiteOptions {
 }
 
 const LIMIT = 300; // pages a crawl may find before the run fails, naming them: a shape `shapeOf` does not fold
-const CONCURRENCY = 4; // pages captured at once
+const TABS = 16; // contexts open at once, visits and captures together
+const LOAD = 60_000; // a visit: goto, its sections attached, settled; a ceiling against hangs, not a speed target
+const CAPTURE = 120_000; // capture.js, the id, and the upload of up to 50 MB
+
+/** A step racer against one end time `ms` from now: a step's failure or the end is `<label>: <why>`. */
+function deadline(ms: number): <T>(label: string, step: Promise<T>) => Promise<T> {
+  const end = Date.now() + ms;
+  return async (label, step) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const late = new Promise<never>((_, fail) => (timer = setTimeout(() => fail(new Error(`past the ${ms / 1000}s budget`)), end - Date.now())));
+    try {
+      return await Promise.race([step, late]);
+    } catch (e) {
+      throw new Error(`${label}: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+}
+
+/** At most `n` tasks at once; a freed slot goes to a waiting visit before a waiting capture (visits discover work). */
+function slots(n: number): <T>(kind: "visit" | "capture", task: () => Promise<T>) => Promise<T> {
+  let free = n;
+  const waiting = { visit: [] as (() => void)[], capture: [] as (() => void)[] };
+  return async (kind, task) => {
+    if (free > 0) free--;
+    else await new Promise<void>(go => waiting[kind].push(go));
+    try {
+      return await task();
+    } finally {
+      const next = waiting.visit.shift() ?? waiting.capture.shift();
+      if (next === undefined) free++;
+      else next();
+    }
+  };
+}
 
 /** A page: the URL without its `#` (with its origin when it names another host). */
 export function pageOf(url: string, base: string): string {
@@ -86,9 +133,9 @@ export function shapeOf(page: string): string {
 /** The keys of a project's `use` that are a browser context's. */
 const CONTEXT_KEYS = ["baseURL", "viewport", "deviceScaleFactor", "isMobile", "hasTouch", "userAgent", "storageState", "locale", "timezoneId", "colorScheme", "extraHTTPHeaders", "httpCredentials", "ignoreHTTPSErrors"] as const;
 
-/** Where the bin issues capture ids: `FIGMA_ISSUER`, a POST of `{ project, page }` answered with a `Capture`. */
-async function issue(issuer: string, project: string, page: string): Promise<Capture> {
-  const res = await fetch(issuer, { method: "POST", body: JSON.stringify({ project, page }) });
+/** Where the bin issues capture ids: `FIGMA_ISSUER`, a POST of `{ project, col, page }` answered with a `Capture`; `col` is the project's index in the config. */
+async function issue(issuer: string, project: string, col: number, page: string): Promise<Capture> {
+  const res = await fetch(issuer, { method: "POST", body: JSON.stringify({ project, col, page }) });
   if (!res.ok) throw new Error(`${issuer}: ${res.status} ${await res.text()}`);
   return (await res.json()) as Capture;
 }
@@ -101,8 +148,8 @@ interface Info {
 
 /**
  * One `@figma` test, run on the config's first project: the sections' pages and every same-origin page linked from
- * them, crawled breadth-first on that project and one frame per shape (`shapeOf`), then each captured at every project.
- * Without `FIGMA_ISSUER` (the bin's) it is skipped.
+ * them, one per shape (`shapeOf`), crawled on that project in `TABS` tabs and captured there in the tab that crawled
+ * them, then loaded and captured at every other project. Without `FIGMA_ISSUER` (the bin's) it is skipped.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the runner's fixture types are the caller's; only `browser` is read
 export function defineFigmaSuite({ test }: { test: TestType<any, any> }, sections: readonly Section[], { hide = [], exclude = [] }: FigmaSuiteOptions = {}): void {
@@ -112,80 +159,119 @@ export function defineFigmaSuite({ test }: { test: TestType<any, any> }, section
       if (issuer === undefined) return test.skip(true, "run by evinvest-figma-render");
       const [first] = info.config.projects;
       if (first === undefined || info.project.name !== first.name) return test.skip(true, "the crawl runs once, on the first project");
-      info.setTimeout(0); // as long as the site is large; LIMIT bounds it
+      info.setTimeout(0); // every visit and capture is bounded, and LIMIT bounds their count
 
       // a context per visit: a page is what its URL alone shows, never what the one before it left in storage
-      const contexts = info.config.projects.map(p => ({
-        project: p.name,
+      const projects = info.config.projects.map((p, col) => ({
+        name: p.name,
+        col,
         options: {
           ...(Object.fromEntries(CONTEXT_KEYS.filter(k => k in p.use).map(k => [k, p.use[k]])) as BrowserContextOptions),
           bypassCSP: true, // capture.js and its POST to Figma
           reducedMotion: "reduce",
         } satisfies BrowserContextOptions,
       }));
+      type Project = (typeof projects)[number];
       const base = first.use["baseURL"];
       if (typeof base !== "string") throw new Error(`project ${first.name}: no baseURL to crawl from`);
+      const origin = new URL(base).origin;
 
       const selectors = new Map<string, string[]>();
       for (const s of sections) {
         const page = pageOf(s.url, base);
         selectors.set(page, [...(selectors.get(page) ?? []), s.selector]);
       }
-      const open = async (options: BrowserContextOptions, page: string) => {
-        const tab = await (await browser.newContext(options)).newPage();
-        const res = await tab.goto(page);
-        if (res === null) throw new Error(`${page}: no response`);
-        for (const selector of selectors.get(page) ?? []) await tab.locator(selector).waitFor({ state: "attached" }); // attached: a section the breakpoint hides is still the page's
-        await settle(tab, "body");
-        return { tab, res };
+
+      /** The page in `tab`, its sections attached and settled: how long that took, or null when it is not HTML (a link to a file or an API). */
+      const load = async (tab: Page, page: string): Promise<string | null> => {
+        const started = Date.now();
+        const within = deadline(LOAD);
+        const res = await within("goto", tab.goto(page));
+        if (res === null) throw new Error("goto: no response");
+        if (res.status() >= 500) throw new Error(`goto: ${res.status()}`); // the server's answer; waiting on selectors would only burn the budget
+        if (!(res.headers()["content-type"] ?? "").startsWith("text/html")) return null;
+        for (const selector of selectors.get(page) ?? []) await within(`selector ${selector} attached`, tab.locator(selector).waitFor({ state: "attached" })); // attached: a section the breakpoint hides is still the page's
+        for (const [label, step] of SETTLE) await within(label, step(tab, "body"));
+        return `load ${((Date.now() - started) / 1000).toFixed(1)}s`;
       };
 
-      const crawler = contexts[0]!.options;
-      const shapes = new Set<string>();
-      const queue = [...selectors.keys()];
-      for (const page of queue) shapes.add(shapeOf(page));
-      const pages: string[] = [];
-      while (queue.length > 0) {
-        const page = queue.shift() as string;
-        const { tab, res } = await open(crawler, page);
-        const html = (res.headers()["content-type"] ?? "").startsWith("text/html"); // else a link to a file or an API
-        const links = html ? await tab.locator("a[href]").evaluateAll(as => as.map(a => (a as HTMLAnchorElement).href)) : [];
-        await tab.context().close();
-        if (html) pages.push(page);
-        for (const link of links) {
-          const u = new URL(link);
-          if (u.origin !== new URL(base).origin) continue;
-          const found = pageOf(link, base);
-          const shape = shapeOf(found);
-          if (shapes.has(shape) || exclude.some(r => r.test(found))) continue;
-          shapes.add(shape);
-          queue.push(found);
-        }
-        if (pages.length + queue.length > LIMIT) throw new Error(`more than ${LIMIT} pages: ${[...pages, ...queue].join(", ")}`);
-      }
-
-      const jobs = pages.flatMap(page => contexts.map(c => ({ ...c, page })));
-      const capture = async ({ project, options, page }: (typeof jobs)[number]) => {
-        const { tab } = await open(options, page);
-        if (hide.length > 0) await tab.addStyleTag({ content: `${hide.join(", ")} { display: none !important; }` });
-        await tab.addScriptTag({ url: CAPTURE_JS });
-        const c = await issue(issuer, project, page);
-        const submitted = tab.waitForResponse(r => r.url() === c.endpoint && r.request().method() === "POST", { timeout: 120_000 }); // a capture uploads up to 50 MB
-        // Its promise never settles; the submit's response is the end.
-        await tab.evaluate(c => {
-          void (window as unknown as { figma: { captureForDesign(o: Capture & { selector: string }): Promise<unknown> } }).figma.captureForDesign({ ...c, selector: "body" });
-        }, c);
-        const response = await submitted;
-        if (!response.ok()) throw new Error(`${project} ${page}: Figma refused the capture: ${response.status()} ${await response.text()}`);
-        await tab.context().close();
+      const capture = async (tab: Page, project: Project, page: string): Promise<void> => {
+        const within = deadline(CAPTURE);
+        if (hide.length > 0) await within("hide", tab.addStyleTag({ content: `${hide.join(", ")} { display: none !important; }` }));
+        await within("capture.js", tab.addScriptTag({ url: CAPTURE_JS }));
+        const c = await within("issue", issue(issuer, project.name, project.col, page));
+        const [response] = await Promise.all([
+          within("upload", tab.waitForResponse(r => r.url() === c.endpoint && r.request().method() === "POST", { timeout: 0 })),
+          // Its promise never settles; the submit's response is the end.
+          within(
+            "submit",
+            tab.evaluate(c => {
+              void (window as unknown as { figma: { captureForDesign(o: Capture & { selector: string }): Promise<unknown> } }).figma.captureForDesign({ ...c, selector: "body" });
+            }, c),
+          ),
+        ]);
+        if (!response.ok()) throw new Error(`Figma refused the capture: ${response.status()} ${await response.text()}`);
       };
+
+      const pool = slots(TABS);
+      const tasks: Promise<void>[] = [];
       const failures: string[] = [];
-      await Promise.all(
-        Array.from({ length: CONCURRENCY }, async () => {
-          for (let job = jobs.shift(); job !== undefined; job = jobs.shift())
-            await capture(job).catch((e: unknown) => void failures.push(`${job!.project} ${job!.page}: ${e instanceof Error ? e.message : String(e)}`));
-        }),
-      );
+      let overflow: Error | undefined;
+      /** `body` in a fresh tab of `project`, one log line for it; its failure is the frame's, `overflow` the run's. */
+      const run = (kind: "visit" | "capture", project: Project, page: string, body: (tab: Page) => Promise<string>) =>
+        void tasks.push(
+          pool(kind, async () => {
+            const started = Date.now();
+            const secs = () => `${((Date.now() - started) / 1000).toFixed(1)}s`;
+            const context = await browser.newContext(project.options);
+            try {
+              const note = await body(await context.newPage());
+              console.log(`✓ ${project.name} ${page} ${secs()} (${note})`);
+            } catch (e) {
+              if (e === overflow) throw e;
+              const why = e instanceof Error ? e.message : String(e);
+              console.log(`✘ ${project.name} ${page} ${secs()}: ${why.split("\n")[0]}`);
+              failures.push(`${project.name} ${page}: ${why}`);
+            } finally {
+              await context.close();
+            }
+          }),
+        );
+
+      const crawler = projects[0]!;
+      const shapes = new Set<string>();
+      const found: string[] = [];
+      const visit = (page: string) =>
+        run("visit", crawler, page, async tab => {
+          const note = await load(tab, page);
+          if (note === null) return "not html";
+          const links = await deadline(LOAD)("links", tab.locator("a[href]").evaluateAll(as => as.map(a => (a as HTMLAnchorElement).href)));
+          for (const link of links) {
+            if (new URL(link).origin !== origin) continue;
+            const next = pageOf(link, base);
+            const shape = shapeOf(next);
+            if (shapes.has(shape) || exclude.some(r => r.test(next))) continue;
+            shapes.add(shape);
+            found.push(next);
+            if (found.length > LIMIT) throw (overflow ??= new Error(`more than ${LIMIT} pages: ${found.join(", ")}`));
+            visit(next);
+          }
+          for (const project of projects.slice(1))
+            run("capture", project, page, async tab => {
+              const note = await load(tab, page);
+              if (note === null) throw new Error(`not html at ${project.name}, html at ${crawler.name}`);
+              await capture(tab, project, page);
+              return note;
+            });
+          await capture(tab, crawler, page);
+          return note;
+        });
+      for (const page of selectors.keys()) {
+        shapes.add(shapeOf(page));
+        found.push(page);
+      }
+      for (const page of [...found]) visit(page);
+      for (let i = 0; i < tasks.length; i++) await tasks[i]; // tasks grows while awaited
       if (failures.length > 0) throw new Error(`not captured:\n${failures.join("\n")}`);
     });
   });

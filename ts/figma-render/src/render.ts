@@ -6,15 +6,17 @@ import { setTimeout as sleep } from "node:timers/promises";
 import type { Capture } from "./index";
 import { connect } from "./mcp";
 
-/** A frame: a page at a project (a breakpoint), named `<project> <page>` in Figma. */
+/** A frame: a page at a project (a breakpoint), named `<project> <page>` in Figma; `col` is the project's index in the config. */
 interface Frame {
   project: string;
+  col: number;
   page: string;
 }
 const frameKey = (f: Frame) => `${f.project} ${f.page}`;
 
 const GAP = 200;
 const POLLS = 10;
+const CONCURRENCY = 16; // polls at once
 
 /** The `captureForDesign({ captureId, endpoint })` an issuing `generate_figma_design` answers. */
 export function issued(text: string): Capture {
@@ -151,13 +153,15 @@ export async function render(target: Target, run: (issuer: string) => Promise<nu
     req.on("data", (chunk: Buffer) => (body += chunk.toString()));
     req.on("end", () => {
       void (async () => {
-        const f = JSON.parse(body) as Frame;
-        if (typeof f.project !== "string" || typeof f.page !== "string") throw new Error(`FIGMA_ISSUER: want { project, page }, got ${body}`);
-        if (captures.has(frameKey(f))) throw new Error(`FIGMA_ISSUER: ${frameKey(f)} asked twice`);
-        const c = issued(await call("generate_figma_design", { fileKey: file, promptId }));
+        const { project, col, page } = JSON.parse(body) as Frame;
+        if (typeof project !== "string" || typeof col !== "number" || typeof page !== "string") throw new Error(`FIGMA_ISSUER: want { project, col, page }, got ${body}`);
+        const f = { project, col, page };
+        if (frames.some(g => frameKey(g) === frameKey(f))) throw new Error(`FIGMA_ISSUER: ${frameKey(f)} asked twice`);
+        const other = frames.find(g => g.project === project && g.col !== col);
+        if (other !== undefined) throw new Error(`FIGMA_ISSUER: ${project} at col ${col}, before at ${other.col}`);
         frames.push(f);
-        captures.set(frameKey(f), c);
-        res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(c));
+        captures.set(frameKey(f), issued(await call("generate_figma_design", { fileKey: file, promptId })));
+        res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(captures.get(frameKey(f))));
       })().catch((e: unknown) => res.writeHead(500).end(e instanceof Error ? e.message : String(e)));
     });
   });
@@ -172,25 +176,32 @@ export async function render(target: Target, run: (issuer: string) => Promise<nu
   const pending = new Map<string, string>();
   for (let round = 0; round < POLLS && nodes.size < captures.size; round++) {
     if (round > 0) await sleep(5_000);
-    for (const [key, { captureId }] of captures) {
-      if (nodes.has(key)) continue;
-      const text = await call("generate_figma_design", { fileKey: file, captureId });
-      const node = polled(text);
-      if (node === null) {
-        pending.set(key, text.split("\n")[0] as string);
-      } else {
-        nodes.set(key, node);
-        pending.delete(key);
-      }
-    }
+    const started = Date.now();
+    const todo = [...captures].filter(([key]) => !nodes.has(key));
+    await Promise.all(
+      Array.from({ length: CONCURRENCY }, async () => {
+        for (let next = todo.shift(); next !== undefined; next = todo.shift()) {
+          const [key, { captureId }] = next;
+          const text = await call("generate_figma_design", { fileKey: file, captureId });
+          const node = polled(text);
+          if (node === null) {
+            pending.set(key, text.split("\n")[0] as string);
+          } else {
+            nodes.set(key, node);
+            pending.delete(key);
+          }
+        }
+      }),
+    );
+    console.error(`poll ${round + 1}: ${nodes.size} framed, ${pending.size} pending ${((Date.now() - started) / 1000).toFixed(1)}s`);
   }
 
   if (nodes.size > 0) {
-    const pages = [...new Set(frames.map(f => f.page))];
-    const projects = [...new Set(frames.map(f => f.project))];
+    const pages = [...new Set(frames.map(f => f.page))].sort();
+    const cols = [...new Set(frames.map(f => f.col))].sort((a, b) => a - b);
     const placed: Placed[] = frames.flatMap(f => {
       const id = nodes.get(frameKey(f));
-      return id === undefined ? [] : [{ id, name: frameKey(f), row: pages.indexOf(f.page), col: projects.indexOf(f.project) }];
+      return id === undefined ? [] : [{ id, name: frameKey(f), row: pages.indexOf(f.page), col: cols.indexOf(f.col) }];
     });
     const text = await call("use_figma", {
       fileKey: file,
