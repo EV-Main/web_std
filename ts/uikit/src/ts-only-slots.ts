@@ -24,6 +24,7 @@ export const TS_ONLY_SLOTS = [
   "floating-panel-title",
   "hotbar",
   "hotbar-action",
+  "hotbar-close",
   "hotbar-customize",
   "hotbar-panel",
   "hotbar-preview",

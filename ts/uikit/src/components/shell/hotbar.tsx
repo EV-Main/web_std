@@ -4,6 +4,7 @@ import * as React from "react";
 import { cn } from "../../lib/cn";
 import { toneClasses } from "../../generated/tone";
 import { iconShapes } from "../../icons/icon-shapes";
+import { UiIcon } from "../../icons/ui-icons";
 import { Button } from "../atomic/button";
 import { Checkbox } from "../atomic/checkbox";
 import { Kbd } from "../atomic/kbd";
@@ -25,6 +26,8 @@ interface HotbarActionBase {
   pinned?: boolean;
   /** A compact state line on hover, while its panel is closed. */
   preview?: React.ReactNode;
+  /** Takes it out of the bar: an × on hover, or a middle click. An entry the app adds while something is open. */
+  onClose?: () => void;
 }
 
 /** Either runs on a press, or opens its `panel` above the bar, whose footer pops it out into a `FloatingPanel` or unpins it. A panel sets its own width. */
@@ -156,7 +159,7 @@ export function Hotbar({ actions, status, takeover, labels = {}, className, ...p
                 key={action.id}
                 action={action}
                 keys={keys(action)}
-                labels={{ hide: labels.hide ?? "Hide from hotbar", popOut: labels.popOut ?? "Pop out" }}
+                labels={{ hide: labels.hide ?? "Hide from hotbar", popOut: labels.popOut ?? "Pop out", close: labels.close ?? "Close" }}
                 popped={popped.has(action.id)}
                 onPopOut={at => setPopped(p => new Map(p).set(action.id, at))}
                 onPopIn={() => popIn(action.id)}
@@ -234,7 +237,7 @@ function HotbarItem({
 }: {
   action: HotbarAction;
   keys: string | undefined;
-  labels: { hide: string; popOut: string };
+  labels: { hide: string; popOut: string; close: string };
   popped: boolean;
   onPopOut: (at: { x: number; y: number }) => void;
   onPopIn: () => void;
@@ -249,17 +252,40 @@ function HotbarItem({
       {keys && <Kbd className="hidden @5xl:inline-flex">{keys}</Kbd>}
     </>
   );
+  const close = action.onClose;
+  const plain = (
+    <button
+      type="button"
+      data-slot="hotbar-action"
+      aria-pressed={popped || action.pressed}
+      onClick={action.panel === undefined ? action.onSelect : onPopIn}
+      // a middle click closes, without the browser's autoscroll
+      onMouseDown={close && (e => e.button === 1 && e.preventDefault())}
+      onAuxClick={close && (e => e.button === 1 && close())}
+      className={cn(ITEM, (popped || action.pressed) && PRESSED, close && "pr-6 @5xl:pr-6")}
+    >
+      {face}
+    </button>
+  );
   const button =
     action.panel === undefined || popped ? (
-      <button
-        type="button"
-        data-slot="hotbar-action"
-        aria-pressed={popped || action.pressed}
-        onClick={action.panel === undefined ? action.onSelect : onPopIn}
-        className={cn(ITEM, (popped || action.pressed) && PRESSED)}
-      >
-        {face}
-      </button>
+      close === undefined ? (
+        plain
+      ) : (
+        <span className="group/hotbar-item relative inline-flex shrink-0">
+          {plain}
+          <button
+            type="button"
+            data-slot="hotbar-close"
+            aria-label={`${labels.close} ${action.label}`}
+            title={labels.close}
+            onClick={close}
+            className="absolute top-1/2 right-1 flex size-4 -translate-y-1/2 items-center justify-center rounded-sm text-ink-soft opacity-0 outline-none group-hover/hotbar-item:opacity-100 hover:bg-hover hover:text-ink focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <UiIcon name="x" className="size-3" />
+          </button>
+        </span>
+      )
     ) : (
       <PopoverTrigger type="button" data-slot="hotbar-action" aria-pressed={action.pressed} className={cn(ITEM, action.pressed && PRESSED)}>
         {face}
