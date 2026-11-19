@@ -15,7 +15,7 @@ interface Frame {
 const frameKey = (f: Frame) => `${f.project} ${f.page}`;
 
 const GAP = 200;
-const POLLS = 24; // 2 min: the last uploads of a run are still processing a minute after it
+const POLLS = 6; // every answered upload was framed by the first
 const CONCURRENCY = 16; // polls at once
 
 /** The `captureForDesign({ captureId, endpoint })` an issuing `generate_figma_design` answers. */

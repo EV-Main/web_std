@@ -79,9 +79,9 @@ export interface FigmaSuiteOptions {
 }
 
 const LIMIT = 300; // pages a crawl may find before the run fails, naming them: a shape `shapeOf` does not fold
-const TABS = 16; // contexts open at once, visits and captures together
+const TABS = 6; // contexts open at once, visits and captures together: Figma leaves heavier uploads unanswered with 16
 const LOAD = 30_000; // a visit: goto, its sections attached, settled; a ceiling against hangs, not a speed target
-const CAPTURE = 240_000; // capture.js, the id, and the upload: Figma answers it only once processed, minutes into a busy run
+const CAPTURE = 60_000; // capture.js, the id, and Figma's answer to the upload: twice the slowest seen at 6 tabs
 
 /** A step racer against one end time `ms` from now: a step's failure or the end is `<label>: <why>`. */
 function deadline(ms: number): <T>(label: string, step: Promise<T>) => Promise<T> {
