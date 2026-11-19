@@ -30,9 +30,15 @@ interface HotbarActionBase {
   onClose?: () => void;
 }
 
-/** Either runs on a press, or opens its `panel` above the bar, whose footer pops it out into a `FloatingPanel` or unpins it. A panel sets its own width. */
+/**
+ * Either runs on a press, or opens its `panel` above the bar, whose footer pops it out into a `FloatingPanel` or unpins it. A panel sets its own width.
+ * `open` hands the panel's state to the app: its binding opens it, picking from it closes it.
+ */
 export type HotbarAction = HotbarActionBase &
-  ({ onSelect: () => void; panel?: never } | { panel: React.ReactNode; onSelect?: never });
+  (
+    | { onSelect: () => void; panel?: never; open?: never; onOpenChange?: never }
+    | { panel: React.ReactNode; onSelect?: never; open?: boolean; onOpenChange?: (open: boolean) => void }
+  );
 
 export interface HotbarLabels {
   /** Accessible name of the strip. Default `"Hotbar"`. */
@@ -243,7 +249,12 @@ function HotbarItem({
   onPopIn: () => void;
   onHide: () => void;
 }) {
-  const [open, setOpen] = React.useState(false);
+  const [own, setOwn] = React.useState(false);
+  const open = action.open ?? own;
+  const setOpen = (o: boolean) => {
+    setOwn(o);
+    action.onOpenChange?.(o);
+  };
   const [hovered, setHovered] = React.useState(false);
   const face = (
     <>

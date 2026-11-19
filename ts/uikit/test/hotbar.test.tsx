@@ -88,4 +88,26 @@ describe("Hotbar", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: /Map/ }));
     expect(shown()).toEqual(["Map", "Base"]);
   });
+
+  it("opens a panel its app holds open from the panel's binding, and closes it on a pick", () => {
+    function App() {
+      const [open, setOpen] = React.useState(false);
+      useBinding({ on: { key: "k" }, id: "kits", run: { label: "Kits", run: () => setOpen(true) } });
+      const panel = (
+        <button type="button" onClick={() => setOpen(false)}>
+          Kit A
+        </button>
+      );
+      return <Hotbar actions={[{ id: "kits", label: "Kits", icon: Glyph, binding: "kits", panel, open, onOpenChange: setOpen }]} />;
+    }
+    render(
+      <KeymapProvider leader={{ key: "s", alt: true }}>
+        <App />
+      </KeymapProvider>,
+    );
+    fireEvent.keyDown(window, { key: "s", altKey: true });
+    fireEvent.keyDown(window, { key: "k" });
+    fireEvent.click(screen.getByRole("button", { name: "Kit A" }));
+    expect(screen.queryByRole("button", { name: "Kit A" })).toBeNull();
+  });
 });
