@@ -114,16 +114,15 @@ export function defineFigmaSuite({ test }: { test: TestType<any, any> }, section
       if (first === undefined || info.project.name !== first.name) return test.skip(true, "the crawl runs once, on the first project");
       info.setTimeout(0); // as long as the site is large; LIMIT bounds it
 
-      const contexts = await Promise.all(
-        info.config.projects.map(async p => ({
-          project: p.name,
-          context: await browser.newContext({
-            ...(Object.fromEntries(CONTEXT_KEYS.filter(k => k in p.use).map(k => [k, p.use[k]])) as BrowserContextOptions),
-            bypassCSP: true, // capture.js and its POST to Figma
-            reducedMotion: "reduce",
-          }),
-        })),
-      );
+      // a context per visit: a page is what its URL alone shows, never what the one before it left in storage
+      const contexts = info.config.projects.map(p => ({
+        project: p.name,
+        options: {
+          ...(Object.fromEntries(CONTEXT_KEYS.filter(k => k in p.use).map(k => [k, p.use[k]])) as BrowserContextOptions),
+          bypassCSP: true, // capture.js and its POST to Figma
+          reducedMotion: "reduce",
+        } satisfies BrowserContextOptions,
+      }));
       const base = first.use["baseURL"];
       if (typeof base !== "string") throw new Error(`project ${first.name}: no baseURL to crawl from`);
 
@@ -132,26 +131,27 @@ export function defineFigmaSuite({ test }: { test: TestType<any, any> }, section
         const page = pageOf(s.url, base);
         selectors.set(page, [...(selectors.get(page) ?? []), s.selector]);
       }
-      const open = async (tab: Page, page: string) => {
+      const open = async (options: BrowserContextOptions, page: string) => {
+        const tab = await (await browser.newContext(options)).newPage();
         const res = await tab.goto(page);
         if (res === null) throw new Error(`${page}: no response`);
         for (const selector of selectors.get(page) ?? []) await tab.locator(selector).waitFor({ state: "attached" }); // attached: a section the breakpoint hides is still the page's
         await settle(tab, "body");
-        return res;
+        return { tab, res };
       };
 
-      const crawler = contexts[0]!.context;
-      const tab = await crawler.newPage();
+      const crawler = contexts[0]!.options;
       const shapes = new Set<string>();
       const queue = [...selectors.keys()];
       for (const page of queue) shapes.add(shapeOf(page));
       const pages: string[] = [];
       while (queue.length > 0) {
         const page = queue.shift() as string;
-        const res = await open(tab, page);
-        if (!(res.headers()["content-type"] ?? "").startsWith("text/html")) continue; // a link to a file or an API
-        pages.push(page);
-        const links = await tab.locator("a[href]").evaluateAll(as => as.map(a => (a as HTMLAnchorElement).href));
+        const { tab, res } = await open(crawler, page);
+        const html = (res.headers()["content-type"] ?? "").startsWith("text/html"); // else a link to a file or an API
+        const links = html ? await tab.locator("a[href]").evaluateAll(as => as.map(a => (a as HTMLAnchorElement).href)) : [];
+        await tab.context().close();
+        if (html) pages.push(page);
         for (const link of links) {
           const u = new URL(link);
           if (u.origin !== new URL(base).origin) continue;
@@ -163,12 +163,10 @@ export function defineFigmaSuite({ test }: { test: TestType<any, any> }, section
         }
         if (pages.length + queue.length > LIMIT) throw new Error(`more than ${LIMIT} pages: ${[...pages, ...queue].join(", ")}`);
       }
-      await tab.close();
 
       const jobs = pages.flatMap(page => contexts.map(c => ({ ...c, page })));
-      const capture = async ({ project, context, page }: (typeof jobs)[number]) => {
-        const tab = await context.newPage();
-        await open(tab, page);
+      const capture = async ({ project, options, page }: (typeof jobs)[number]) => {
+        const { tab } = await open(options, page);
         if (hide.length > 0) await tab.addStyleTag({ content: `${hide.join(", ")} { display: none !important; }` });
         await tab.addScriptTag({ url: CAPTURE_JS });
         const c = await issue(issuer, project, page);
@@ -179,7 +177,7 @@ export function defineFigmaSuite({ test }: { test: TestType<any, any> }, section
         }, c);
         const response = await submitted;
         if (!response.ok()) throw new Error(`${project} ${page}: Figma refused the capture: ${response.status()} ${await response.text()}`);
-        await tab.close();
+        await tab.context().close();
       };
       const failures: string[] = [];
       await Promise.all(
@@ -188,7 +186,6 @@ export function defineFigmaSuite({ test }: { test: TestType<any, any> }, section
             await capture(job).catch((e: unknown) => void failures.push(`${job!.project} ${job!.page}: ${e instanceof Error ? e.message : String(e)}`));
         }),
       );
-      for (const c of contexts) await c.context.close();
       if (failures.length > 0) throw new Error(`not captured:\n${failures.join("\n")}`);
     });
   });
