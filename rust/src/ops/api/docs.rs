@@ -13,7 +13,7 @@ pub fn write() {
 	let manifest = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").expect("cargo sets it for build scripts"));
 	let krate = std::env::var("CARGO_PKG_NAME").expect("cargo sets it for build scripts").replace('-', "_");
 	let src = manifest.join("src");
-	println!("cargo::rerun-if-changed={}", src.display());
+	println!("cargo::rerun-if-changed=src"); // relative to the package: the same from any checkout of it
 	let mut found = Vec::new();
 	walk(&src, &src, &krate, &mut found);
 	found.sort();
