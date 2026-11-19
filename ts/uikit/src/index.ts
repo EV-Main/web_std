@@ -49,6 +49,8 @@ export {
 export type { BreadcrumbLinkProps } from "./components/atomic/breadcrumb";
 
 export { Button, buttonVariants } from "./components/atomic/button";
+export { Planned } from "./components/atomic/planned";
+export type { PlannedProps } from "./components/atomic/planned";
 export type {
   Accent,
   ButtonProps,

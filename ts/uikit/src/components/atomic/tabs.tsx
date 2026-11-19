@@ -6,6 +6,7 @@ import { useControllableState } from "../../primitives/use-controllable-state";
 import { useRovingFocus } from "../../primitives/use-roving-focus";
 import { TABS_ROOT, TABS_LIST, TABS_TRIGGER, TABS_CONTENT } from "../../generated/tabs";
 import type { Orientation } from "../../generated/orientation";
+import { PLANNED, PLANNED_FACE, PLANNED_TAG } from "./button";
 
 
 interface TabsContextValue {
@@ -106,6 +107,10 @@ export interface TabsTriggerProps
   extends React.ComponentProps<"button">,
     TabsTriggerInternal {
   value: string;
+  /** Disables it, saying why on hover. */
+  disabledReason?: string;
+  /** Disables it as not built yet, saying what it will hold. */
+  planned?: string;
 }
 
 export function TabsTrigger({
@@ -115,11 +120,16 @@ export function TabsTrigger({
   onFocus,
   __isFocusItem,
   __onFocusItem,
+  disabledReason,
+  planned,
+  children,
+  disabled,
   ...props
 }: TabsTriggerProps) {
   const { value: active, setValue } = useTabs();
   const selected = active === value;
-  return (
+  const reason = planned ?? disabledReason;
+  const trigger = (
     <button
       type="button"
       role="tab"
@@ -127,7 +137,8 @@ export function TabsTrigger({
       data-state={selected ? "active" : "inactive"}
       aria-selected={selected}
       tabIndex={__isFocusItem ? 0 : -1}
-      className={cn(TABS_TRIGGER, className)}
+      className={cn(TABS_TRIGGER, planned !== undefined && PLANNED_FACE, className)}
+      disabled={disabled === true || reason !== undefined}
       onClick={(e) => {
         onClick?.(e);
         __onFocusItem?.();
@@ -138,7 +149,16 @@ export function TabsTrigger({
         __onFocusItem?.();
       }}
       {...props}
-    />
+    >
+      {children}
+      {planned !== undefined && <span className={PLANNED_TAG}>{PLANNED}</span>}
+    </button>
+  );
+  if (reason === undefined) return trigger;
+  return (
+    <span data-slot="disabled-reason" title={reason} className="inline-flex flex-1">
+      {trigger}
+    </span>
   );
 }
 
