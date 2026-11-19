@@ -12,16 +12,16 @@ import { defineFigmaSuite } from "@evinvest/figma-render";
 defineFigmaSuite({ test }, [
   { name: "home", url: "/", selector: "main" },
   { name: "assistant", url: "/?assistant=sidebar", selector: "[aria-label=Assistant]" },
-  { name: "usage", url: "/usage/#chart", selector: "#chart" },
-], { hide: ["nextjs-portal"] });
+], { hide: ["nextjs-portal"], exclude: [/^\/auth\//] });
 ```
 
-A section is a state worth seeing, reached by its own URL: a state that only a click reaches has no frame. A
-frame is a page: the URL without its `#`, so the sections of one page share its frame and a query is a page of its
-own. It is captured once every one of its sections' `selector` is in the DOM.
+The sections are where a crawl starts: a state worth seeing, reached by its own URL, its page captured once every
+one of its sections' `selector` is in the DOM. From them the crawl follows every same-origin `<a href>`, breadth
+first, on the config's first project, skipping `exclude` and what is not `text/html`. A page is the URL without
+its `#`; pages that differ only in their numbers (ids, coordinates, dates) are one frame (`shapeOf`). A state no link
+reaches needs a section of its own. Every page found is then captured at every project.
 
 ```sh
-evinvest-figma-render frames -c tests/e2e --file <fileKey>   # {"file", "frames": ["<project> <page>", …]}
 evinvest-figma-render -c tests/e2e --file <fileKey>          # stdout: the new page's link
 evinvest-figma-render -c tests/e2e --folder <folder URL> --name <file name>   # the same, as all of that file
 ```
@@ -30,8 +30,8 @@ evinvest-figma-render -c tests/e2e --folder <folder URL> --name <file name>   # 
 leaves it holding only the new page: CI points every repo at one folder (v_flakes `github.figma`). MCP cannot list a
 folder, so this needs `FIGMA_TOKEN`, a personal access token with `folders:read`.
 
-Without `frames` the bin is a client of Figma's MCP server and runs the whole render: a capture id per
-frame (`generate_figma_design`), the suite with them, a poll per id for its frame, then one `use_figma` that
+The bin is a client of Figma's MCP server and runs the whole render: the suite, given `FIGMA_ISSUER`, a local
+endpoint that issues a capture id (`generate_figma_design`) for each frame the crawl asks one for; then a poll per id for its frame, then one `use_figma` that
 puts the frames on a page named `<short sha> <YYYY-MM-DD>[ dirty]`, names each `<project> <page>` and lays
 them out a row per page, a column per project. That `use_figma` is the run's only call Figma counts toward
 its rate limit. A frame still pending after the polls is a failed test: it is named, and the exit is 1.

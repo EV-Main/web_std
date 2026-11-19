@@ -1,14 +1,23 @@
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { setTimeout as sleep } from "node:timers/promises";
-import { type Frame, frameKey } from "./frames";
+import type { Capture } from "./index";
 import { connect } from "./mcp";
+
+/** A frame: a page at a project (a breakpoint), named `<project> <page>` in Figma. */
+interface Frame {
+  project: string;
+  page: string;
+}
+const frameKey = (f: Frame) => `${f.project} ${f.page}`;
 
 const GAP = 200;
 const POLLS = 10;
 
 /** The `captureForDesign({ captureId, endpoint })` an issuing `generate_figma_design` answers. */
-export function issued(text: string): { captureId: string; endpoint: string } {
+export function issued(text: string): Capture {
   const m = /captureForDesign\(\{ captureId: '([^']+)', endpoint: '([^']+)'/.exec(text);
   if (m?.[1] === undefined || m[2] === undefined) throw new Error(`generate_figma_design: no captureForDesign({ captureId, endpoint }) in\n${text}`);
   return { captureId: m[1], endpoint: m[2] };
@@ -126,19 +135,38 @@ async function fileIn(call: (tool: string, args: Record<string, unknown>) => Pro
 }
 
 /**
- * Captures `frames` into the `target` Figma file through `run` (the suite, given `FIGMA_CAPTURES`), lays them out on one
- * page and prints its link. Only `use_figma` counts toward Figma's rate limit. Answers the exit code.
+ * Runs the suite (`run`, given `FIGMA_ISSUER`) with a capture id issued for each frame it asks one for, polls each
+ * for its frame in the `target` Figma file, lays them out on one page and prints its link. Only `use_figma` counts
+ * toward Figma's rate limit. Answers the exit code.
  */
-export async function render(target: Target, frames: Frame[], run: (captures: string) => number): Promise<number> {
-  if (frames.length === 0) throw new Error("no @figma frames to render");
+export async function render(target: Target, run: (issuer: string) => Promise<number>): Promise<number> {
   const name = pageName();
   const call = await connect();
   const file = "file" in target ? target.file : await fileIn(call, target.folder, target.name);
   const promptId = randomUUID();
-  const captures = new Map<string, { captureId: string; endpoint: string }>();
-  for (const f of frames) captures.set(frameKey(f), issued(await call("generate_figma_design", { fileKey: file, promptId })));
-
-  const status = run(JSON.stringify(Object.fromEntries(captures)));
+  const frames: Frame[] = [];
+  const captures = new Map<string, Capture>();
+  const issuer = createServer((req, res) => {
+    let body = "";
+    req.on("data", (chunk: Buffer) => (body += chunk.toString()));
+    req.on("end", () => {
+      void (async () => {
+        const f = JSON.parse(body) as Frame;
+        if (typeof f.project !== "string" || typeof f.page !== "string") throw new Error(`FIGMA_ISSUER: want { project, page }, got ${body}`);
+        if (captures.has(frameKey(f))) throw new Error(`FIGMA_ISSUER: ${frameKey(f)} asked twice`);
+        const c = issued(await call("generate_figma_design", { fileKey: file, promptId }));
+        frames.push(f);
+        captures.set(frameKey(f), c);
+        res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(c));
+      })().catch((e: unknown) => res.writeHead(500).end(e instanceof Error ? e.message : String(e)));
+    });
+  });
+  await new Promise<void>(up => issuer.listen(0, "127.0.0.1", up));
+  const status = await run(`http://127.0.0.1:${(issuer.address() as AddressInfo).port}/`).finally(() => issuer.close());
+  if (frames.length === 0) {
+    if (status !== 0) return status;
+    throw new Error("the suite asked for no frame: is it run on its first project?");
+  }
 
   const nodes = new Map<string, string>();
   const pending = new Map<string, string>();
@@ -173,6 +201,6 @@ export async function render(target: Target, frames: Frame[], run: (captures: st
     if (typeof pageId !== "string" || !/^\d+:\d+$/.test(pageId)) throw new Error(`use_figma: no page id in ${text}`);
     console.log(`https://www.figma.com/design/${file}?node-id=${pageId.replace(":", "-")}`);
   }
-  for (const [key, text] of pending) console.error(`✘ ${key} not captured (its test failed): ${text}`);
+  for (const [key, text] of pending) console.error(`✘ ${key} not captured: ${text}`);
   return pending.size > 0 ? 1 : status;
 }
