@@ -54,13 +54,8 @@ export async function settle(page: Page, selector: string): Promise<void> {
   for (const [, step] of SETTLE) await step(page, selector);
 }
 
-/** What `generate_figma_design` hands out per frame, verbatim. */
-export interface Capture {
-  captureId: string;
-  endpoint: string;
-}
-
 const CAPTURE_JS = "https://mcp.figma.com/mcp/html-to-design/capture.js";
+const SUBMIT = "https://mcp.figma.com/mcp/capture/figma-render/submit"; // routed, never sent: capture.js checks only the domain
 
 /** A state of the site worth seeing, reached by its own URL. */
 export interface Section {
@@ -79,9 +74,8 @@ export interface FigmaSuiteOptions {
 }
 
 const LIMIT = 300; // pages a crawl may find before the run fails, naming them: a shape `shapeOf` does not fold
-const TABS = 6; // contexts open at once, visits and captures together: Figma leaves heavier uploads unanswered with 16
-const LOAD = 30_000; // a visit: goto, its sections attached, settled; a ceiling against hangs, not a speed target
-const CAPTURE = 60_000; // capture.js, the id, and Figma's answer to the upload: twice the slowest seen at 6 tabs
+const TABS = 5; // contexts open at once, visits and captures together: each is the same login, and a site may cap one user's live sockets (site_conductor's at 5: past it a tab renders offline)
+const LOAD = 30_000; // a visit (goto, its sections attached, settled), or a capture (serialized, handed to the bin); a ceiling against hangs, not a speed target
 
 /** A step racer against one end time `ms` from now: a step's failure or the end is `<label>: <why>`. */
 function deadline(ms: number): <T>(label: string, step: Promise<T>) => Promise<T> {
@@ -133,13 +127,6 @@ export function shapeOf(page: string): string {
 /** The keys of a project's `use` that are a browser context's. */
 const CONTEXT_KEYS = ["baseURL", "viewport", "deviceScaleFactor", "isMobile", "hasTouch", "userAgent", "storageState", "locale", "timezoneId", "colorScheme", "extraHTTPHeaders", "httpCredentials", "ignoreHTTPSErrors"] as const;
 
-/** Where the bin issues capture ids: `FIGMA_ISSUER`, a POST of `{ project, col, page }` answered with a `Capture`; `col` is the project's index in the config. */
-async function issue(issuer: string, project: string, col: number, page: string): Promise<Capture> {
-  const res = await fetch(issuer, { method: "POST", body: JSON.stringify({ project, col, page }) });
-  if (!res.ok) throw new Error(`${issuer}: ${res.status} ${await res.text()}`);
-  return (await res.json()) as Capture;
-}
-
 interface Info {
   project: { name: string };
   config: { projects: { name: string; use: Record<string, unknown> }[] };
@@ -167,7 +154,7 @@ export function defineFigmaSuite({ test }: { test: TestType<any, any> }, section
         col,
         options: {
           ...(Object.fromEntries(CONTEXT_KEYS.filter(k => k in p.use).map(k => [k, p.use[k]])) as BrowserContextOptions),
-          bypassCSP: true, // capture.js and its POST to Figma
+          bypassCSP: true, // capture.js and its submit
           reducedMotion: "reduce",
         } satisfies BrowserContextOptions,
       }));
@@ -195,22 +182,30 @@ export function defineFigmaSuite({ test }: { test: TestType<any, any> }, section
         return `load ${((Date.now() - started) / 1000).toFixed(1)}s`;
       };
 
-      const capture = async (tab: Page, project: Project, page: string): Promise<void> => {
-        const within = deadline(CAPTURE);
+      /** The page serialized by capture.js and handed to the bin (`FIGMA_ISSUER`, a POST of `{ project, col, page, payload }`; `col` is the project's index in the config): the bin's word on it. */
+      const capture = async (tab: Page, project: Project, page: string): Promise<string> => {
+        const within = deadline(LOAD);
         if (hide.length > 0) await within("hide", tab.addStyleTag({ content: `${hide.join(", ")} { display: none !important; }` }));
         await within("capture.js", tab.addScriptTag({ url: CAPTURE_JS }));
-        const c = await within("issue", issue(issuer, project.name, project.col, page));
-        const [response] = await Promise.all([
-          within("upload", tab.waitForResponse(r => r.url() === c.endpoint && r.request().method() === "POST", { timeout: 0 })),
-          // Its promise never settles; the submit's response is the end.
-          within(
-            "submit",
-            tab.evaluate(c => {
-              void (window as unknown as { figma: { captureForDesign(o: Capture & { selector: string }): Promise<unknown> } }).figma.captureForDesign({ ...c, selector: "body" });
-            }, c),
-          ),
-        ]);
-        if (!response.ok()) throw new Error(`Figma refused the capture: ${response.status()} ${await response.text()}`);
+        let serialized!: (payload: unknown) => void;
+        const payload = new Promise<unknown>(got => (serialized = got));
+        await within(
+          "route",
+          tab.route(SUBMIT, route => {
+            serialized((route.request().postDataJSON() as { payload: unknown }).payload);
+            return route.fulfill({ json: {} });
+          }),
+        );
+        await within(
+          "submit",
+          tab.evaluate(endpoint => {
+            void (window as unknown as { figma: { captureForDesign(o: { captureId: string; endpoint: string; selector: string }): Promise<unknown> } }).figma.captureForDesign({ captureId: "figma-render", endpoint, selector: "body" });
+          }, SUBMIT),
+        );
+        const body = JSON.stringify({ project: project.name, col: project.col, page, payload: await within("serialize", payload) });
+        const res = await within("issuer", fetch(issuer, { method: "POST", body }));
+        if (!res.ok) throw new Error(`issuer: ${res.status} ${await res.text()}`);
+        return await res.text();
       };
 
       const pool = slots(TABS);
@@ -226,7 +221,7 @@ export function defineFigmaSuite({ test }: { test: TestType<any, any> }, section
             const context = await browser.newContext(project.options);
             try {
               const note = await body(await context.newPage());
-              console.log(`✓ ${project.name} ${page} ${secs()} (${note})`);
+              console.log(`✓ ${project.name} ${page} ${secs()} ${note}`);
             } catch (e) {
               if (e === overflow) throw e;
               const why = e instanceof Error ? e.message : String(e);
@@ -244,7 +239,7 @@ export function defineFigmaSuite({ test }: { test: TestType<any, any> }, section
       const visit = (page: string) =>
         run("visit", crawler, page, async tab => {
           const note = await load(tab, page);
-          if (note === null) return "not html";
+          if (note === null) return "(not html)";
           const links = await deadline(LOAD)("links", tab.locator("a[href]").evaluateAll(as => as.map(a => (a as HTMLAnchorElement).href)));
           for (const link of links) {
             if (new URL(link).origin !== origin) continue;
@@ -260,11 +255,9 @@ export function defineFigmaSuite({ test }: { test: TestType<any, any> }, section
             run("capture", project, page, async tab => {
               const note = await load(tab, page);
               if (note === null) throw new Error(`not html at ${project.name}, html at ${crawler.name}`);
-              await capture(tab, project, page);
-              return note;
+              return `(${note}) ${await capture(tab, project, page)}`;
             });
-          await capture(tab, crawler, page);
-          return note;
+          return `(${note}) ${await capture(tab, crawler, page)}`;
         });
       for (const page of selectors.keys()) {
         shapes.add(shapeOf(page));

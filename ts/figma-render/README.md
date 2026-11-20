@@ -20,9 +20,12 @@ one of its sections' `selector` is in the DOM. From them the crawl follows every
 config's first project, skipping `exclude` and what is not `text/html`. A page is the URL without its `#`; pages
 that differ only in their numbers (ids, coordinates, dates) are one frame (`shapeOf`). A state no link reaches needs
 a section of its own. Each page is captured at the first project in the tab that crawled it, and loaded and captured
-at every other project; at most 16 tabs are open at once, visits first. A visit (goto, sections, settle) has 60 s, a
-capture 120 s; a page past its budget, or answered with a 5xx, is one named failure and the run goes on. Each tab
-logs one line: `✓ desktop /usage 4.3s (load 2.1s)`, `✘ mobile /x 60.0s: goto: past the 60s budget`.
+at every other project; at most 5 tabs are open at once, visits first (each is the same login, and a site may cap one
+user's live sockets: site_conductor's 5). A capture only serializes: capture.js's submit
+is answered in the tab, and its payload goes to the bin. A visit (goto, sections, settle) has 30 s, a capture as much;
+a page past its budget, or answered with a 5xx, is one named failure and the run goes on. Each tab logs one line,
+ending in what the bin did with the payload: `✓ desktop /usage 2.3s (load 2.1s) uploaded`, `… cached`,
+`… ≡ /trash` (the same payload as that page's), `✘ mobile /x 30.0s: goto: past the 30s budget`.
 
 ```sh
 evinvest-figma-render -c tests/e2e --file <fileKey>          # stdout: the new page's link
@@ -33,11 +36,18 @@ evinvest-figma-render -c tests/e2e --folder <folder URL> --name <file name>   # 
 leaves it holding only the new page: CI points every repo at one folder (v_flakes `github.figma`). MCP cannot list a
 folder, so this needs `FIGMA_TOKEN`, a personal access token with `folders:read`.
 
-The bin is a client of Figma's MCP server and runs the whole render: the suite, given `FIGMA_ISSUER`, a local
-endpoint that issues a capture id (`generate_figma_design`) for each frame the crawl asks one for; then a poll per id for its frame, then one `use_figma` that
-puts the frames on a page named `<short sha> <YYYY-MM-DD>[ dirty]`, names each `<project> <page>` and lays
-them out a row per page (sorted), a column per project (in the config's order). That `use_figma` is the run's only call Figma counts toward
-its rate limit. A frame still pending after the polls is a failed test: it is named, and the exit is 1.
+The bin is a client of Figma's MCP server and runs the whole render. The suite posts each payload to `FIGMA_ISSUER`, a
+local endpoint. Figma frames about 0.5 uploads a second per file, however many are in flight, so the bin uploads only
+what the file does not hold: a payload is keyed `<project> <sha256>`, and the file's page `figma-render cache` keeps one
+frame per key. A key cached there, or already taken this run, costs nothing; a new one gets a capture id
+(`generate_figma_design`) and is uploaded from Node, 4 at once, 180 s each, then polled for its frame. Then one
+`use_figma` moves the new frames onto the cache page, removes the cache frames this run did not use, and clones every
+frame onto a page named `<short sha> <YYYY-MM-DD>[ dirty]`, named `<project> <page>`: a group of columns per first path
+segment (on `/`, per first query key: a window the home page opens), sorted, within it a column per project (in the
+config's order) and a row per page (sorted); a cache frame is named and placed as its first clone. That `use_figma` is the run's only call Figma counts toward its rate
+limit. The cache page's ids are kept in `$XDG_STATE_HOME/evinvest-figma-render/cache.json`; a cached frame gone from
+Figma fails the run, naming it, and drops the file's entry, so the next run uploads everything again. A frame not
+uploaded or still pending after the polls is a failed test: it is named, and the exit is 1.
 
 The first run logs in to Figma in the browser (OAuth with PKCE, a callback on `127.0.0.1:47613`); the
 client and its tokens are kept in `$XDG_STATE_HOME/evinvest-figma-render/oauth.json`; under `CI` there is no login,

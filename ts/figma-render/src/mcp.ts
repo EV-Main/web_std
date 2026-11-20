@@ -28,10 +28,8 @@ interface State {
   token?: Token;
 }
 
-const STATE_PATH = join(
-  process.env["XDG_STATE_HOME"]?.startsWith("/") ? process.env["XDG_STATE_HOME"] : join(homedir(), ".local/state"),
-  "evinvest-figma-render/oauth.json",
-);
+export const STATE_DIR = join(process.env["XDG_STATE_HOME"]?.startsWith("/") ? process.env["XDG_STATE_HOME"] : join(homedir(), ".local/state"), "evinvest-figma-render");
+const STATE_PATH = join(STATE_DIR, "oauth.json");
 
 function save(state: State): void {
   mkdirSync(dirname(STATE_PATH), { recursive: true });
