@@ -27,6 +27,11 @@ a page past its budget, or answered with a 5xx, is one named failure and the run
 ending in what the bin did with the payload: `✓ desktop /usage 2.3s (load 2.1s) uploaded`, `… cached`,
 `… ≡ /trash` (the same payload as that page's), `✘ mobile /x 30.0s: goto: past the 30s budget`.
 
+`oneDocument` names pages that are one document: the first is loaded, the rest are reached in its tab by
+`history.pushState` and a `popstate`, as a single-page app's links move, and each is captured at every project by
+resizing the viewport. A document that buys something per load (a billed map) buys it once a run; its pages are visited
+one after another, beside a pool one tab smaller. Its projects may differ only in `viewport`.
+
 ```sh
 evinvest-figma-render -c tests/e2e --file <fileKey>          # stdout: the new page's link
 evinvest-figma-render -c tests/e2e --folder <folder URL> --name <file name>   # the same, as all of that file
@@ -43,8 +48,8 @@ frame per key. A key cached there, or already taken this run, costs nothing; a n
 (`generate_figma_design`) and is uploaded from Node, 4 at once, 180 s each, then polled for its frame. Then one
 `use_figma` moves the new frames onto the cache page, removes the cache frames this run did not use, and clones every
 frame onto a page named `<short sha> <YYYY-MM-DD>[ dirty]`, named `<project> <page>`: a group of columns per first path
-segment (on `/`, per first query key: a window the home page opens), sorted, within it a column per project (in the
-config's order) and a row per page (sorted); a cache frame is named and placed as its first clone.
+segment, sorted, within it a column per project (in the config's order) and a row per page (sorted); a cache frame is
+named and placed as its first clone.
 A page named so whose `arrange` was another (its sha256, kept on the page) is removed. That `use_figma` is the run's only call Figma counts toward its rate
 limit. The cache page's ids are kept in `$XDG_STATE_HOME/evinvest-figma-render/cache.json`; a cached frame gone from
 Figma fails the run, naming it, and drops the file's entry, so the next run uploads everything again. A frame not

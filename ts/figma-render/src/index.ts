@@ -1,4 +1,4 @@
-import type { Browser, BrowserContextOptions, Page, TestType } from "@playwright/test";
+import type { Browser, BrowserContext, BrowserContextOptions, Page, TestType } from "@playwright/test";
 
 /**
  * `@evinvest/figma-render` — a site's pages, as its own Playwright suite reaches them, serialized into Figma
@@ -71,6 +71,12 @@ export interface FigmaSuiteOptions {
   hide?: readonly string[];
   /** Pages never visited, matched against `<path>?<query>`: links that act (sign-out), or lead to another app. */
   exclude?: readonly RegExp[];
+  /**
+   * Pages that are one document, matched as `exclude`: the first loaded, the rest reached by `history.pushState` and a
+   * `popstate` (as a single-page app's own links move), each captured at every project by resizing the viewport, so
+   * what the document buys per load (a billed map) is bought once. The projects may then differ only in `viewport`.
+   */
+  oneDocument?: RegExp;
 }
 
 const LIMIT = 300; // pages a crawl may find before the run fails, naming them: a shape `shapeOf` does not fold
@@ -139,7 +145,7 @@ interface Info {
  * them, then loaded and captured at every other project. Without `FIGMA_ISSUER` (the bin's) it is skipped.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the runner's fixture types are the caller's; only `browser` is read
-export function defineFigmaSuite({ test }: { test: TestType<any, any> }, sections: readonly Section[], { hide = [], exclude = [] }: FigmaSuiteOptions = {}): void {
+export function defineFigmaSuite({ test }: { test: TestType<any, any> }, sections: readonly Section[], { hide = [], exclude = [], oneDocument }: FigmaSuiteOptions = {}): void {
   test.describe(FIGMA_SUITE, () => {
     test("crawl", async ({ browser }: { browser: Browser }, info: Info) => {
       const issuer = process.env["FIGMA_ISSUER"];
@@ -162,6 +168,12 @@ export function defineFigmaSuite({ test }: { test: TestType<any, any> }, section
       const base = first.use["baseURL"];
       if (typeof base !== "string") throw new Error(`project ${first.name}: no baseURL to crawl from`);
       const origin = new URL(base).origin;
+      const beside = (o: BrowserContextOptions) => JSON.stringify({ ...o, viewport: undefined });
+      const viewports = projects.map(p => {
+        if (oneDocument !== undefined && (p.options.viewport == null || beside(p.options) !== beside(projects[0]!.options)))
+          throw new Error(`oneDocument: project ${p.name} must differ from ${projects[0]!.name} only in a viewport, its own`);
+        return p.options.viewport;
+      });
 
       const selectors = new Map<string, string[]>();
       for (const s of sections) {
@@ -177,9 +189,13 @@ export function defineFigmaSuite({ test }: { test: TestType<any, any> }, section
         if (res === null) throw new Error("goto: no response");
         if (res.status() >= 500) throw new Error(`goto: ${res.status()}`); // the server's answer; waiting on selectors would only burn the budget
         if (!(res.headers()["content-type"] ?? "").startsWith("text/html")) return null;
+        await arrive(tab, page, within);
+        return `load ${((Date.now() - started) / 1000).toFixed(1)}s`;
+      };
+      /** The page's sections attached and `tab` settled. */
+      const arrive = async (tab: Page, page: string, within: ReturnType<typeof deadline>) => {
         for (const selector of selectors.get(page) ?? []) await within(`selector ${selector} attached`, tab.locator(selector).waitFor({ state: "attached" })); // attached: a section the breakpoint hides is still the page's
         for (const [label, step] of SETTLE) await within(label, step(tab, "body"));
-        return `load ${((Date.now() - started) / 1000).toFixed(1)}s`;
       };
 
       /** The page serialized by capture.js and handed to the bin (`FIGMA_ISSUER`, a POST of `{ project, col, page, payload }`; `col` is the project's index in the config): the bin's word on it. */
@@ -202,13 +218,15 @@ export function defineFigmaSuite({ test }: { test: TestType<any, any> }, section
             void (window as unknown as { figma: { captureForDesign(o: { captureId: string; endpoint: string; selector: string }): Promise<unknown> } }).figma.captureForDesign({ captureId: "figma-render", endpoint, selector: "body" });
           }, SUBMIT),
         );
-        const body = JSON.stringify({ project: project.name, col: project.col, page, payload: await within("serialize", payload) });
+        const serializedPayload = await within("serialize", payload);
+        await within("unroute", tab.unroute(SUBMIT)); // a tab captured again routes it anew
+        const body = JSON.stringify({ project: project.name, col: project.col, page, payload: serializedPayload });
         const res = await within("issuer", fetch(issuer, { method: "POST", body }));
         if (!res.ok) throw new Error(`issuer: ${res.status} ${await res.text()}`);
         return await res.text();
       };
 
-      const pool = slots(TABS);
+      const pool = slots(oneDocument === undefined ? TABS : TABS - 1); // the one document's tab stays open beside the pool
       const tasks: Promise<void>[] = [];
       const failures: string[] = [];
       let overflow: Error | undefined;
@@ -236,21 +254,72 @@ export function defineFigmaSuite({ test }: { test: TestType<any, any> }, section
       const crawler = projects[0]!;
       const shapes = new Set<string>();
       const found: string[] = [];
-      const visit = (page: string) =>
+      /** Every same-origin page `tab` links to and no visit has found yet, visited. */
+      const follow = async (tab: Page) => {
+        const links = await deadline(LOAD)("links", tab.locator("a[href]").evaluateAll(as => as.map(a => (a as HTMLAnchorElement).href)));
+        for (const link of links) {
+          if (new URL(link).origin !== origin) continue;
+          const next = pageOf(link, base);
+          const shape = shapeOf(next);
+          if (shapes.has(shape) || exclude.some(r => r.test(next))) continue;
+          shapes.add(shape);
+          found.push(next);
+          if (found.length > LIMIT) throw (overflow ??= new Error(`more than ${LIMIT} pages: ${found.join(", ")}`));
+          visit(next);
+        }
+      };
+
+      let lane: Promise<void> = Promise.resolve();
+      let shared: { context: BrowserContext; tab: Page; loaded: boolean } | undefined;
+      /** `page` in the one document, after every page queued before it: loaded or moved to, then captured at each project. */
+      const together = (page: string) => {
+        lane = lane.then(async () => {
+          const started = Date.now();
+          try {
+            if (shared === undefined) {
+              const context = await browser.newContext(crawler.options);
+              shared = { context, tab: await context.newPage(), loaded: false };
+            }
+            const { tab } = shared;
+            const within = deadline(LOAD);
+            await within("viewport", tab.setViewportSize(viewports[0]!));
+            let note: string | null;
+            if (shared.loaded) {
+              await within("pushState", tab.evaluate(to => {
+                history.pushState(null, "", to);
+                dispatchEvent(new PopStateEvent("popstate"));
+              }, page));
+              await arrive(tab, page, within);
+              note = `moved ${((Date.now() - started) / 1000).toFixed(1)}s`;
+            } else note = await load(tab, page);
+            if (note === null) throw new Error("not html, in oneDocument");
+            shared.loaded = true;
+            await follow(tab);
+            const notes: string[] = [];
+            for (const [i, project] of projects.entries()) {
+              if (i > 0) {
+                await within(`viewport ${project.name}`, tab.setViewportSize(viewports[i]!));
+                await arrive(tab, page, within);
+              }
+              notes.push(`${project.name} ${await capture(tab, project, page)}`);
+            }
+            console.log(`✓ ${page} ${((Date.now() - started) / 1000).toFixed(1)}s (${note}) ${notes.join(", ")}`);
+          } catch (e) {
+            if (e === overflow) throw e;
+            const why = e instanceof Error ? e.message : String(e);
+            console.log(`✘ ${page} (one document): ${why.split("\n")[0]}`);
+            failures.push(`${page} (one document): ${why}`);
+          }
+        });
+        tasks.push(lane);
+      };
+
+      const visit = (page: string): void => {
+        if (oneDocument?.test(page)) return together(page);
         run("visit", crawler, page, async tab => {
           const note = await load(tab, page);
           if (note === null) return "(not html)";
-          const links = await deadline(LOAD)("links", tab.locator("a[href]").evaluateAll(as => as.map(a => (a as HTMLAnchorElement).href)));
-          for (const link of links) {
-            if (new URL(link).origin !== origin) continue;
-            const next = pageOf(link, base);
-            const shape = shapeOf(next);
-            if (shapes.has(shape) || exclude.some(r => r.test(next))) continue;
-            shapes.add(shape);
-            found.push(next);
-            if (found.length > LIMIT) throw (overflow ??= new Error(`more than ${LIMIT} pages: ${found.join(", ")}`));
-            visit(next);
-          }
+          await follow(tab);
           for (const project of projects.slice(1))
             run("capture", project, page, async tab => {
               const note = await load(tab, page);
@@ -259,12 +328,17 @@ export function defineFigmaSuite({ test }: { test: TestType<any, any> }, section
             });
           return `(${note}) ${await capture(tab, crawler, page)}`;
         });
+      };
       for (const page of selectors.keys()) {
         shapes.add(shapeOf(page));
         found.push(page);
       }
       for (const page of [...found]) visit(page);
-      for (let i = 0; i < tasks.length; i++) await tasks[i]; // tasks grows while awaited
+      try {
+        for (let i = 0; i < tasks.length; i++) await tasks[i]; // tasks grows while awaited
+      } finally {
+        await shared?.context.close();
+      }
       if (failures.length > 0) throw new Error(`not captured:\n${failures.join("\n")}`);
     });
   });

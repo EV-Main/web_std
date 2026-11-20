@@ -15,12 +15,10 @@ interface Frame {
 }
 const frameKey = (f: Frame) => `${f.project} ${f.page}`;
 
-/** A page's column group: its first path segment, or on `/` its first query key (a window the home page opens). */
+/** A page's column group: its first path segment. */
 function groupOf(page: string): string {
   const u = new URL(page, "relative:/");
-  const segment = u.pathname.split("/")[1];
-  const key = [...u.searchParams.keys()][0];
-  return (u.protocol === "relative:" ? "" : u.origin) + (segment ? `/${segment}` : key === undefined ? "/" : `/?${key}`);
+  return (u.protocol === "relative:" ? "" : u.origin) + "/" + (u.pathname.split("/")[1] ?? "");
 }
 
 const GAP = 200;
