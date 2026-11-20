@@ -87,9 +87,9 @@ declare const figma: {
  * Runs inside Figma (`use_figma`, as its source text). The frames are the cache page's (`cache`): new uploads, wherever
  * Figma put them, move onto it tagged with their key, and what no frame of this run uses is removed from it. Each frame
  * is cloned onto a new page named `name`, in a grid; a cache frame takes its first clone's name and place. `alone`, the
- * file's only page beside the cache.
+ * file's only page beside the cache. A render page of another `format` (another `arrange`) is removed.
  */
-async function arrange({ name, frames, gap, alone, cache }: { name: string; frames: Placed[]; gap: number; alone: boolean; cache: string }): Promise<{ pageId: string; cache: string; kept: Record<string, string> }> {
+async function arrange({ name, frames, gap, alone, cache, format }: { name: string; frames: Placed[]; gap: number; alone: boolean; cache: string; format: string }): Promise<{ pageId: string; cache: string; kept: Record<string, string> }> {
   const byId = new Map<string, FigmaNode>();
   const missing: string[] = [];
   for (const f of frames) {
@@ -149,7 +149,9 @@ async function arrange({ name, frames, gap, alone, cache }: { name: string; fram
     cached.y = n.y;
   }
   for (const p of homes) await p.loadAsync();
-  for (const p of [...figma.root.children]) if (p !== page && p !== store && (alone || (homes.has(p) && p.children.length === 0))) p.remove();
+  page.setSharedPluginData("figma_render", "format", format);
+  const stale = (p: FigmaNode) => /^[0-9a-f]{7,40} \d{4}-\d{2}-\d{2}( dirty)?$/.test(p.name) && p.getSharedPluginData("figma_render", "format") !== format; // named as `pageName` names
+  for (const p of [...figma.root.children]) if (p !== page && p !== store && (alone || stale(p) || (homes.has(p) && p.children.length === 0))) p.remove();
   return { pageId: page.id, cache: store.id, kept };
 }
 
@@ -331,7 +333,7 @@ export async function render(target: Target, run: (issuer: string) => Promise<nu
       text = await call("use_figma", {
         fileKey: file,
         description: `Clone the ${placed.length} cached frames onto page "${name}" in a grid, and prune the cache page "${CACHE}"`,
-        code: `return await (${arrange.toString()})(${JSON.stringify({ name, frames: placed, gap: GAP, alone: !("file" in target), cache: CACHE })});`,
+        code: `return await (${arrange.toString()})(${JSON.stringify({ name, frames: placed, gap: GAP, alone: !("file" in target), cache: CACHE, format: createHash("sha256").update(arrange.toString()).digest("hex").slice(0, 12) })});`,
       });
     } catch (e) {
       if (!(e instanceof Error) || !e.message.includes("figma-render cache frames missing")) throw e;

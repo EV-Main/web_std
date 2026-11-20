@@ -44,7 +44,8 @@ frame per key. A key cached there, or already taken this run, costs nothing; a n
 `use_figma` moves the new frames onto the cache page, removes the cache frames this run did not use, and clones every
 frame onto a page named `<short sha> <YYYY-MM-DD>[ dirty]`, named `<project> <page>`: a group of columns per first path
 segment (on `/`, per first query key: a window the home page opens), sorted, within it a column per project (in the
-config's order) and a row per page (sorted); a cache frame is named and placed as its first clone. That `use_figma` is the run's only call Figma counts toward its rate
+config's order) and a row per page (sorted); a cache frame is named and placed as its first clone.
+A page named so whose `arrange` was another (its sha256, kept on the page) is removed. That `use_figma` is the run's only call Figma counts toward its rate
 limit. The cache page's ids are kept in `$XDG_STATE_HOME/evinvest-figma-render/cache.json`; a cached frame gone from
 Figma fails the run, naming it, and drops the file's entry, so the next run uploads everything again. A frame not
 uploaded or still pending after the polls is a failed test: it is named, and the exit is 1.
