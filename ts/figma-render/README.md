@@ -47,8 +47,8 @@ what the file does not hold: a payload is keyed `<project> <sha256>`, and the fi
 frame per key. A key cached there, or already taken this run, costs nothing; a new one gets a capture id
 (`generate_figma_design`) and is uploaded from Node, 4 at once, 180 s each, then polled for its frame. Then one
 `use_figma` moves the new frames onto the cache page, removes the cache frames this run did not use, and clones every
-frame onto a page named `<short sha> <YYYY-MM-DD>[ dirty]`, named `<project> <page>`: a group of columns per first path
-segment, sorted, within it a column per project (in the config's order) and a row per page (sorted); a cache frame is
+frame onto a page named `<short sha> <YYYY-MM-DD>[ dirty]`, named `<project> <page>`: a section per first path segment
+(named by it, sorted, left to right), within it a column per project (in the config's order) and a row per page (sorted); a cache frame is
 named and placed as its first clone.
 A page named so whose `arrange` was another (its sha256, kept on the page) is removed. That `use_figma` is the run's only call Figma counts toward its rate
 limit. The cache page's ids are kept in `$XDG_STATE_HOME/evinvest-figma-render/cache.json`; a cached frame gone from

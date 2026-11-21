@@ -68,6 +68,7 @@ interface FigmaNode {
   parent: FigmaNode | null;
   children: FigmaNode[];
   appendChild(n: FigmaNode): void;
+  resizeWithoutConstraints(width: number, height: number): void;
   clone(): FigmaNode;
   remove(): void;
   loadAsync(): Promise<void>;
@@ -78,16 +79,18 @@ declare const figma: {
   root: FigmaNode;
   getNodeByIdAsync(id: string): Promise<FigmaNode | null>;
   createPage(): FigmaNode;
+  createSection(): FigmaNode;
   setCurrentPageAsync(page: FigmaNode): Promise<void>;
 };
 
 /**
  * Runs inside Figma (`use_figma`, as its source text). The frames are the cache page's (`cache`): new uploads, wherever
  * Figma put them, move onto it tagged with their key, and what no frame of this run uses is removed from it. Each frame
- * is cloned onto a new page named `name`, in a grid; a cache frame takes its first clone's name and place. `alone`, the
+ * is cloned onto a new page named `name`, into a section per group (`groups`, named by it) in a grid; a cache frame takes
+ * its first clone's name and place. `alone`, the
  * file's only page beside the cache. A render page of another `format` (another `arrange`) is removed.
  */
-async function arrange({ name, frames, gap, alone, cache, format }: { name: string; frames: Placed[]; gap: number; alone: boolean; cache: string; format: string }): Promise<{ pageId: string; cache: string; kept: Record<string, string> }> {
+async function arrange({ name, groups, frames, gap, alone, cache, format }: { name: string; groups: string[]; frames: Placed[]; gap: number; alone: boolean; cache: string; format: string }): Promise<{ pageId: string; cache: string; kept: Record<string, string> }> {
   const byId = new Map<string, FigmaNode>();
   const missing: string[] = [];
   for (const f of frames) {
@@ -132,19 +135,34 @@ async function arrange({ name, frames, gap, alone, cache, format }: { name: stri
     rows[f.row] = Math.max(rows[f.row] ?? 0, n.height);
   }
   const offset = (sizes: number[], i: number) => Array.from(sizes.slice(0, i)).reduce((sum: number, s) => sum + (s ?? 0) + gap, 0);
+  const pad = 2 * gap;
+  const columns = (g: number) => widths.slice(g * projects, (g + 1) * projects);
+  let x = 0;
+  const sections = groups.map((group, g) => {
+    const s = figma.createSection();
+    page.appendChild(s);
+    s.name = group;
+    s.x = x;
+    s.y = 0;
+    const rows = heights[g] as number[];
+    s.resizeWithoutConstraints(offset(columns(g), projects) - gap + 2 * pad, offset(rows, rows.length) - gap + 2 * pad);
+    x += s.width + pad;
+    return s;
+  });
   const named = new Set<string>();
   for (const f of frames) {
     const cached = byId.get(f.id) as FigmaNode;
+    const s = sections[f.group] as FigmaNode;
     const n = cached.clone();
-    page.appendChild(n);
+    s.appendChild(n);
     n.name = f.name;
-    n.x = offset(widths, f.group * projects + f.col) + f.group * 2 * gap; // groups three gaps apart
-    n.y = offset(heights[f.group] as number[], f.row);
+    n.x = pad + offset(columns(f.group), f.col);
+    n.y = pad + offset(heights[f.group] as number[], f.row);
     if (named.has(f.id)) continue;
     named.add(f.id);
     cached.name = n.name;
-    cached.x = n.x;
-    cached.y = n.y;
+    cached.x = s.x + n.x;
+    cached.y = s.y + n.y;
   }
   for (const p of homes) await p.loadAsync();
   page.setSharedPluginData("figma_render", "format", format);
@@ -330,8 +348,8 @@ export async function render(target: Target, run: (issuer: string) => Promise<nu
     try {
       text = await call("use_figma", {
         fileKey: file,
-        description: `Clone the ${placed.length} cached frames onto page "${name}" in a grid, and prune the cache page "${CACHE}"`,
-        code: `return await (${arrange.toString()})(${JSON.stringify({ name, frames: placed, gap: GAP, alone: !("file" in target), cache: CACHE, format: createHash("sha256").update(arrange.toString()).digest("hex").slice(0, 12) })});`,
+        description: `Clone the ${placed.length} cached frames onto page "${name}", a section per group, and prune the cache page "${CACHE}"`,
+        code: `return await (${arrange.toString()})(${JSON.stringify({ name, groups, frames: placed, gap: GAP, alone: !("file" in target), cache: CACHE, format: createHash("sha256").update(arrange.toString()).digest("hex").slice(0, 12) })});`,
       });
     } catch (e) {
       if (!(e instanceof Error) || !e.message.includes("figma-render cache frames missing")) throw e;
