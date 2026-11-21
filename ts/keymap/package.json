@@ -1,6 +1,6 @@
 {
   "name": "@evinvest/keymap",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Scoped keybinds: a root the page claims, scopes a root chord opens (a leader), which-key hint and help data, and which key a keydown is across layouts. Zero deps, mirroring the keymap Cargo feature.",
   "license": "BlueOak-1.0.0",
   "publishConfig": {
