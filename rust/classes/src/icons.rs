@@ -37,9 +37,12 @@ pub enum Icon {
 	/// The `x` drawn as two strokes.
 	Close,
 	Copy,
+	/// A corner's two strokes: what drags it larger.
+	CornerGrip,
 	Dot,
 	Ellipsis,
 	File,
+	Focus,
 	Image,
 	Info,
 	Layers,
@@ -98,6 +101,7 @@ impl Icon {
 					d: "M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2",
 				},
 			],
+			Icon::CornerGrip => &[Path { d: "M20 14l-6 6M20 8 8 20" }],
 			Icon::Dot => &[RING],
 			Icon::Ellipsis => &[Circle { cx: "12", cy: "12", r: "1" }, Circle { cx: "19", cy: "12", r: "1" }, Circle { cx: "5", cy: "12", r: "1" }],
 			Icon::File => &[
@@ -105,6 +109,13 @@ impl Icon {
 					d: "M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z",
 				},
 				Path { d: "M14 2v4a2 2 0 0 0 2 2h4" },
+			],
+			Icon::Focus => &[
+				Circle { cx: "12", cy: "12", r: "3" },
+				Path { d: "M3 7V5a2 2 0 0 1 2-2h2" },
+				Path { d: "M17 3h2a2 2 0 0 1 2 2v2" },
+				Path { d: "M21 17v2a2 2 0 0 1-2 2h-2" },
+				Path { d: "M7 21H5a2 2 0 0 1-2-2v-2" },
 			],
 			Icon::Image => &[
 				Rect {

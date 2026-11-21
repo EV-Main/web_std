@@ -210,6 +210,8 @@ pub struct Trie<C> {
 	root: Level<C>,
 	platform: Platform,
 	pending: Vec<usize>,
+	/// The open path started at a bare-key root scope reached with Alt: Alt held on is no part of its chords.
+	held_alt: bool,
 }
 
 type Level<C> = Vec<(Chord, Item<C>)>;
@@ -263,6 +265,7 @@ impl<C: Clone + Display> Trie<C> {
 			root: level(&k.root, &pick, &available),
 			platform,
 			pending: Vec::new(),
+			held_alt: false,
 		}
 	}
 
@@ -274,7 +277,8 @@ impl<C: Clone + Display> Trie<C> {
 	}
 
 	/// One keydown. A miss drops the open scope, a lone modifier doesn't; a root scope's chord
-	/// pressed inside another (a key-repeating leader) restarts at that scope instead. A modified
+	/// pressed inside another (a key-repeating leader) restarts at that scope instead. A bare-key
+	/// leader opened with Alt reads its scopes' bare chords through Alt still held, but for a key repeating. A modified
 	/// leader (a bare-key one with Alt) and an open scope's keys act from an editable; a root leaf or an unmodified root chord
 	/// leaves it its typing and undo.
 	pub fn key(&mut self, k: &KeyInput) -> Step<C> {
@@ -303,13 +307,21 @@ impl<C: Clone + Display> Trie<C> {
 				.position(|(c, item)| matches!(item, Item::Scope(..)) && c.key == key && !c.ctrl && !c.alt && !c.meta),
 			j => j,
 		};
-		let here = hit(self.at(&self.pending));
-		let i = match if self.pending.is_empty() { alted(here) } else { here } {
-			Some(i) => i,
+		let bare = |l: &Level<C>| l.iter().position(|(c, _)| c.key == key && !c.ctrl && !c.alt && !c.meta);
+		let (here, via_alt) = if self.pending.is_empty() {
+			let direct = hit(&self.root);
+			(alted(direct), direct.is_none())
+		} else {
+			let level = self.at(&self.pending);
+			let carried = self.held_alt && k.alt && !k.ctrl && !k.meta && !k.repeat;
+			(hit(level).or_else(|| if carried { bare(level) } else { None }), false)
+		};
+		let (i, via_alt) = match here {
+			Some(i) => (i, via_alt),
 			None => match alted(hit(&self.root)) {
 				Some(i) if open && matches!(self.root[i].1, Item::Scope(..)) => {
 					self.pending.clear();
-					i
+					(i, hit(&self.root).is_none())
 				}
 				_ => {
 					self.pending.clear();
@@ -321,6 +333,9 @@ impl<C: Clone + Display> Trie<C> {
 		let fields = self.pending.is_empty() && (matches!(self.root[i].1, Item::Run { .. }) || !(k.ctrl || k.alt || k.meta));
 		if fields && k.editable.expect("a page keymap listens on a browser window, whose keydowns know their target") {
 			return Step::Pass { cancelled: open };
+		}
+		if self.pending.is_empty() {
+			self.held_alt = via_alt;
 		}
 		self.pending.push(i);
 		let sequence = self.sequence(&self.pending);

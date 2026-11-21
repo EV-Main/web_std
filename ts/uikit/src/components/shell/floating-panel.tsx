@@ -5,28 +5,115 @@ import { Portal } from "../../primitives/portal";
 import { useDismissableLayer } from "../../primitives/dismissable-layer";
 import { mergeRefs } from "../../primitives/merge-refs";
 import { UiIcon } from "../../icons/ui-icons";
+import type { IconName } from "../../generated/icons";
 
 /** What of its area stays in the viewport however it is dragged. */
 const KEPT = 0.25;
+const MIN = { width: 240, height: 120 };
+
+/** Its size once resized: `height: null` when only its width was, its content then sets the height. */
+export type PanelSize = { width: number; height: number | null };
+
+/** Where it sits, in viewport pixels, and its size; `size: null` until resized, its content's. */
+export interface Placement {
+  x: number;
+  y: number;
+  size: PanelSize | null;
+}
+
+export interface FloatingPanelHandle {
+  /** To the middle of the viewport, at its size. */
+  center: () => void;
+}
 
 export interface FloatingPanelProps {
   title: React.ReactNode;
-  /** Where its top-left corner first sits, in viewport pixels; dragging by the title moves it from there. */
+  /** Where its top-left corner first sits; dragging by the title moves it from there. */
   at: { x: number; y: number };
+  /** Its first size; absent, its content's (or `width`'s) until resized. */
+  size?: PanelSize | null;
+  /** Its content's width, in px, until it is resized. */
+  width?: number;
+  /** Told where it was left: after a drag, a resize or a centering. */
+  onPlaced?: (placement: Placement) => void;
   onClose: () => void;
-  /** Buttons in its title bar, before the close. */
+  /** A minimize in its title bar, when given. */
+  onMinimize?: () => void;
+  /** Buttons in its title bar, after the minimize, before the close. */
   actions?: React.ReactNode;
+  handle?: React.Ref<FloatingPanelHandle>;
   /** Default `"Close"`. */
   closeLabel?: string;
+  /** Default `"Minimize"`. */
+  minimizeLabel?: string;
+  /** Default `"Center"`. */
+  centerLabel?: string;
+  /** Default `"Resize"`. */
+  resizeLabel?: string;
   children: React.ReactNode;
 }
 
-/** A non-modal window over the page, dragged by its title bar, partly past the viewport's left, right and bottom edges; the page under it stays live. Focused when it opens, Escape closes it while it is the top of the dismiss stack. Its content sets its width. */
-export function FloatingPanel({ title, at, onClose, actions, closeLabel = "Close", children }: FloatingPanelProps) {
+const BAR_BUTTON = "flex size-(--control-h-2xs) items-center justify-center rounded-control text-ink-soft hover:bg-hover hover:text-ink";
+
+function BarButton({ icon, label, onClick }: { icon: IconName; label: string; onClick: () => void }) {
+  return (
+    <button type="button" aria-label={label} title={label} onClick={onClick} className={BAR_BUTTON}>
+      <UiIcon name={icon} className="size-4" />
+    </button>
+  );
+}
+
+/** Follows the pointer from `e` until it is let go, then `done`. */
+function track(e: React.PointerEvent<HTMLElement>, move: (m: PointerEvent) => void, done: () => void) {
+  e.preventDefault();
+  const target = e.currentTarget;
+  target.setPointerCapture(e.pointerId);
+  target.addEventListener("pointermove", move);
+  target.addEventListener(
+    "pointerup",
+    () => {
+      target.removeEventListener("pointermove", move);
+      done();
+    },
+    { once: true },
+  );
+}
+
+/**
+ * A non-modal window over the page, dragged by its title bar, partly past the viewport's left and right edges, resized by its right
+ * and bottom edges and its corner, which never leave the viewport's bottom: dragged lower, it is cut shorter; the page under it stays live. Focused when it opens, Escape closes it while it is the
+ * top of the dismiss stack.
+ */
+export function FloatingPanel({
+  title,
+  at,
+  size: firstSize = null,
+  width,
+  onPlaced,
+  onClose,
+  onMinimize,
+  actions,
+  handle,
+  closeLabel = "Close",
+  minimizeLabel = "Minimize",
+  centerLabel = "Center",
+  resizeLabel = "Resize",
+  children,
+}: FloatingPanelProps) {
   const [pos, setPos] = React.useState(at);
+  const [size, setSize] = React.useState<PanelSize | null>(firstSize);
   const ref = React.useRef<HTMLDivElement>(null);
   const layer = useDismissableLayer({ enabled: true, onDismiss: e => !e.defaultPrevented && onClose(), pointerOutside: false });
   const titleId = React.useId();
+  const placed = React.useRef<Placement>({ ...at, size: firstSize });
+  React.useLayoutEffect(() => {
+    placed.current = { ...pos, size };
+  });
+  const report = React.useRef(onPlaced);
+  React.useEffect(() => {
+    report.current = onPlaced;
+  });
+  const told = () => report.current?.(placed.current);
   const clamp = React.useCallback((p: { x: number; y: number }) => {
     const box = ref.current?.getBoundingClientRect();
     if (box === undefined) return p;
@@ -52,6 +139,28 @@ export function FloatingPanel({ title, at, onClose, actions, closeLabel = "Close
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, [clamp]);
+  const center = React.useCallback(() => {
+    const box = ref.current!.getBoundingClientRect();
+    const next = { x: Math.max(0, (window.innerWidth - box.width) / 2), y: Math.max(0, (window.innerHeight - box.height) / 2) };
+    setPos(next);
+    placed.current = { ...placed.current, ...next };
+    report.current?.(placed.current);
+  }, []);
+  React.useImperativeHandle(handle, () => ({ center }), [center]);
+  const resize = (axes: { x: boolean; y: boolean }) => (e: React.PointerEvent<HTMLElement>) => {
+    const box = ref.current!.getBoundingClientRect();
+    const from = { x: e.clientX, y: e.clientY };
+    const height = size?.height ?? null;
+    track(
+      e,
+      m =>
+        setSize({
+          width: axes.x ? Math.min(Math.max(MIN.width, box.width + m.clientX - from.x), window.innerWidth - 16) : box.width,
+          height: axes.y ? Math.min(Math.max(MIN.height, box.height + m.clientY - from.y), window.innerHeight - 16) : height,
+        }),
+      told,
+    );
+  };
 
   return (
     <Portal>
@@ -62,35 +171,38 @@ export function FloatingPanel({ title, at, onClose, actions, closeLabel = "Close
         aria-labelledby={titleId}
         tabIndex={-1}
         data-slot="floating-panel"
-        style={{ left: pos.x, top: pos.y }}
-        className="fixed z-50 flex max-h-[calc(100vh-1rem)] max-w-[calc(100vw-1rem)] flex-col rounded-panel border border-border bg-popover text-ink shadow-md outline-none"
+        style={{ left: pos.x, top: pos.y, width: size?.width, height: size?.height ?? undefined, maxHeight: `calc(100vh - ${Math.max(0, pos.y)}px - 0.5rem)` }}
+        className="fixed z-50 flex max-w-[calc(100vw-1rem)] flex-col rounded-panel border border-border bg-popover text-ink shadow-md outline-none"
       >
         <div
           data-slot="floating-panel-title"
           onPointerDown={e => {
             if ((e.target as HTMLElement).closest("button") !== null) return;
-            e.currentTarget.setPointerCapture(e.pointerId);
             const from = { x: e.clientX - pos.x, y: e.clientY - pos.y };
-            const target = e.currentTarget;
-            const move = (m: PointerEvent) => setPos(clamp({ x: m.clientX - from.x, y: m.clientY - from.y }));
-            target.addEventListener("pointermove", move);
-            target.addEventListener("pointerup", () => target.removeEventListener("pointermove", move), { once: true });
+            track(e, m => setPos(clamp({ x: m.clientX - from.x, y: m.clientY - from.y })), told);
           }}
-          className="flex h-(--control-h-sm) shrink-0 cursor-grab touch-none items-center gap-2 border-b border-border pr-1 pl-3 text-body-s font-medium select-none active:cursor-grabbing"
+          className="flex h-(--control-h-sm) shrink-0 cursor-grab touch-none items-center gap-1 border-b border-border pr-1 pl-3 text-body-s font-medium select-none active:cursor-grabbing"
         >
-          <span id={titleId} className="flex-1 truncate">{title}</span>
+          <span id={titleId} className="flex-1 truncate">
+            {title}
+          </span>
+          <BarButton icon="focus" label={centerLabel} onClick={center} />
+          {onMinimize && <BarButton icon="minus" label={minimizeLabel} onClick={onMinimize} />}
           {actions}
-          <button
-            type="button"
-            aria-label={closeLabel}
-            title={closeLabel}
-            onClick={onClose}
-            className="flex size-(--control-h-2xs) items-center justify-center rounded-control text-ink-soft hover:bg-hover hover:text-ink"
-          >
-            <UiIcon name="x" className="size-4" />
-          </button>
+          <BarButton icon="x" label={closeLabel} onClick={onClose} />
         </div>
-        <div className="min-h-0 overflow-y-auto">{children}</div>
+        <div className="min-h-0 max-w-full flex-1 overflow-y-auto" style={{ width: size === null ? width : undefined }}>
+          {children}
+        </div>
+        <div aria-hidden onPointerDown={resize({ x: true, y: false })} className="absolute top-(--control-h-sm) right-0 bottom-4 w-1.5 cursor-ew-resize touch-none" />
+        <div aria-hidden onPointerDown={resize({ x: false, y: true })} className="absolute right-4 bottom-0 left-0 h-1.5 cursor-ns-resize touch-none" />
+        <div
+          title={resizeLabel}
+          onPointerDown={resize({ x: true, y: true })}
+          className="absolute right-0 bottom-0 flex size-4 cursor-nwse-resize touch-none items-end justify-end text-ink-soft opacity-60 hover:opacity-100"
+        >
+          <UiIcon name="corner-grip" className="size-4" />
+        </div>
       </div>
     </Portal>
   );

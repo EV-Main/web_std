@@ -137,6 +137,8 @@ export class Trie<C> {
   readonly #root: Level<C>;
   readonly #platform: Platform;
   #pending: number[] = [];
+  /** The open path started at a bare-key root scope reached with Alt: Alt held on is no part of its chords. */
+  #heldAlt = false;
 
   /** A command `available` rejects is unbound; a scope left with nothing in it, too. `label` names a command. */
   constructor(keymap: Keymap<C>, platform: Platform, available: (c: C) => boolean, label: (c: C) => string) {
@@ -172,7 +174,7 @@ export class Trie<C> {
     }, this.#root);
   }
 
-  /** One keydown. A miss drops the open scope, a lone modifier doesn't; a root scope's chord pressed inside another (a key-repeating leader) restarts at that scope instead. A modified leader (a bare-key one with Alt) and an open scope's keys act from an editable; a root leaf or an unmodified root chord leaves it its typing and undo. */
+  /** One keydown. A miss drops the open scope, a lone modifier doesn't; a root scope's chord pressed inside another (a key-repeating leader) restarts at that scope instead. A bare-key leader opened with Alt reads its scopes' bare chords through Alt still held, but for a key repeating. A modified leader (a bare-key one with Alt) and an open scope's keys act from an editable; a root leaf or an unmodified root chord leaves it its typing and undo. */
   key(k: KeyInput): Step<C> {
     const open = this.#pending.length > 0;
     if (k.composing) {
@@ -192,17 +194,30 @@ export class Trie<C> {
     const hit = (l: Level<C>) => l.findIndex(([c]) => same(c, { key, ctrl: k.ctrl, alt: k.alt, meta: k.meta }));
     // A bare-key root scope is reached with Alt too: in a field the bare key types.
     const alted = (j: number) => (j >= 0 || !k.alt || k.ctrl || k.meta ? j : this.#root.findIndex(([c, item]) => "children" in item && same(c, { key })));
-    let i = hit(this.#at(this.#pending));
-    if (this.#pending.length === 0) i = alted(i);
+    const bare = (l: Level<C>) => l.findIndex(([c]) => same(c, { key }));
+    let i: number;
+    let viaAlt = false;
+    if (this.#pending.length === 0) {
+      const direct = hit(this.#root);
+      i = alted(direct);
+      viaAlt = direct < 0;
+    } else {
+      const level = this.#at(this.#pending);
+      i = hit(level);
+      if (i < 0 && this.#heldAlt && k.alt && !k.ctrl && !k.meta && !k.repeat) i = bare(level);
+    }
     if (i < 0) {
-      const r = alted(hit(this.#root));
+      const direct = hit(this.#root);
+      const r = alted(direct);
       this.#pending = [];
       if (!(open && r >= 0 && "children" in this.#root[r]![1])) return { kind: "pass", cancelled: open };
       i = r;
+      viaAlt = direct < 0;
     }
     const parent = this.#at(this.#pending);
     // At root a field keeps its typing (an unmodified chord, a leader's too) and its undo (a leaf).
     if (this.#pending.length === 0 && k.editable && ("run" in parent[i]![1] || !(k.ctrl || k.alt || k.meta))) return { kind: "pass", cancelled: open };
+    if (this.#pending.length === 0) this.#heldAlt = viaAlt;
     this.#pending.push(i);
     const sequence = this.#sequence(this.#pending);
     const item = parent[i]![1];
