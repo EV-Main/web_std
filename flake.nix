@@ -94,10 +94,12 @@
             };
           };
 
+          oldestSupportedVersion = "nightly-2026-06-29";
+
           github = v_flakes.github {
             inherit pkgs pname rs js;
             enable = true;
-            lastSupportedVersion = "nightly-2026-05-12";
+            inherit oldestSupportedVersion;
             gitignore.extra = ''
               ## Node / TypeScript
               # No trailing slash: rust/tests/visual/node_modules is a symlink into
@@ -147,7 +149,7 @@
           readme = v_flakes.readme-fw {
             inherit pkgs pname;
             defaults = true;
-            lastSupportedVersion = "nightly-1.92";
+            inherit oldestSupportedVersion;
             rootDir = ./.;
             # No `loc` badge: its gist isn't created, so that endpoint 404s.
             badges = [ "msrv" "crates_io" "docs_rs" "ci" ];
