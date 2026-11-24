@@ -328,13 +328,18 @@ export async function render(target: Target, run: (issuer: string) => Promise<nu
   }
 
   const failed: string[] = [];
-  const groups = [...new Set(frames.map(f => groupOf(f.page)))].sort();
+  const idOf = (f: Frame) => {
+    const key = keys.get(frameKey(f)) as string;
+    const d = done.get(key);
+    return d === undefined ? known?.frames[key] : "id" in d ? d.id : undefined;
+  };
+  const groups = [...new Set(frames.filter(f => idOf(f) !== undefined).map(f => groupOf(f.page)))].sort(); // a group none of whose frames was captured has no section
   const pages = [...new Set(frames.map(f => f.page))].sort();
   const cols = [...new Set(frames.map(f => f.col))].sort((a, b) => a - b);
   const placed: Placed[] = frames.flatMap(f => {
     const key = keys.get(frameKey(f)) as string;
     const d = done.get(key);
-    const id = d === undefined ? known?.frames[key] : "id" in d ? d.id : undefined;
+    const id = idOf(f);
     if (id === undefined) {
       failed.push(`✘ ${frameKey(f)} not captured: ${d !== undefined && "error" in d ? d.error : `${firstPage.get(key)}'s upload failed`}`);
       return [];
