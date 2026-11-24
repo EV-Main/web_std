@@ -39,6 +39,8 @@ export interface FloatingPanelProps {
   onClose: () => void;
   /** A minimize in its title bar, when given. */
   onMinimize?: () => void;
+  /** Out of sight, its content mounted and its place kept. */
+  minimized?: boolean;
   /** Buttons in its title bar, after the minimize, before the close. */
   actions?: React.ReactNode;
   handle?: React.Ref<FloatingPanelHandle>;
@@ -92,6 +94,7 @@ export function FloatingPanel({
   onPlaced,
   onClose,
   onMinimize,
+  minimized = false,
   actions,
   handle,
   closeLabel = "Close",
@@ -103,7 +106,7 @@ export function FloatingPanel({
   const [pos, setPos] = React.useState(at);
   const [size, setSize] = React.useState<PanelSize | null>(firstSize);
   const ref = React.useRef<HTMLDivElement>(null);
-  const layer = useDismissableLayer({ enabled: true, onDismiss: e => !e.defaultPrevented && onClose(), pointerOutside: false });
+  const layer = useDismissableLayer({ enabled: !minimized, onDismiss: e => !e.defaultPrevented && onClose(), pointerOutside: false });
   const titleId = React.useId();
   const placed = React.useRef<Placement>({ ...at, size: firstSize });
   React.useLayoutEffect(() => {
@@ -116,7 +119,7 @@ export function FloatingPanel({
   const told = () => report.current?.(placed.current);
   const clamp = React.useCallback((p: { x: number; y: number }) => {
     const box = ref.current?.getBoundingClientRect();
-    if (box === undefined) return p;
+    if (box === undefined || box.width === 0) return p; // minimized: no box
     const title = ref.current!.firstElementChild!.getBoundingClientRect().height;
     // the top edge never leaves: the title bar is what drags it back
     const x = Math.min(Math.max(box.width * KEPT - box.width, p.x), window.innerWidth - box.width * KEPT);
@@ -132,8 +135,12 @@ export function FloatingPanel({
     const t = (s - Math.sqrt(s * s - 4 * ox * oy * (1 - KEPT))) / (2 * ox * oy);
     return { x: x + (left - right) * (1 - t), y: y - below * (1 - t) };
   }, []);
-  React.useLayoutEffect(() => setPos(clamp), [clamp]);
-  React.useEffect(() => ref.current?.focus({ preventScroll: true }), []);
+  React.useLayoutEffect(() => {
+    if (!minimized) setPos(clamp);
+  }, [clamp, minimized]);
+  React.useEffect(() => {
+    if (!minimized) ref.current?.focus({ preventScroll: true });
+  }, [minimized]);
   React.useEffect(() => {
     const onResize = () => setPos(clamp);
     window.addEventListener("resize", onResize);
@@ -171,7 +178,7 @@ export function FloatingPanel({
         aria-labelledby={titleId}
         tabIndex={-1}
         data-slot="floating-panel"
-        style={{ left: pos.x, top: pos.y, width: size?.width, height: size?.height ?? undefined, maxHeight: `calc(100vh - ${Math.max(0, pos.y)}px - 0.5rem)` }}
+        style={{ display: minimized ? "none" : undefined, left: pos.x, top: pos.y, width: size?.width, height: size?.height ?? undefined, maxHeight: `calc(100vh - ${Math.max(0, pos.y)}px - 0.5rem)` }}
         className="fixed z-50 flex max-w-[calc(100vw-1rem)] flex-col rounded-panel border border-border bg-popover text-ink shadow-md outline-none"
       >
         <div

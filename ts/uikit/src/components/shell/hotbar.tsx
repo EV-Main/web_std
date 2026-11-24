@@ -59,6 +59,8 @@ export interface HotbarLabels {
   popOut?: string;
   /** A popped-out panel's close button. Default `"Close"`. */
   close?: string;
+  /** A popped-out panel's minimize button. Default `"Minimize"`. */
+  minimize?: string;
 }
 
 export interface HotbarProps extends Omit<React.ComponentProps<"section">, "children"> {
@@ -131,8 +133,9 @@ export function Hotbar({ actions, status, takeover, labels = {}, className, ...p
   };
 
   const [customizing, setCustomizing] = React.useState(false);
-  /** The panels popped out, where each first sat. */
-  const [popped, setPopped] = React.useState<ReadonlyMap<string, { x: number; y: number }>>(new Map());
+  /** The panels popped out, where each first sat; minimized, each still mounted. */
+  const [popped, setPopped] = React.useState<ReadonlyMap<string, { x: number; y: number; minimized: boolean }>>(new Map());
+  const setMinimized = (id: string, minimized: boolean) => setPopped(p => new Map(p).set(id, { ...p.get(id)!, minimized }));
   const popIn = (id: string) =>
     setPopped(p => {
       const next = new Map(p);
@@ -166,8 +169,9 @@ export function Hotbar({ actions, status, takeover, labels = {}, className, ...p
                 action={action}
                 keys={keys(action)}
                 labels={{ hide: labels.hide ?? "Hide from hotbar", popOut: labels.popOut ?? "Pop out", close: labels.close ?? "Close" }}
-                popped={popped.has(action.id)}
-                onPopOut={at => setPopped(p => new Map(p).set(action.id, at))}
+                popped={popped.get(action.id)}
+                onPopOut={at => setPopped(p => new Map(p).set(action.id, { ...at, minimized: false }))}
+                onMinimized={minimized => setMinimized(action.id, minimized)}
                 onPopIn={() => popIn(action.id)}
                 onHide={() => setPinned(action, false)}
               />
@@ -222,7 +226,16 @@ export function Hotbar({ actions, status, takeover, labels = {}, className, ...p
         return (
           at !== undefined &&
           action.panel !== undefined && (
-            <FloatingPanel key={action.id} title={action.label} at={at} closeLabel={labels.close ?? "Close"} onClose={() => popIn(action.id)}>
+            <FloatingPanel
+              key={action.id}
+              title={action.label}
+              at={at}
+              minimized={at.minimized}
+              closeLabel={labels.close ?? "Close"}
+              minimizeLabel={labels.minimize ?? "Minimize"}
+              onClose={() => popIn(action.id)}
+              onMinimize={() => setMinimized(action.id, true)}
+            >
               {action.panel}
             </FloatingPanel>
           )
@@ -238,14 +251,16 @@ function HotbarItem({
   labels,
   popped,
   onPopOut,
+  onMinimized,
   onPopIn,
   onHide,
 }: {
   action: HotbarAction;
   keys: string | undefined;
   labels: { hide: string; popOut: string; close: string };
-  popped: boolean;
+  popped: { minimized: boolean } | undefined;
   onPopOut: (at: { x: number; y: number }) => void;
+  onMinimized: (minimized: boolean) => void;
   onPopIn: () => void;
   onHide: () => void;
 }) {
@@ -263,23 +278,24 @@ function HotbarItem({
       {keys && <Kbd className="hidden @5xl:inline-flex">{keys}</Kbd>}
     </>
   );
-  const close = action.onClose;
+  const close = popped === undefined ? action.onClose : onPopIn;
+  const pressed = popped === undefined ? action.pressed : !popped.minimized;
   const plain = (
     <button
       type="button"
       data-slot="hotbar-action"
-      aria-pressed={popped || action.pressed}
-      onClick={action.panel === undefined ? action.onSelect : onPopIn}
+      aria-pressed={pressed}
+      onClick={popped === undefined ? action.onSelect : () => onMinimized(!popped.minimized)}
       // a middle click closes, without the browser's autoscroll
       onMouseDown={close && (e => e.button === 1 && e.preventDefault())}
       onAuxClick={close && (e => e.button === 1 && close())}
-      className={cn(ITEM, (popped || action.pressed) && PRESSED, close && "pr-6 @5xl:pr-6")}
+      className={cn(ITEM, pressed && PRESSED, close && "pr-6 @5xl:pr-6")}
     >
       {face}
     </button>
   );
   const button =
-    action.panel === undefined || popped ? (
+    action.panel === undefined || popped !== undefined ? (
       close === undefined ? (
         plain
       ) : (
@@ -316,7 +332,7 @@ function HotbarItem({
         </HoverCardContent>
       </HoverCard>
     );
-  if (action.panel === undefined || popped) return previewed;
+  if (action.panel === undefined || popped !== undefined) return previewed;
   return (
     <Popover open={open} onOpenChange={setOpen}>
       {previewed}
