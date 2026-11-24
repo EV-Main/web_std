@@ -67,9 +67,8 @@ pub fn PopoverAnchor(#[prop(optional, into)] class: String, children: Children) 
 }
 
 /// `align` pins the panel's edge to the trigger's: `start` is the left edge,
-/// `end` the right, anything else centres it. Without a measuring layer this is
-/// all the placement there is, and a wide panel under a trigger at the edge of
-/// its container needs `start` or `end` to stay in view.
+/// `end` the right, anything else centres it. A panel that would cross the
+/// viewport's side is then shifted back inside it, measured once it mounts.
 ///
 /// `role` and `aria_labelledby` are for content that is a dialog of its own,
 /// such as a form: the TS port forwards them as plain props.
@@ -87,9 +86,28 @@ pub fn PopoverContent(
 	move || {
 		ctx.open.get().then(|| {
 			let children = children.clone();
+			let (viewport, panel) = (NodeRef::<leptos::html::Div>::new(), NodeRef::<leptos::html::Div>::new());
+			let measured = cfg!(all(target_arch = "wasm32", feature = "wasm"));
+			let shift = RwSignal::new((!measured).then_some(0.)); // off the web nothing measures: placed as `align` says
+			#[cfg(all(target_arch = "wasm32", feature = "wasm"))]
+			Effect::new(move || {
+				if let (Some(v), Some(p)) = (viewport.get(), panel.get()) {
+					let (v, p) = (v.get_bounding_client_rect(), p.get_bounding_client_rect());
+					shift.set(Some(crate::ui::uikit::core::popover_shift((p.left(), p.right()), (v.left(), v.right()))));
+				}
+			});
 			view! {
-				<div class="fixed inset-0 z-40" on:click=move |_| ctx.layer.on_outside()></div>
 				<div
+					node_ref=viewport
+					class="fixed inset-0 z-40"
+					on:click=move |_| ctx.layer.on_outside()
+				></div>
+				<div
+					node_ref=panel
+					style=move || match shift.get() {
+						Some(dx) => format!("visibility: visible; transform: translateX({dx}px)"),
+						None => "visibility: hidden; transform: none".into(),
+					}
 					role=role.clone()
 					aria-labelledby=aria_labelledby.clone()
 					class=cls.clone()

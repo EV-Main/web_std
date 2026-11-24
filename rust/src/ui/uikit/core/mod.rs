@@ -36,7 +36,7 @@ pub use menu::navigation_menu_trigger_style;
 #[cfg(test)]
 pub(crate) use order::Unplaced;
 pub(crate) use order::{Placement, sort_by_position};
-pub(crate) use popover::popover_placement;
+pub(crate) use popover::{popover_placement, popover_shift};
 pub use primitives::DismissReason;
 pub(crate) use primitives::{LayerStack, Roving};
 pub use section_label::SectionLabelAs;

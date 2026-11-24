@@ -3,7 +3,7 @@ use dioxus::prelude::*;
 use crate::{
 	cn,
 	ui::uikit::{
-		core::popover_placement,
+		core::{popover_placement, popover_shift},
 		dioxus::{
 			POPOVER_CONTENT, Slot,
 			primitives::{Controllable, DismissableLayer, Side, use_controllable, use_dismissable_layer},
@@ -60,9 +60,8 @@ pub fn PopoverAnchor(#[props(default)] class: String, children: Element) -> Elem
 }
 
 /// `align` pins the panel's edge to the trigger's: `start` is the left edge,
-/// `end` the right, anything else centres it. Without a measuring layer this is
-/// all the placement there is, and a wide panel under a trigger at the edge of
-/// its container needs `start` or `end` to stay in view.
+/// `end` the right, anything else centres it. A panel that would cross the
+/// viewport's side is then shifted back inside it, measured once it mounts.
 ///
 /// `role` and `aria_labelledby` are for content that is a dialog of its own,
 /// such as a form: the TS port forwards them as plain props.
@@ -81,12 +80,24 @@ pub fn PopoverContent(
 	}
 	let cls = cn!(POPOVER_CONTENT, popover_placement(&align), class);
 	let layer = ctx.layer.clone();
+	let mut viewport = use_signal(|| None::<std::rc::Rc<MountedData>>);
+	let mut shift = use_signal(|| None::<f64>);
 	rsx! {
 		div {
 			class: "fixed inset-0 z-40",
+			onmounted: move |e| viewport.set(Some(e.data())),
 			onclick: move |_| layer.on_outside(),
 		}
 		div {
+			style: match shift() { Some(dx) => format!("visibility: visible; transform: translateX({dx}px)"), None => "visibility: hidden; transform: none".into() },
+			onmounted: move |e| async move {
+				let view = viewport.peek().clone().expect("the backdrop mounts before the panel after it");
+				let (Ok(view), Ok(panel)) = (view.get_client_rect().await, e.data().get_client_rect().await) else {
+					shift.set(Some(0.)); // a renderer without layout: placed as `align` says
+					return;
+				};
+				shift.set(Some(popover_shift((panel.min_x(), panel.max_x()), (view.min_x(), view.max_x()))));
+			},
 			role,
 			"aria-labelledby": aria_labelledby,
 			class: cls,

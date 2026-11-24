@@ -867,7 +867,8 @@ measuring needs host-only `web-sys`). Known gaps:
 - **Theme:** single dark palette; `dark:*` utility variants are dropped.
 - **Rust overlays** (dialog, popover, dropdown, select, menus, tooltip, …) render
   inline with `position:fixed` + a backdrop and CSS-only placement — no portal,
-  no viewport-measured floating, native focus order (no trap). TS overlays use a
+  no viewport-measured floating (a `Popover`'s panel alone is shifted sideways
+  back into the viewport once mounted), native focus order (no trap). TS overlays use a
   real `Portal`, single-flip `useFloating` (absolute in the document, so it
   scrolls with the page natively), `useDismissableLayer`, and `useFocusScope`.
 - **overlay layers (TS):** every TS overlay is on one dismissable-layer stack.

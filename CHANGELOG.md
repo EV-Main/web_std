@@ -665,6 +665,8 @@ Rust crate and its TypeScript mirror at once.
 
 ### Fixed
 
+- **Rust `Popover` stays in the viewport** (Dioxus, Leptos): a panel that would cross
+  the viewport's side is shifted back inside it, 8px off the edge, measured once it mounts.
 - **`cn!` merges the `(--var)` shorthand like `tailwind-merge`** (`ev_lib`
   `uikit`): `rounded-(--control-radius)` replaces `rounded-full` instead of
   sitting beside it.
